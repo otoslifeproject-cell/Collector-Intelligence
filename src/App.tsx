@@ -12,6 +12,7 @@ import Sales from './pages/Sales'
 import Contacts from './pages/Contacts'
 import Reports from './pages/Reports'
 import Login from './pages/Login'
+import AIIntake from './pages/AIIntake'
 
 export default function App() {
   const [session,setSession] = useState<Session|null>(null)
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/" element={<Dashboard/>}/>
           <Route path="/inventory" element={<Inventory/>}/>
           <Route path="/new" element={<NewItem/>}/>
+          <Route path="/intake" element={<AIIntake/>}/>
           <Route path="/item/:id" element={<ItemDetail/>}/>
           <Route path="/research" element={<Research/>}/>
           <Route path="/sales" element={<Sales/>}/>
