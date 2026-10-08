@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Camera, ExternalLink, Save, ShieldAlert } from 'lucide-react'
+import { Camera, Check, ExternalLink, LoaderCircle, Save, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Comparable, Item, ItemPhoto } from '../types'
 import { date, money } from '../lib/format'
@@ -15,6 +15,9 @@ export default function ItemDetail() {
   const [message,setMessage] = useState('')
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
+  const [researching,setResearching] = useState(false)
+  const [researchDraft,setResearchDraft] = useState<any|null>(null)
+  const [researchRunId,setResearchRunId] = useState<string|null>(null)
 
   const load = async () => {
     if (!id) return
@@ -60,6 +63,159 @@ export default function ItemDetail() {
     setUploading(false); await load()
   }
 
+
+  const runResearch = async () => {
+    if (!item) return
+    setResearching(true)
+    setMessage('Researching live market evidence…')
+    const {data:{session}} = await supabase.auth.getSession()
+    if (!session) { setResearching(false); return setMessage('Session expired. Sign in again.') }
+    try {
+      const response = await fetch('/api/research-item',{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
+        body:JSON.stringify({item,images:Object.values(photoUrls).filter(Boolean).slice(0,12)})
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Research failed')
+      setResearchDraft(payload.result)
+      const {data:run} = await supabase.from('ai_analysis_runs').insert({
+        mode:'research',
+        model:payload.model || 'unknown',
+        status:'DRAFT',
+        input_photo_count:Object.values(photoUrls).filter(Boolean).length,
+        user_context:{item_id:item.id,item_code:item.item_code},
+        result:payload.result
+      }).select('id').single()
+      if (run?.id) setResearchRunId(run.id)
+      setMessage('Research draft ready. Review before writing it back.')
+    } catch (err:any) {
+      setMessage(err?.message || 'Research failed')
+    } finally {
+      setResearching(false)
+    }
+  }
+
+  const approveResearch = async () => {
+    if (!item || !researchDraft) return
+    setResearching(true)
+    setMessage('Writing verified research back to the permanent record…')
+    try {
+      const idu = researchDraft.identification_update || {}
+      const v = researchDraft.valuation || {}
+      const r = researchDraft.routing || {}
+
+      const updatePayload:any = {
+        maker: idu.maker ?? item.maker,
+        current_attribution: idu.attribution ?? item.current_attribution,
+        period_wording: idu.period_wording ?? item.period_wording,
+        region_country: idu.region_country ?? item.region_country,
+        identification_confidence: idu.identification_confidence ?? item.identification_confidence,
+        dating_confidence: idu.dating_confidence ?? item.dating_confidence,
+        valuation_confidence: v.valuation_confidence ?? item.valuation_confidence,
+        currency: v.currency || item.currency || 'GBP',
+        quick_sale_value: v.quick_sale_value,
+        balanced_value_low: v.balanced_low,
+        balanced_value_high: v.balanced_high,
+        auction_value_low: v.auction_low,
+        auction_value_high: v.auction_high,
+        private_sale_low: v.private_low,
+        private_sale_high: v.private_high,
+        dealer_asking_low: v.dealer_asking_low,
+        dealer_asking_high: v.dealer_asking_high,
+        sale_readiness: r.sale_readiness || item.sale_readiness,
+        strategy: r.strategy || null,
+        best_venue: r.best_venue,
+        backup_venue: r.backup_venue,
+        status: r.specialist_review ? 'SPECIALIST_REVIEW' : (r.sale_readiness === 'SELL_NOW' ? 'READY_TO_SELL' : 'RESEARCH'),
+        catalogue_review_status:'RESEARCH_VERIFIED',
+        notes:[item.notes || '', researchDraft.research_summary ? `Research summary: ${researchDraft.research_summary}` : '', v.notes ? `Valuation notes: ${v.notes}` : ''].filter(Boolean).join('\n\n')
+      }
+      const {error:updateError} = await supabase.from('items').update(updatePayload).eq('id',item.id)
+      if (updateError) throw updateError
+
+      await supabase.from('attribution_history').update({
+        attribution_status:'PREVIOUS',
+        valid_to:new Date().toISOString()
+      }).eq('item_id',item.id).eq('attribution_status','CURRENT')
+
+      if (idu.attribution || idu.maker) {
+        const {error} = await supabase.from('attribution_history').insert({
+          item_id:item.id,
+          attribution_text:idu.attribution || idu.maker || item.title || item.object_type || 'Unattributed object',
+          maker:idu.maker,
+          region_country:idu.region_country,
+          period_wording:idu.period_wording,
+          confidence:idu.identification_confidence,
+          attribution_status:'CURRENT',
+          evidence_summary:idu.rationale,
+          change_reason:'Live web research review'
+        })
+        if (error) throw error
+      }
+
+      if (Array.isArray(researchDraft.comparables) && researchDraft.comparables.length) {
+        const rows = researchDraft.comparables.map((c:any)=>({
+          item_id:item.id,
+          venue:c.venue,
+          source_reference:c.source_reference || c.source_url || 'Research source',
+          source_url:c.source_url,
+          date_checked:new Date().toISOString().slice(0,10),
+          sale_date:c.sale_date || null,
+          price_type:c.price_type,
+          price:c.price,
+          currency:c.currency,
+          description:c.description,
+          maker_attribution:c.maker_attribution,
+          dimensions:c.dimensions,
+          condition_summary:c.condition_summary,
+          comparability_grade:c.comparability_grade,
+          verification_status:c.verification_status,
+          notes:c.notes
+        }))
+        const {error} = await supabase.from('comparables').insert(rows)
+        if (error) throw error
+      }
+
+      const {error:valError} = await supabase.from('valuation_history').insert({
+        item_id:item.id,
+        identification_confidence:idu.identification_confidence,
+        dating_confidence:idu.dating_confidence,
+        valuation_confidence:v.valuation_confidence,
+        quick_sale_value:v.quick_sale_value,
+        balanced_low:v.balanced_low,
+        balanced_high:v.balanced_high,
+        auction_low:v.auction_low,
+        auction_high:v.auction_high,
+        private_sale_low:v.private_low,
+        private_sale_high:v.private_high,
+        dealer_asking_low:v.dealer_asking_low,
+        dealer_asking_high:v.dealer_asking_high,
+        currency:v.currency || 'GBP',
+        methodology_notes:v.notes
+      })
+      if (valError) throw valError
+
+      if (Array.isArray(researchDraft.next_evidence) && researchDraft.next_evidence.length) {
+        await supabase.from('research_tasks').insert(researchDraft.next_evidence.map((n:any)=>({
+          item_id:item.id,
+          task_type:'EVIDENCE',
+          title:n.title,
+          information_value:n.information_value,
+          notes:n.why
+        })))
+      }
+
+      if (researchRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',researchRunId)
+      setResearchDraft(null)
+      setMessage('Research approved and written back.')
+      await load()
+    } catch (err:any) {
+      setMessage(err?.message || 'Could not save research')
+    } finally {
+      setResearching(false)
+    }
+  }
 
 
   if (!item) return <div className="empty">Loading object record…</div>
@@ -144,10 +300,38 @@ export default function ItemDetail() {
 
       {tab==='identification' && <div className="panel"><div className="panelHeader"><h2>Identification & evidence</h2><span>FACT / attribution / unknown should be preserved separately</span></div><div className="empty"><p>The schema is ready for object-level evidence and attribution history. AI write-back will populate this layer after the first five-item run.</p></div></div>}
 
-      {tab==='market' && <div className="panel">
-        <div className="panelHeader"><h2>Comparable evidence</h2><span>{comps.length} records</span></div>
-        {comps.length===0 ? <div className="empty">No comparable sales recorded yet.</div> :
-        <div className="tableWrap"><table><thead><tr><th>Venue</th><th>Date</th><th>Evidence class</th><th>Description</th><th>Price</th><th>Verification</th></tr></thead><tbody>{comps.map(c=><tr key={c.id}><td>{c.venue}</td><td>{date(c.sale_date)}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{c.description}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')} {c.source_url && <a href={c.source_url} target="_blank"><ExternalLink size={13}/></a>}</td></tr>)}</tbody></table></div>}
+      {tab==='market' && <div className="marketStack">
+        <div className="panel researchLauncher">
+          <div>
+            <div className="eyebrow">LIVE MARKET RESEARCH</div>
+            <h2>Verify attribution, sold evidence and sale route</h2>
+            <p>Uses live web search. Sold/realized evidence is kept separate from estimates and asking prices.</p>
+          </div>
+          <button className="primaryButton inlineButton" onClick={runResearch} disabled={researching}>
+            {researching ? <><LoaderCircle className="spin" size={17}/> Researching…</> : <><Search size={17}/> Run verified research</>}
+          </button>
+        </div>
+
+        {researchDraft && <div className="panel researchDraftPanel">
+          <div className="panelHeader"><div><h2>Research draft</h2><span>Review before permanent write-back</span></div><span className="pill accent">DRAFT</span></div>
+          <div className="researchSummary">{researchDraft.research_summary}</div>
+          <div className="researchMetricGrid">
+            <div><small>Attribution</small><strong>{researchDraft.identification_update?.attribution || researchDraft.identification_update?.maker || 'Unresolved'}</strong><span>{researchDraft.identification_update?.identification_confidence}% ID confidence</span></div>
+            <div><small>Balanced value</small><strong>{money(researchDraft.valuation?.balanced_low,researchDraft.valuation?.currency||'GBP')}–{money(researchDraft.valuation?.balanced_high,researchDraft.valuation?.currency||'GBP')}</strong><span>{researchDraft.valuation?.valuation_confidence}% value confidence</span></div>
+            <div><small>Route</small><strong>{researchDraft.routing?.best_venue || 'Research first'}</strong><span>{researchDraft.routing?.sale_readiness?.replaceAll('_',' ')}</span></div>
+          </div>
+          {researchDraft.identification_update?.contradictions?.length>0 && <div className="warningCallout"><ShieldAlert size={18}/><div><strong>Contradictions / cautions</strong>{researchDraft.identification_update.contradictions.map((x:string,i:number)=><div key={i}>{x}</div>)}</div></div>}
+          <div className="tableWrap researchPreviewTable"><table><thead><tr><th>Venue</th><th>Class</th><th>Price</th><th>Verification</th><th>Comparable</th></tr></thead><tbody>
+            {(researchDraft.comparables||[]).map((c:any,i:number)=><tr key={i}><td>{c.venue}{c.source_url && <> <a href={c.source_url} target="_blank"><ExternalLink size={12}/></a></>}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')}</td><td>{c.comparability_grade}</td></tr>)}
+          </tbody></table></div>
+          <div className="researchApprove"><button className="secondaryButton" onClick={()=>setResearchDraft(null)} disabled={researching}>Discard draft</button><button className="primaryButton inlineButton" onClick={approveResearch} disabled={researching}><Check size={17}/> Approve research & write back</button></div>
+        </div>}
+
+        <div className="panel">
+          <div className="panelHeader"><h2>Comparable evidence</h2><span>{comps.length} permanent records</span></div>
+          {comps.length===0 ? <div className="empty">No permanent comparable sales recorded yet.</div> :
+          <div className="tableWrap"><table><thead><tr><th>Venue</th><th>Date</th><th>Evidence class</th><th>Description</th><th>Price</th><th>Verification</th></tr></thead><tbody>{comps.map(c=><tr key={c.id}><td>{c.venue}</td><td>{date(c.sale_date)}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{c.description}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')} {c.source_url && <a href={c.source_url} target="_blank"><ExternalLink size={13}/></a>}</td></tr>)}</tbody></table></div>}
+        </div>
       </div>}
 
       {tab==='sales' && <div className="panel"><div className="panelHeader"><h2>Sales record</h2><span>Listings and actual outcomes</span></div><div className="valueSummary"><div><small>Acquisition</small><strong>{money(item.acquisition_price,item.acquisition_currency||'GBP')}</strong></div><div><small>Fast cash</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div><div><small>Expected net</small><strong>{money(item.expected_net,item.currency||'GBP')}</strong></div></div><div className="empty"><p>Platform listings and final sale outcomes are stored separately so asking price is never confused with achieved value.</p></div></div>}
