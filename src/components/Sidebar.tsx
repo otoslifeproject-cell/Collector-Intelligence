@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom'
 import {
   Boxes, ChartNoAxesCombined, CircleDollarSign, FlaskConical,
-  LayoutDashboard, LogOut, PlusCircle, Search, Settings, UsersRound
+  LayoutDashboard, LogOut, PlusCircle, Search, Settings, UsersRound, Sparkles
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 const links = [
   ['/', 'Dashboard', LayoutDashboard],
   ['/inventory', 'Inventory', Boxes],
+  ['/intake', 'AI intake', Sparkles],
   ['/new', 'Add item', PlusCircle],
   ['/research', 'Research', FlaskConical],
   ['/sales', 'Sales', CircleDollarSign],
