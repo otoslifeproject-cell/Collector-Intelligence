@@ -5,20 +5,36 @@ import pg from 'pg'
 
 const { Client } = pg
 const PROJECT_REF = 'bwdafrwkimjvwfoqomot'
-const dbUrl =
-  process.env.POSTGRES_URL_NON_POOLING ||
-  process.env.POSTGRES_PRISMA_URL ||
-  process.env.POSTGRES_URL ||
-  process.env.DATABASE_URL ||
-  ''
+const candidateUrls = [
+  ['POSTGRES_URL', process.env.POSTGRES_URL],
+  ['POSTGRES_PRISMA_URL', process.env.POSTGRES_PRISMA_URL],
+  ['POSTGRES_URL_NON_POOLING', process.env.POSTGRES_URL_NON_POOLING],
+  ['DATABASE_URL', process.env.DATABASE_URL]
+].filter(([, value]) => Boolean(value))
 
-if (!dbUrl) {
+if (!candidateUrls.length) {
   console.log('[CI migrations] No database URL in this build environment; skipping database migration step.')
   process.exit(0)
 }
 
-if (!dbUrl.includes(PROJECT_REF)) {
-  console.error('[CI migrations] SAFETY STOP: database URL is not the canonical Collector Intelligence project.')
+const publicSupabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  ''
+
+if (publicSupabaseUrl && !publicSupabaseUrl.includes(PROJECT_REF)) {
+  console.error('[CI migrations] SAFETY STOP: Supabase public URL is not the canonical Collector Intelligence project.')
+  console.error(`[CI migrations] Expected project ref: ${PROJECT_REF}`)
+  process.exit(3)
+}
+
+const safeCandidates = candidateUrls.filter(([, value]) =>
+  value.includes(PROJECT_REF) || publicSupabaseUrl.includes(PROJECT_REF)
+)
+
+if (!safeCandidates.length) {
+  console.error('[CI migrations] SAFETY STOP: could not prove the database connection belongs to Collector Intelligence.')
   console.error(`[CI migrations] Expected project ref: ${PROJECT_REF}`)
   process.exit(3)
 }
@@ -28,10 +44,33 @@ const files = fs.readdirSync(migrationsDir)
   .filter(name => /^\d+.*\.sql$/.test(name))
   .sort()
 
-const client = new Client({
-  connectionString: dbUrl,
-  ssl: { rejectUnauthorized: false }
-})
+let client = null
+let connectionSource = null
+
+async function connectDatabase() {
+  let lastError = null
+
+  for (const [source, connectionString] of safeCandidates) {
+    const candidate = new Client({
+      connectionString,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 8000
+    })
+
+    try {
+      await candidate.connect()
+      client = candidate
+      connectionSource = source
+      return
+    } catch (error) {
+      lastError = error
+      await candidate.end().catch(() => {})
+      console.warn(`[CI migrations] Could not connect using ${source}; trying the next approved CI connection.`)
+    }
+  }
+
+  throw lastError || new Error('No approved Collector Intelligence database connection succeeded.')
+}
 
 const sha256 = text => crypto.createHash('sha256').update(text).digest('hex')
 
@@ -88,8 +127,8 @@ async function record(filename, checksum, source) {
 }
 
 try {
-  await client.connect()
-  console.log(`[CI migrations] Connected to canonical Collector Intelligence project ${PROJECT_REF}.`)
+  await connectDatabase()
+  console.log(`[CI migrations] Connected to canonical Collector Intelligence project ${PROJECT_REF} via ${connectionSource}.`)
 
   await client.query(`
     create table if not exists public.ci_migration_history (
@@ -148,5 +187,5 @@ try {
   console.error('[CI migrations] Migration failed:', error?.message || error)
   process.exitCode = 1
 } finally {
-  await client.end().catch(()=>{})
+  if (client) await client.end().catch(()=>{})
 }
