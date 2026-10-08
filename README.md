@@ -140,3 +140,36 @@ After the first five real records have been entered, build:
 7. multi-select bulk actions;
 8. location / storage management;
 9. analytics from actual sale outcomes.
+
+
+## AI catalogue intake
+
+The normal collection workflow is now photo-first:
+
+1. Open **AI intake**.
+2. Choose **One object** or **Mixed batch — up to 5**.
+3. Upload photographs and only the facts you actually know.
+4. Collector Intelligence separates objects, inspects visual evidence and creates editable drafts.
+5. Nothing becomes permanent until the owner clicks **Approve**.
+6. Approved drafts create immutable CI item records, photo links, object-level evidence, attribution history and next-evidence research tasks.
+7. On an item’s **Market** tab, **Run verified research** uses live web search to research attribution, comparable evidence, valuation and venue routing; again, the result is a draft until approved.
+
+### Required one-time setup
+
+Run this migration in the dedicated Collector Intelligence Supabase project:
+
+`supabase/migrations/004_ai_intake.sql`
+
+Then add this **server-only** environment variable in Vercel:
+
+`OPENAI_API_KEY`
+
+Do not expose that key with a `VITE_` or `NEXT_PUBLIC_` prefix.
+
+Optional model variables:
+
+`OPENAI_INTAKE_MODEL=gpt-6-luna`
+
+`OPENAI_RESEARCH_MODEL=gpt-6-luna`
+
+The browser never receives the OpenAI API key. The Vercel API routes validate the user’s Supabase session before calling the OpenAI Responses API.
