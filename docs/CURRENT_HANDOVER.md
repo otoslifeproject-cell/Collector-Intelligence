@@ -56,3 +56,6 @@ Commit `fcbe91f` changes item research write-back to `OWNER_REVIEWED`; formerly 
 
 ## 2026-10-09 — Identification evidence tab
 Commit `c900be6` replaces the placeholder Identification tab with live `item_evidence` and `attribution_history` views, preserving source and verification statuses. GitHub deployment check pending at recording time; needs test against real owned item. User priority remains cataloguing/selling and source-trust discipline.
+
+## 2026-10-09 — Regression #2 and diagnostics
+User reran identical 12-image Holmegaard candidate. Draft ID 55%, date 25%, value 20%; failed maker/inscription again. Do not approve generic draft. Main now has `3f6434c` diagnostic server status and `da6abca` UI status to distinguish second-pass not triggered/failure/completed. Deployment and live test not yet verified. Prioritize cause diagnosis rather than repeating blind Gateway calls. Mark source reading hypothesis only; do not preload target identity into blind image recognition.
