@@ -111,7 +111,7 @@ export default function ItemDetail() {
         ['HAMMER_REALIZED','REALIZED_INCL_BP','MARKETPLACE_SOLD','DEALER_SOLD_CONFIRMED'].includes(c.price_type)
       )
       // Owner approval is not equivalent to independent source verification.
-      const reviewStatus = hasDirectVerifiedSource ? 'RESEARCH_VERIFIED' : 'OWNER_REVIEWED'
+      const reviewStatus = 'OWNER_REVIEWED' // Model-provided verification labels are claims, not independently verified facts.
 
       const updatePayload:any = {
         maker: idu.maker ?? item.maker,
@@ -216,7 +216,7 @@ export default function ItemDetail() {
 
       if (researchRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',researchRunId)
       setResearchDraft(null)
-      setMessage(hasDirectVerifiedSource ? 'Research written back with directly verified comparable evidence.' : 'Research written back as PROVISIONAL: no directly verified sold comparable was supplied.')
+      setMessage(hasDirectVerifiedSource ? 'Research saved for owner review; source verification remains required.' : 'Research written back as PROVISIONAL: no directly verified sold comparable was supplied.')
       await load()
     } catch (err:any) {
       setMessage(err?.message || 'Could not save research')
