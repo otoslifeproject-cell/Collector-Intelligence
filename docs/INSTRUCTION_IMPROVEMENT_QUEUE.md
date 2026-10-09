@@ -28,3 +28,5 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 | CI-009 | Research endpoint accepts only permanent items | Stage internal-first maker/design source retrieval and optional external verification before sale-ready valuation, without forcing approval of weak draft | Database-schema audit, citations/freshness and test | Proposed |
 
 | CI-010 | PR #1 merged but live regression incomplete | Verify production readiness, run one controlled image-set regression, inspect citation/attribution correctness and Gateway spend | Evidence from actual UI and billing | Awaiting test |
+
+| CI-011 | AI research draft owner approval was labelled RESEARCH_VERIFIED without independent source checking | Always preserve OWNER_REVIEWED until direct source validation is separately evidenced | Verify owner approval and a later independent-review workflow | Implemented on main; deployment/test pending |
