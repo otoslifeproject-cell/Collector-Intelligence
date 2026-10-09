@@ -11,6 +11,8 @@ export default function ItemDetail() {
   const [item,setItem] = useState<Item|null>(null)
   const [photos,setPhotos] = useState<ItemPhoto[]>([])
   const [comps,setComps] = useState<Comparable[]>([])
+  const [evidenceRecords,setEvidenceRecords] = useState<any[]>([])
+  const [attributionVersions,setAttributionVersions] = useState<any[]>([])
   const [tab,setTab] = useState('overview')
   const [message,setMessage] = useState('')
   const [uploading,setUploading] = useState(false)
@@ -27,6 +29,12 @@ export default function ItemDetail() {
       supabase.from('comparables').select('*').eq('item_id',id).order('sale_date',{ascending:false})
     ])
     setItem(itemData as Item); setPhotos((photoData||[]) as ItemPhoto[]); setComps((compData||[]) as Comparable[])
+    const [ev,ah] = await Promise.all([
+      supabase.from('item_evidence').select('*').eq('item_id',id).order('created_at',{ascending:false}),
+      supabase.from('attribution_history').select('*').eq('item_id',id).order('created_at',{ascending:false})
+    ])
+    setEvidenceRecords(ev.data||[])
+    setAttributionVersions(ah.data||[])
     const rows = (photoData || []) as ItemPhoto[]
     if (rows.length) {
       const signed = await Promise.all(rows.map(async p => {
@@ -306,7 +314,22 @@ export default function ItemDetail() {
         <div className="note">Image previews use short-lived signed URLs from the private Supabase bucket.</div>
       </div>}
 
-      {tab==='identification' && <div className="panel"><div className="panelHeader"><h2>Identification & evidence</h2><span>FACT / attribution / unknown should be preserved separately</span></div><div className="empty"><p>The schema is ready for object-level evidence and attribution history. AI write-back will populate this layer after the first five-item run.</p></div></div>}
+      {tab==='identification' && <div className="marketStack">
+        <div className="panel">
+          <div className="panelHeader"><h2>Attribution revision history</h2><span>{attributionVersions.length} recorded versions</span></div>
+          {attributionVersions.length===0 ? <div className="empty">No attribution revisions recorded yet.</div> :
+          <div className="tableWrap"><table><thead><tr><th>Status</th><th>Attribution</th><th>Confidence</th><th>Reason / evidence</th></tr></thead><tbody>
+            {attributionVersions.map((v:any)=><tr key={v.id}><td>{v.attribution_status||'—'}</td><td>{v.attribution_text||v.maker||'Unattributed'}<div>{v.period_wording||''}</div></td><td>{v.confidence===null?'—':(v.confidence||0)+'%'}</td><td>{v.change_reason||v.evidence_summary||'—'}</td></tr>)}
+          </tbody></table></div>}
+        </div>
+        <div className="panel">
+          <div className="panelHeader"><h2>Object-level evidence</h2><span>{evidenceRecords.length} recorded claims</span></div>
+          {evidenceRecords.length===0 ? <div className="empty">No evidence records yet.</div> :
+          <div className="tableWrap"><table><thead><tr><th>Class</th><th>Observation / claim</th><th>Source</th><th>Verification</th></tr></thead><tbody>
+            {evidenceRecords.map((e:any)=><tr key={e.id}><td>{e.certainty_class||'—'}<div>{e.stance||''}</div></td><td>{e.claim}<div>{e.notes||''}</div></td><td>{e.source_reference||e.provenance||'—'}</td><td>{e.verification_status||'UNVERIFIED'}</td></tr>)}
+          </tbody></table></div>}
+        </div>
+      </div>}
 
       {tab==='market' && <div className="marketStack">
         <div className="panel researchLauncher">
