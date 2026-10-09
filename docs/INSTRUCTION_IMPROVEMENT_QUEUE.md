@@ -30,3 +30,5 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 | CI-010 | PR #1 merged but live regression incomplete | Verify production readiness, run one controlled image-set regression, inspect citation/attribution correctness and Gateway spend | Evidence from actual UI and billing | Awaiting test |
 
 | CI-011 | AI research draft owner approval was labelled RESEARCH_VERIFIED without independent source checking | Always preserve OWNER_REVIEWED until direct source validation is separately evidenced | Verify owner approval and a later independent-review workflow | Implemented on main; deployment/test pending |
+
+| CI-012 | Identification tab was only a placeholder despite existing database records | Show immutable attribution versions and provenance/verification of item-level evidence | Vercel build and test with populated item record | Implemented, awaiting test |
