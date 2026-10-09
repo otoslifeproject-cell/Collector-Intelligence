@@ -268,7 +268,7 @@ async function loadCanonicalContext(url: string, key: string, token: string) {
   if (!resp.ok) throw new Error("CANONICAL_ACCESS_" + resp.status);
   const rows = await resp.json();
   if (!Array.isArray(rows)) throw new Error("CANONICAL_INVALID");
-  const selected = keys.map(k=>rows.find((x:any)=>x.document_key===k));
+  const selected = keys.map(k=>rows.find((x:any)=>x.document_key===k && typeof x.content==="string" && x.content.length>=400 && !x.content.startsWith("No readable content")));
   if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
   return {
     instructions: keys.map((k,i)=>"SOURCE DOCUMENT "+k+" [SHA256 "+selected[i].content_sha256+"]\n"+selected[i].content).join("\n\n"),
