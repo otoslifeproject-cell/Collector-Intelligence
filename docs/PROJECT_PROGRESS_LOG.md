@@ -89,3 +89,6 @@ Commit `732ead4` revises the intake and second-look instructions to distinguish 
 **Authoritative artifacts:** docs/CANONICAL_GOVERNANCE_AND_SOURCE_TRUST_PROTOCOL.md, docs/RECOVERY_MANIFEST_2026-10-10.md, skills/15_NO_DRIFT_MIGRATION_AND_SOURCE_TRUST.md, version-controlled migration SQL.
 
 **Pending:** latest logs/skills publication to DB, photo asset byte verification, authenticated UI smoke test, workbook Storage backup, independent seller/auction verification and Holmegaard retest.
+
+## 2026-10-10 — Original image retention safeguard
+Supabase Storage `item-images` confirmed PRIVATE (`public=false`) with owner-path scoped SELECT/INSERT/UPDATE/DELETE policies. Found AIIntake approval was deleting original temporary uploaded photos after copying to a permanent item, which would invalidate historical intake evidence manifests. Commit `3f2c8ad` removes that automatic deletion; originals remain preserved alongside approved copies for evidential traceability. Requires Vercel deployment check and authenticated approval test before fully verified. Storage owner can still manually delete via authorized actions, so retention is an application workflow guarantee rather than WORM/immutable storage.
