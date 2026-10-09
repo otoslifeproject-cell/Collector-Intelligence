@@ -54,6 +54,7 @@ export default function AIIntake() {
   const [context,setContext] = useState(emptyContext)
   const [drafts,setDrafts] = useState<DraftObject[]>([])
   const [batchSummary,setBatchSummary] = useState('')
+  const [inscriptionReview,setInscriptionReview] = useState<any>(null)
   const [analysisRunId,setAnalysisRunId] = useState<string|null>(null)
   const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'>('upload')
   const [message,setMessage] = useState('')
@@ -162,6 +163,7 @@ export default function AIIntake() {
       const objects = (payload.result?.objects || []).map((o:DraftObject)=>({...o,include:true}))
       setDrafts(objects)
       setBatchSummary(payload.result?.batch_summary || '')
+      setInscriptionReview(payload.inscription_review || null)
       setMessage('Review the draft. Nothing has been written to the permanent catalogue yet.')
 
       const {data:run} = await supabase.from('ai_analysis_runs').insert({
@@ -170,7 +172,7 @@ export default function AIIntake() {
         status:'DRAFT',
         input_photo_count: uploaded.length,
         user_context: context,
-        result: payload.result
+        result: { ...payload.result, inscription_review: payload.inscription_review || null }
       }).select('id').single()
       if (run?.id) setAnalysisRunId(run.id)
       setStage('review')
@@ -404,10 +406,20 @@ export default function AIIntake() {
               <span className="pill">{d.sale_readiness.replaceAll('_',' ')}</span>
               {d.specialist_review && <span className="pill riskPill">PROTECT / SPECIALIST</span>}
             </div>
+            {d.marks_signatures_labels && <div className="panel" style={{padding:12,marginTop:12}}>
+              <strong>Marks and inscriptions — check original photo</strong>
+              <p>{d.marks_signatures_labels}</p>
+              {inscriptionReview?.mark_visible && d.image_indices.some((i:number)=>(inscriptionReview.evidence_image_indices||[]).includes(i)) && <div>
+                <p><strong>Candidate transcription:</strong> {inscriptionReview.candidate_transcription || 'Not reliably readable'}</p>
+                <p>Transcription confidence: {inscriptionReview.transcription_confidence}% · Unverified — visual examination only</p>
+                <p>Original photograph numbers: {(inscriptionReview.evidence_image_indices||[]).map((i:number)=>i+1).join(', ') || 'Not identified'}</p>
+                <p>{inscriptionReview.rationale}</p>
+              </div>}
+            </div>}
             <label>Condition<textarea rows={3} value={d.condition_summary} onChange={e=>patchDraft(idx,'condition_summary',e.target.value)}/></label>
             <div className="draftEvidence">
               <strong>Evidence captured</strong>
-              {d.evidence.slice(0,5).map((ev,i)=><div key={i}><span>{ev.certainty_class.replaceAll('_',' ')}</span>{ev.claim}</div>)}
+              {d.evidence.map((ev,i)=><div key={i}><span>{ev.certainty_class.replaceAll('_',' ')}</span>{ev.claim}</div>)}
             </div>
             {d.next_evidence.length>0 && <div className="nextEvidence"><strong>Best next evidence</strong>{d.next_evidence.slice(0,3).map((n,i)=><div key={i}>{n.title} <small>{n.information_value}/100</small></div>)}</div>}
             <div className="provisionalValue">
