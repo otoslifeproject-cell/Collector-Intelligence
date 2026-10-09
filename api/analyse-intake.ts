@@ -179,6 +179,37 @@ function applyInscriptionReview(result: any, review: any) {
   return result;
 }
 
+// Read-only, owner-scoped Knowledge Brain retrieval. Never promote an AI similarity match
+// to verified attribution without corroborating its original source.
+async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userToken: string, result: any) {
+  const objects = Array.isArray(result?.objects) ? result.objects : [];
+  const terms = [...new Set(objects.flatMap((o: any) =>
+    [o.object_type, o.maker, o.current_attribution, o.marks_signatures_labels]
+      .filter((v: any) => typeof v === "string")
+      .flatMap((v: string) => v.toLowerCase().match(/[a-zÀ-ÿ]{4,}/g) || [])
+  ))].filter(t => !["unknown","possible","glass","clear","white","heavy","bowl","visible","unreadable","marked","signed","colour","maker"].includes(t)).slice(0, 12);
+  if (!terms.length) return { status:"NO_DISCRIMINATING_TERMS", matches:[] };
+  const query = new URLSearchParams({
+    select:"id,knowledge_type,entity_type,entity_key,claim,certainty_class,confidence,evidence_provenance,source_reference,source_url,source_date,last_verified,freshness_requirement,verification_status,stance,tags,supersedes_id",
+    limit:"100",
+    order:"updated_at.desc"
+  });
+  const response = await fetch(`${supabaseUrl}/rest/v1/knowledge_records?${query}`, {
+    headers:{ apikey:supabaseKey, Authorization:`Bearer ${userToken}` }
+  });
+  if (!response.ok) return {status:"QUERY_ERROR_" + response.status,matches:[]};
+  const records = await response.json();
+  if (!Array.isArray(records)) return {status:"INVALID_RESPONSE",matches:[]};
+  const matches = records.filter((k:any) => {
+    const text = [k.entity_key,k.entity_type,k.claim,...(Array.isArray(k.tags)?k.tags:[])].filter(Boolean).join(" ").toLowerCase();
+    return terms.some(t=>text.includes(t)) && !records.some((x:any)=>x.supersedes_id===k.id);
+  }).slice(0,12).map((k:any)=>({
+    ...k, freshness_flag: !k.last_verified ? "UNVERIFIED_DATE" :
+      (Date.now()-Date.parse(k.last_verified)>365*86400000 ? "CHECK_FRESHNESS":"RECENTLY_CHECKED")
+  }));
+  return {status:matches.length?"MATCHES_FOUND":"NO_MATCHES",query_terms:terms,matches};
+}
+
 function extractText(payload: any) {
   if (typeof payload.output_text === "string" && payload.output_text) return payload.output_text;
   for (const item of payload.output || []) {
@@ -279,6 +310,9 @@ export default async function handler(req: any, res: any) {
 
   try {
     let result = JSON.parse(text);
+    let knowledge_lookup: any = {status:'NOT_ATTEMPTED',matches:[]};
+    try { knowledge_lookup = await lookupKnowledge(supabaseUrl,supabaseKey,token,result); }
+    catch { knowledge_lookup = {status:'LOOKUP_ERROR',matches:[]}; }
     let inscription_review = null;
     let inscription_review_status = 'NOT_TRIGGERED';
     if (markNeedsReview(result, context)) {
@@ -337,7 +371,8 @@ export default async function handler(req: any, res: any) {
       response_id: payload.id || null,
       result,
       inscription_review,
-      inscription_review_status
+      inscription_review_status,
+      knowledge_lookup
     });
   } catch {
     return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
