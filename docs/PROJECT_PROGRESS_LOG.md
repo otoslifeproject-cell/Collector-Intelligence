@@ -39,3 +39,6 @@
 
 ## 2026-10-09 — Inscription patch merged
 **Implemented and merged:** PR #1, merge commit `b698aa4`, adds targeted image re-examination, provisional transcription with image references, and explicit review visibility. Preview build status success; production deployment check pending at merge. **No live 12-image regression or verified identification outcome yet.**
+
+## 2026-10-09 — Research approval truthfulness safeguard
+**Discovered:** ItemDetail research approval previously wrote `catalogue_review_status: RESEARCH_VERIFIED` purely on AI draft owner approval, regardless of whether real external source verification occurred. **Implemented:** commit `fcbe91f` requires all AI research write-backs to remain `OWNER_REVIEWED` and shows that AI-supplied sources require independent confirmation. No database schema changes. **Not yet acceptance-tested:** UI action against real database; Vercel deployment check pending. **Review impact:** source policy and identification confidence instructions are consistent; further work should provide explicit independent-verification actions before setting `RESEARCH_VERIFIED`.
