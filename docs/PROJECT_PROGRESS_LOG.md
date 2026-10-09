@@ -1,0 +1,28 @@
+# Collector Intelligence — Progress and decision log
+
+**Updated:** 2026-10-09
+**Status:** working project record, not a replacement for `02_MASTER_PROJECT_BRIEF.md`.
+
+## Operating rules
+- Record every substantive product decision, user test, defect, resolution, deployment and research-quality finding.
+- Clearly distinguish **observed**, **implemented**, **tested**, **deployed** and **proposed**.
+- Preserve immutable Item IDs, object-level evidence, separate identification/dating/valuation confidence and attribution revision history.
+- Changes to canonical instructions and skills are **proposals** until accepted. Master Project Brief remains controlling.
+- Never silently claim all ChatGPT windows have synchronized. Future windows should explicitly open `docs/CURRENT_HANDOVER.md` and this log, and read controlling sources.
+- Include dated evidence, source reference, affected workflow, action owner and verification state.
+
+## 2026-10-09 — AI Intake live test
+**Observed:** 12 photos of one three-lobed art-glass bowl correctly grouped into a single draft. Photo upload, analysis and review screen operational. The draft did not identify an apparently legible base inscription, instead assigning generic Scandinavian-influenced art glass attribution. App initial confidence ID 72%, dating 28%, value 22%, quick-sale estimate GBP 25 (visual-only; no verified sold comps).
+**External comparator provided in conversation:** Holmegaard Fionia / Per Lütken, circa 1959; this is a research hypothesis requiring source verification and dimensional checks, not an automatic canonical fact.
+**Diagnosis:** initial `api/analyse-intake.ts` is visual triage without research; signature handling insufficient.
+**Implemented:** GitHub PR #1, branch `intake-inscription-fix`, commit `cac07947`: conditional targeted second photographic examination with uncertain inscription transcription and original image indices. Error fallback preserves first draft.
+**Verification:** GitHub Vercel status success for commit; no end-to-end live regression yet; PR draft, not production release.
+**Still open:** verified Knowledge Brain internal-first lookup, external reference verification, realised comps, source write-back, confidence recalibration and regression test with the same image set.
+
+## 2026-10-09 — Vercel AI Gateway
+**Observed:** runtime initially rejected requests because payment card required; user added USD 10 Gateway credit; subsequent intake analysis completed.
+**Implication:** monitor spend per run; avoid repeated unnecessary model calls. No inference that a free allowance is active.
+
+## 2026-10-09 — Requested project continuity
+**Decision:** introduce version-controlled progress log, current handover and instruction-improvement queue; review regularly without unapproved canonical changes.
+**Follow-up:** evaluate adding an append-only in-app audit event model and a shared Knowledge Brain update pipeline so observations and approved research revisions are visible inside the product as well as GitHub.
