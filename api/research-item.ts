@@ -132,7 +132,7 @@ async function loadPricingCanon(url: string, key: string, token: string) {
  if (!response.ok) throw new Error("CANONICAL_ACCESS_"+response.status);
  const rows=await response.json();
  if (!Array.isArray(rows)) throw new Error("CANONICAL_INVALID");
- const selected=names.map(name=>rows.find((x:any)=>x.document_key===name));
+ const selected=names.map(name=>rows.find((x:any)=>x.document_key===name && typeof x.content==="string" && x.content.length>=400 && !x.content.startsWith("No readable content")));
  if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
  return {instructions:selected.map((x:any,i:number)=>"SOURCE "+names[i]+" [SHA256 "+x.content_sha256+"]\n"+x.content).join("\n\n"),
  hashes:Object.fromEntries(names.map((n,i)=>[n,selected[i].content_sha256]))};
