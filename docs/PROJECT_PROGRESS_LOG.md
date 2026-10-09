@@ -26,3 +26,8 @@
 ## 2026-10-09 — Requested project continuity
 **Decision:** introduce version-controlled progress log, current handover and instruction-improvement queue; review regularly without unapproved canonical changes.
 **Follow-up:** evaluate adding an append-only in-app audit event model and a shared Knowledge Brain update pipeline so observations and approved research revisions are visible inside the product as well as GitHub.
+
+## 2026-10-09 — Priority reset and conversation capture
+**User decision:** Stop debugging ChatGPT Continuity Kit v0.1/v0.2 Chrome extension. Both displayed missing or inactive message capture. User prioritises cataloguing and selling stock urgently. Resume core Collector Intelligence implementation; do not spend further time on browser-extension fixes without a new request.
+**Continuity requirement:** For every substantial development or research iteration, record observable results, changes made, validation, next actions and any affected canonical instructions/skills. Maintain searchable handover and progress documentation in this repository. A scheduled daily review already exists; it cannot capture unseen ChatGPT conversations verbatim.
+**Required review loop:** Observe → log → compare master brief, evidence policy and category/workflow skills → propose tested amendments → implement only when approved → update handover. Protect time-to-sale as primary near-term objective.
