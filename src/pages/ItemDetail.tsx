@@ -20,6 +20,7 @@ export default function ItemDetail() {
   const [researching,setResearching] = useState(false)
   const [researchDraft,setResearchDraft] = useState<any|null>(null)
   const [researchRunId,setResearchRunId] = useState<string|null>(null)
+  const [researchAudit,setResearchAudit] = useState<any>(null)
 
   const load = async () => {
     if (!id) return
@@ -87,13 +88,14 @@ export default function ItemDetail() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Research failed')
       setResearchDraft(payload.result)
+      setResearchAudit(payload.source_audit || null)
       const {data:run} = await supabase.from('ai_analysis_runs').insert({
         mode:'research',
         model:payload.model || 'unknown',
         status:'DRAFT',
         input_photo_count:Object.values(photoUrls).filter(Boolean).length,
         user_context:{item_id:item.id,item_code:item.item_code},
-        result:payload.result
+        result:{...payload.result, source_audit:payload.source_audit||null,canonical_policy_hashes:payload.canonical_policy_hashes||null}
       }).select('id').single()
       if (run?.id) setResearchRunId(run.id)
       setMessage('Research draft ready. Review before writing it back.')
@@ -346,6 +348,7 @@ export default function ItemDetail() {
         {researchDraft && <div className="panel researchDraftPanel">
           <div className="panelHeader"><div><h2>Research draft</h2><span>Review before permanent write-back</span></div><span className="pill accent">DRAFT</span></div>
           <div className="researchSummary">{researchDraft.research_summary}</div>
+          {researchAudit && <div className="note"><strong>Source trust review:</strong> {researchAudit.warning} Sold candidates: {researchAudit.sold_candidates} of {researchAudit.all_comparables} supplied records. These classifications must be checked against original sources before approval.</div>}
           <div className="note">Approval records this analysis and its sources; it does not independently validate them. Directly verified sold evidence requires a source URL, appropriate sold-price classification and VERIFIED_DIRECT evidence status.</div>
           <div className="researchMetricGrid">
             <div><small>Attribution</small><strong>{researchDraft.identification_update?.attribution || researchDraft.identification_update?.maker || 'Unresolved'}</strong><span>{researchDraft.identification_update?.identification_confidence}% ID confidence</span></div>
