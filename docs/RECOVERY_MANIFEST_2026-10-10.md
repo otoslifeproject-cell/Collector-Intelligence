@@ -44,3 +44,6 @@ The latest code retrieves `02_MASTER_PROJECT_BRIEF.md`, `03_SOURCE_AND_EVIDENCE_
 Every subsequent development pass must: read controlling original Master Brief from the archive; check latest source-policy hash; avoid upgrades based on user hypotheses; make a version-controlled change; verify deployment and SQL/RLS where relevant; record source/result in GitHub and Supabase. Any stage that does not pass remains PENDING. Don't repeat blind paid analysis without diagnostics and source provenance.
 
 **Never assert that GitHub changes auto-synchronize into Supabase.** Synchronization must be explicit, versioned, hash checked and logged.
+
+## Later retention safeguard
+App change `3f2c8ad` stops automatic deletion of original intake uploads on catalogue approval. Supabase `item-images` bucket was verified PRIVATE and storage policies restrict SELECT/INSERT/UPDATE/DELETE to owner path. This protects originals from the app's previous automatic cleanup, but authorized owners can still manually delete: it is not cryptographic WORM retention.
