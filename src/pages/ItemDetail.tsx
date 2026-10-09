@@ -104,6 +104,14 @@ export default function ItemDetail() {
       const idu = researchDraft.identification_update || {}
       const v = researchDraft.valuation || {}
       const r = researchDraft.routing || {}
+      const sources = Array.isArray(researchDraft.comparables) ? researchDraft.comparables : []
+      const hasDirectVerifiedSource = sources.some((c:any) =>
+        c.verification_status === 'VERIFIED_DIRECT' &&
+        Boolean(c.source_url) &&
+        ['HAMMER_REALIZED','REALIZED_INCL_BP','MARKETPLACE_SOLD','DEALER_SOLD_CONFIRMED'].includes(c.price_type)
+      )
+      // Owner approval is not equivalent to independent source verification.
+      const reviewStatus = hasDirectVerifiedSource ? 'RESEARCH_VERIFIED' : 'RESEARCH_PROVISIONAL'
 
       const updatePayload:any = {
         maker: idu.maker ?? item.maker,
@@ -128,7 +136,7 @@ export default function ItemDetail() {
         best_venue: r.best_venue,
         backup_venue: r.backup_venue,
         status: r.specialist_review ? 'SPECIALIST_REVIEW' : (r.sale_readiness === 'SELL_NOW' ? 'READY_TO_SELL' : 'RESEARCH'),
-        catalogue_review_status:'RESEARCH_VERIFIED',
+        catalogue_review_status:reviewStatus,
         notes:[item.notes || '', researchDraft.research_summary ? `Research summary: ${researchDraft.research_summary}` : '', v.notes ? `Valuation notes: ${v.notes}` : ''].filter(Boolean).join('\n\n')
       }
       const {error:updateError} = await supabase.from('items').update(updatePayload).eq('id',item.id)
@@ -208,7 +216,7 @@ export default function ItemDetail() {
 
       if (researchRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',researchRunId)
       setResearchDraft(null)
-      setMessage('Research approved and written back.')
+      setMessage(hasDirectVerifiedSource ? 'Research written back with directly verified comparable evidence.' : 'Research written back as PROVISIONAL: no directly verified sold comparable was supplied.')
       await load()
     } catch (err:any) {
       setMessage(err?.message || 'Could not save research')
@@ -315,6 +323,7 @@ export default function ItemDetail() {
         {researchDraft && <div className="panel researchDraftPanel">
           <div className="panelHeader"><div><h2>Research draft</h2><span>Review before permanent write-back</span></div><span className="pill accent">DRAFT</span></div>
           <div className="researchSummary">{researchDraft.research_summary}</div>
+          <div className="note">Approval records this analysis and its sources; it does not independently validate them. Directly verified sold evidence requires a source URL, appropriate sold-price classification and VERIFIED_DIRECT evidence status.</div>
           <div className="researchMetricGrid">
             <div><small>Attribution</small><strong>{researchDraft.identification_update?.attribution || researchDraft.identification_update?.maker || 'Unresolved'}</strong><span>{researchDraft.identification_update?.identification_confidence}% ID confidence</span></div>
             <div><small>Balanced value</small><strong>{money(researchDraft.valuation?.balanced_low,researchDraft.valuation?.currency||'GBP')}–{money(researchDraft.valuation?.balanced_high,researchDraft.valuation?.currency||'GBP')}</strong><span>{researchDraft.valuation?.valuation_confidence}% value confidence</span></div>
