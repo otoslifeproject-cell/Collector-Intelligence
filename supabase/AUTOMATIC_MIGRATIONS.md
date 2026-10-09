@@ -1,35 +1,31 @@
-# Automatic database migrations
+# Collector Intelligence database migrations
 
-Collector Intelligence database migrations are applied during the **Vercel production build**.
-
-Canonical production Supabase project ref:
+Collector Intelligence uses GitHub as the migration source of truth and the dedicated Supabase project:
 
 `bwdafrwkimjvwfoqomot`
 
-The surviving Vercel project already receives the Supabase database connection variables from its Supabase integration. The build reads `POSTGRES_URL_NON_POOLING` first.
+Database migrations are **not** executed inside the normal Vercel build. This keeps application deployments independent from temporary database/network issues.
 
-## Safety boundary
+## Current managed path
 
-The migration runner refuses to execute SQL unless the database URL contains the exact Collector Intelligence project ref above.
+A protected Vercel server endpoint applies the numbered SQL files from the exact deployed Git commit:
 
-Therefore a Vercel project accidentally connected to another Supabase project will fail safely before SQL is executed.
+`/api/admin-migrate`
 
-If a build environment has no database URL at all, migration is skipped. This allows non-Vercel builds such as GitHub Pages checks to compile without database access.
+The endpoint:
+- requires the private `CI_MIGRATION_TOKEN`;
+- verifies the deployment points at Supabase project `bwdafrwkimjvwfoqomot`;
+- uses the existing Vercel/Supabase Postgres connection;
+- records applied migrations in `public.ci_migration_history`;
+- adopts migrations that were already applied manually;
+- refuses checksum changes to previously recorded migrations;
+- applies new migrations in filename order.
 
-## Migration behaviour
-
-On each Vercel deployment:
-
-1. `npm run migrate:ci` runs before the frontend build.
-2. A `public.ci_migration_history` ledger is created if needed.
-3. Existing manually-applied migrations 001–003 are detected and adopted into the ledger.
-4. Migration 004 is also adopted if it already exists, otherwise it is applied.
-5. Future unapplied migration files are applied in filename order.
-6. Applied migration checksums are locked. Editing an already-applied file stops the deployment.
+Migration 004 was successfully applied through this path on 2026-10-09.
 
 ## Adding a database change
 
-Create a new numbered SQL file in:
+Create a new numbered file in:
 
 `supabase/migrations/`
 
@@ -37,13 +33,13 @@ Example:
 
 `005_listing_exports.sql`
 
-Never edit an already-applied migration. Push the new migration to `main`; Vercel deploys the app and migrates the database in the same release.
+Never edit an already-applied migration. After the code deployment is ready, run the protected migration endpoint and verify its JSON result before treating the schema change as complete.
 
 ## Architecture
 
-- GitHub: application source + migration source of truth
-- Vercel: deployment/runtime + migration execution
+- GitHub: application source + SQL migration source of truth
+- Vercel: application runtime + protected migration executor
 - Supabase: database/auth/storage
 - Collector Intelligence app: owner-facing catalogue and research system
 
-This pipeline is intentionally independent of the ChatGPT Supabase admin connector.
+The migration executor is hard-scoped to Collector Intelligence and must never target OTOS or unrelated Universal Marketing databases.
