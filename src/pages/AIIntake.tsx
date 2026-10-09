@@ -56,6 +56,7 @@ export default function AIIntake() {
   const [batchSummary,setBatchSummary] = useState('')
   const [inscriptionReview,setInscriptionReview] = useState<any>(null)
   const [inscriptionReviewStatus,setInscriptionReviewStatus] = useState('NOT_TRIGGERED')
+  const [knowledgeLookup,setKnowledgeLookup] = useState<any>({status:'NOT_ATTEMPTED',matches:[]})
   const [analysisRunId,setAnalysisRunId] = useState<string|null>(null)
   const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'>('upload')
   const [message,setMessage] = useState('')
@@ -166,6 +167,7 @@ export default function AIIntake() {
       setBatchSummary(payload.result?.batch_summary || '')
       setInscriptionReview(payload.inscription_review || null)
       setInscriptionReviewStatus(payload.inscription_review_status || 'UNKNOWN_VERSION')
+      setKnowledgeLookup(payload.knowledge_lookup || {status:'UNAVAILABLE',matches:[]})
       setMessage('Review the draft. Nothing has been written to the permanent catalogue yet.')
 
       const {data:run} = await supabase.from('ai_analysis_runs').insert({
@@ -174,7 +176,7 @@ export default function AIIntake() {
         status:'DRAFT',
         input_photo_count: uploaded.length,
         user_context: context,
-        result: { ...payload.result, inscription_review: payload.inscription_review || null }
+        result: { ...payload.result, inscription_review: payload.inscription_review || null, knowledge_lookup:payload.knowledge_lookup || null }
       }).select('id').single()
       if (run?.id) setAnalysisRunId(run.id)
       setStage('review')
@@ -386,6 +388,15 @@ export default function AIIntake() {
         </div>
 
         <div className="note">Inscription second-pass status: <strong>{inscriptionReviewStatus}</strong>. This status indicates whether a second image examination ran; it does not prove a signature reading or maker attribution.</div>
+        <div className="panel">
+          <strong>Knowledge Brain — existing source lookup</strong>
+          <p>Retrieval status: {knowledgeLookup.status}. Matches are evidence leads, not confirmed identification. Existing records must retain source and freshness checks.</p>
+          {(knowledgeLookup.matches||[]).map((k:any)=><div key={k.id} className="note">
+            <strong>{k.entity_key || k.entity_type || k.knowledge_type}</strong> — {k.claim}
+            <div>{k.certainty_class || 'UNCLASSIFIED'} · {k.verification_status || 'UNVERIFIED'} · {k.freshness_flag}</div>
+            {k.source_url && <a href={k.source_url} target="_blank" rel="noreferrer">Source</a>}
+          </div>)}
+        </div>
         <div className="draftGrid">
           {drafts.map((d,idx)=><div className={d.include===false?'draftCard excluded':'draftCard'} key={idx}>
             <div className="draftHead">
