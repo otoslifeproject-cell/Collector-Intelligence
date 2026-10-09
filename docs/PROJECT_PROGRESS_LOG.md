@@ -42,3 +42,6 @@
 
 ## 2026-10-09 — Research approval truthfulness safeguard
 **Discovered:** ItemDetail research approval previously wrote `catalogue_review_status: RESEARCH_VERIFIED` purely on AI draft owner approval, regardless of whether real external source verification occurred. **Implemented:** commit `fcbe91f` requires all AI research write-backs to remain `OWNER_REVIEWED` and shows that AI-supplied sources require independent confirmation. No database schema changes. **Not yet acceptance-tested:** UI action against real database; Vercel deployment check pending. **Review impact:** source policy and identification confidence instructions are consistent; further work should provide explicit independent-verification actions before setting `RESEARCH_VERIFIED`.
+
+## 2026-10-09 — Evidence visibility on permanent items
+**Implemented:** `c900be6` reads existing `item_evidence` and `attribution_history` tables and displays source, certainty/verification state and attribution versions on Item Detail → Identification. No new schema or rewriting of historic records. Await deployment verification and live item acceptance test.
