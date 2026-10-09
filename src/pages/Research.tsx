@@ -9,6 +9,19 @@ type KnowledgeRow = {
   verification_status: string | null
   last_verified: string | null
   created_at: string
+  owner_id: string
+  knowledge_type: string
+  entity_type: string | null
+  certainty_class: string | null
+  confidence: number | null
+  evidence_provenance: string | null
+  source_reference: string | null
+  source_date: string | null
+  freshness_requirement: string
+  stance: string | null
+  tags: string[]
+  supersedes_id: string | null
+  notes: string | null
 }
 
 export default function Research() {
@@ -19,11 +32,15 @@ export default function Research() {
   const [sourceUrl,setSourceUrl] = useState('')
   const [message,setMessage] = useState('')
   const [saving,setSaving] = useState(false)
+  const [reviewId,setReviewId] = useState<string|null>(null)
+  const [reviewNote,setReviewNote] = useState('')
+  const [reviewClass,setReviewClass] = useState('SECONDARY_REPORT')
+  const [checked,setChecked] = useState(false)
 
   const load = async () => {
     const [t,k] = await Promise.all([
       supabase.from('research_tasks').select('*,items(item_code,title,current_attribution)').order('information_value',{ascending:false}),
-      supabase.from('knowledge_records').select('id,entity_key,claim,source_url,verification_status,last_verified,created_at').order('created_at',{ascending:false}).limit(50)
+      supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50)
     ])
     setTasks(t.data||[])
     setKnowledge((k.data||[]) as KnowledgeRow[])
@@ -65,6 +82,32 @@ export default function Research() {
     if (error) return setMessage('Could not save: '+error.message)
     setEntityKey('');setClaim('');setSourceUrl('')
     setMessage('Source lead saved as UNVERIFIED. This does not confirm an attribution.')
+    await load()
+  }
+
+  const current = knowledge.filter(k=>!knowledge.some(newer=>newer.supersedes_id===k.id))
+  const selected = knowledge.find(k=>k.id===reviewId)
+  const saveReview = async () => {
+    if (!selected || saving) return
+    if (!checked || reviewNote.trim().length<30) return setMessage('Inspect the source and enter at least 30 characters describing the evidence.')
+    const {data:{user}} = await supabase.auth.getUser()
+    if (!user || user.id!==selected.owner_id) return setMessage('Owner verification failed.')
+    if (knowledge.some(k=>k.supersedes_id===selected.id)) return setMessage('That version was already superseded.')
+    setSaving(true)
+    const {error} = await supabase.from('knowledge_records').insert({
+      owner_id:user.id, knowledge_type:selected.knowledge_type, entity_type:selected.entity_type,
+      entity_key:selected.entity_key, claim:selected.claim, certainty_class:selected.certainty_class,
+      confidence:selected.confidence, evidence_provenance:'OWNER_DOCUMENT_REVIEW',
+      source_reference:selected.source_reference, source_url:selected.source_url,
+      source_date:selected.source_date, last_verified:new Date().toISOString().slice(0,10),
+      freshness_requirement:selected.freshness_requirement,
+      verification_status:reviewClass, stance:selected.stance, tags:selected.tags||[],
+      supersedes_id:selected.id, notes:'Previous record: '+selected.id+'; Documentary review: '+reviewNote.trim()
+    })
+    setSaving(false)
+    if (error) return setMessage(error.message)
+    setReviewId(null);setReviewNote('');setChecked(false)
+    setMessage('Source review saved as a new revision. Original preserved.')
     await load()
   }
 
