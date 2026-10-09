@@ -403,7 +403,7 @@ export default function AIIntake() {
               <label className="draftInclude"><input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/><span>Include</span></label>
               <span className="draftNumber">OBJECT {String.fromCharCode(65+idx)}</span>
             </div>
-            <div className="draftImages">{photos.filter(p=>d.image_indices.includes(p.index)).slice(0,4).map(p=><img src={p.preview} key={p.index}/>)}</div>
+            <div className="draftImages">{photos.filter(p=>d.image_indices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index} title={`Open original photograph ${p.index+1}`}><img src={p.preview} alt={`Original photograph ${p.index+1}`}/><small>Photo {p.index+1}</small></a>)}</div>
             <label>Working title<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
             <div className="formGrid">
               <label>Object type<input value={d.object_type} onChange={e=>patchDraft(idx,'object_type',e.target.value)}/></label>
@@ -428,12 +428,14 @@ export default function AIIntake() {
                 <p>Transcription confidence: {inscriptionReview.transcription_confidence}% · Unverified — visual examination only</p>
                 <p>Original photograph numbers: {(inscriptionReview.evidence_image_indices||[]).map((i:number)=>i+1).join(', ') || 'Not identified'}</p>
                 <p>{inscriptionReview.rationale}</p>
+                {inscriptionReview.contradictions?.length>0 && <div><strong>Conflicting interpretations</strong>{inscriptionReview.contradictions.map((c:string,i:number)=><p key={i}>{c}</p>)}</div>}
+                <p>Maker candidate: {inscriptionReview.candidate_maker || "None"} · Design candidate: {inscriptionReview.candidate_design || "None"} · Attribution confidence: {inscriptionReview.attribution_confidence}% (not signature confidence)</p>
               </div>}
             </div>}
             <label>Condition<textarea rows={3} value={d.condition_summary} onChange={e=>patchDraft(idx,'condition_summary',e.target.value)}/></label>
             <div className="draftEvidence">
               <strong>Evidence captured</strong>
-              {d.evidence.map((ev,i)=><div key={i}><span>{ev.certainty_class.replaceAll('_',' ')}</span>{ev.claim}</div>)}
+              {d.evidence.map((ev,i)=><div key={i}><span>{ev.certainty_class.replaceAll('_',' ')}</span>{ev.claim}{ev.notes && <small> — {ev.notes}</small>}</div>)}
             </div>
             {d.next_evidence.length>0 && <div className="nextEvidence"><strong>Best next evidence</strong>{d.next_evidence.slice(0,3).map((n,i)=><div key={i}>{n.title} <small>{n.information_value}/100</small></div>)}</div>}
             <div className="provisionalValue">
