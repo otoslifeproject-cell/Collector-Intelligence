@@ -27,6 +27,10 @@ type KnowledgeRow = {
 export default function Research() {
   const [tasks,setTasks] = useState<any[]>([])
   const [knowledge,setKnowledge] = useState<KnowledgeRow[]>([])
+  const [canonicalDocs,setCanonicalDocs] = useState<any[]>([])
+  const [photoSessions,setPhotoSessions] = useState<any[]>([])
+  const [openDoc,setOpenDoc] = useState<any>(null)
+  const [loadingDoc,setLoadingDoc] = useState(false)
   const [entityKey,setEntityKey] = useState('')
   const [claim,setClaim] = useState('')
   const [sourceUrl,setSourceUrl] = useState('')
@@ -38,12 +42,17 @@ export default function Research() {
   const [checked,setChecked] = useState(false)
 
   const load = async () => {
-    const [t,k] = await Promise.all([
+    const [t,k,c,p] = await Promise.all([
       supabase.from('research_tasks').select('*,items(item_code,title,current_attribution)').order('information_value',{ascending:false}),
-      supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50)
+      supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50),
+      supabase.from('canonical_documents').select('id,document_key,source_class,authority_rank,content_sha256,ingested_at').order('ingested_at',{ascending:false}).limit(100),
+      supabase.from('intake_photo_sessions').select('session_key,photo_count,linked_analysis_run,link_method,first_uploaded_at').order('first_uploaded_at',{ascending:false}).limit(50)
     ])
     setTasks(t.data||[])
     setKnowledge((k.data||[]) as KnowledgeRow[])
+    setCanonicalDocs(c.data||[])
+    setPhotoSessions(p.data||[])
+    if (c.error) setMessage('Canonical source archive unavailable: '+c.error.message)
     if (k.error) setMessage('Knowledge Brain could not be read: '+k.error.message)
   }
   useEffect(()=>{void load()},[])
@@ -84,6 +93,15 @@ export default function Research() {
     setMessage('Source lead saved as UNVERIFIED. This does not confirm an attribution.')
     await load()
   }
+
+  const viewCanonical = async (id:string) => {
+    setLoadingDoc(true)
+    const {data,error} = await supabase.from('canonical_documents').select('document_key,content,content_sha256,source_path,ingested_at').eq('id',id).single()
+    setLoadingDoc(false)
+    if (error) { setMessage('Cannot read canonical document: '+error.message);return }
+    setOpenDoc(data)
+  }
+  const latestCanonical = canonicalDocs.filter((d:any,i:number,a:any[]) => a.findIndex(x=>x.document_key===d.document_key)===i)
 
   const current = knowledge.filter(k=>!knowledge.some(newer=>newer.supersedes_id===k.id))
   const selected = knowledge.find(k=>k.id===reviewId)
@@ -132,6 +150,26 @@ export default function Research() {
       <div className="panelHeader"><h2>Latest Knowledge Brain records</h2><span>{current.length} current · {knowledge.length} versions</span></div>
       {knowledge.length===0?<div className="empty">No knowledge records yet. Save the first documented lead above.</div>:
       <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{k.verification_status||'UNVERIFIED'}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
+    </div>
+    <div className="panel">
+      <div className="panelHeader"><h2>Canonical project archive</h2><span>{latestCanonical.length} documents · exact stored versions</span></div>
+      <p>These are the controlling instructions, research rules, skills and project logs stored in the Collector Intelligence Supabase database. They are read-only and content-hashed.</p>
+      {canonicalDocs.length===0 ? <div className="empty">Canonical documents not available — do not rely on AI results until this is resolved.</div> :
+        <div className="tableWrap"><table><thead><tr><th>Document</th><th>Authority class</th><th>Stored SHA-256</th><th>Read</th></tr></thead><tbody>
+        {latestCanonical.map((d:any)=><tr key={d.id}><td>{d.document_key}</td><td>{d.source_class}</td><td><code>{String(d.content_sha256).slice(0,16)}…</code></td><td><button className="secondaryButton" disabled={loadingDoc} onClick={()=>viewCanonical(d.id)}>Read</button></td></tr>)}
+        </tbody></table></div>}
+      {openDoc && <div className="note">
+        <div><strong>{openDoc.document_key}</strong> · SHA-256 {openDoc.content_sha256}</div>
+        <button className="secondaryButton" onClick={()=>setOpenDoc(null)}>Close document</button>
+        <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:440,overflow:'auto'}}>{openDoc.content}</pre>
+      </div>}
+    </div>
+    <div className="panel">
+      <div className="panelHeader"><h2>Preserved photo intake history</h2><span>{photoSessions.length} upload sessions</span></div>
+      <p>Historic photos remain in private storage. A linked analysis is based on matching the upload time and photo count; an unmatched session is not assigned to a guessed draft.</p>
+      {photoSessions.length>0 && <div className="tableWrap"><table><thead><tr><th>Uploaded</th><th>Photos</th><th>Evidence link</th></tr></thead><tbody>
+      {photoSessions.map((p:any)=><tr key={p.session_key}><td>{new Date(p.first_uploaded_at).toLocaleString()}</td><td>{p.photo_count}</td><td>{p.linked_analysis_run ? 'Analysis linked by '+p.link_method : 'UNMATCHED — preserved'}</td></tr>)}
+      </tbody></table></div>}
     </div>
     {selected && <div className="panel">
       <div className="panelHeader"><h2>Check original source</h2><span>Creates a new version without modifying history</span></div>
