@@ -39,3 +39,5 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 
 | CI-015 | Correct CI Supabase now connected; Brain empty, 2 saved analyses | Connect source-aware, owner-scoped Knowledge Brain lookup at intake and display provenance/freshness | Live regression with a seeded approved source; confirm performance and visible source ID | First implementation committed; acceptance pending |
 | CI-016 | Historical chat findings stored as project documentation, not database facts | Controlled migration of validated reference records, hypotheses and research protocols, with separate evidence/verification classes | Source audit, owner approval and no promotion of unsupported attributions | Pending |
+
+| CI-017 | Retained Knowledge Brain entries were not consumed after lookup | Conservative per-object reconciliation requiring entity match, claimed source verification and freshness, without maker auto-certification | Test source mismatch, supersession, stale record and blind Holmegaard run; source claims must be reviewed independently | Code committed `46da1b6`, pending acceptance |
