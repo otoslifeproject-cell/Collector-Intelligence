@@ -45,3 +45,6 @@
 
 ## 2026-10-09 — Evidence visibility on permanent items
 **Implemented:** `c900be6` reads existing `item_evidence` and `attribution_history` tables and displays source, certainty/verification state and attribution versions on Item Detail → Identification. No new schema or rewriting of historic records. Await deployment verification and live item acceptance test.
+
+## 2026-10-09 — Holmegaard regression #2 failed
+**Observed from owner-provided draft:** one physical object detected; identification 55%, dating 25%, valuation 20%; no candidate maker or transcription; false-looking opaque white interior; £25 visual-only quick-sale. Unlike expected candidate inscription, result describes mark as unreadable and requests another close-up. **Unknown:** whether second-pass endpoint ran, failed, or returned no useful reading; pasted UI did not display status. **Implemented:** server commit `3f6434c` returns inscription_review_status (not triggered, attempted, empty, gateway error, review error, completed); UI commit `da6abca` displays it. Neither change improves recognition by itself; diagnostic only. Do not repeat paid analysis until deployment confirms these changes. Source/skills impact: require visibility for automated escalation states and original-image evidence.
