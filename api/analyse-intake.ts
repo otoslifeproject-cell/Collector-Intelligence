@@ -110,6 +110,10 @@ Hard rules:
 - Treat a visible mark or inscription as attribution-critical evidence. Examine ALL supplied detail and underside photographs, especially later indices, before describing it as unreadable or asking for another photograph.
 - Distinguish inscription present, candidate reading, confirmed transcription and independently verified maker attribution. Record literal uncertainty and refer to existing source image indices in the notes; never silently resolve unclear letters into a famous maker.
 - Different lighting can make clear glass look white, opalescent or dark. Distinguish confirmed intrinsic colour from background, shadow and optical refraction.
+- Before describing a white/milky core, opaque layer or dark inclusion as intrinsic to glass, seek consistency across multiple angles and backdrops; otherwise write 'apparent white/dark area could be lighting/refraction/background' and mark composition UNKNOWN.
+- For faint inscriptions: separate engraved grooves (which track surface under illumination) from scratches (irregular intersecting abrasions), adhesive residue/label and shadow. Give specific original source image numbers and alternative interpretations.
+- Do not confuse heavily scratched polished underside with a rough pontil or proof of age. Differentiate wear, fractures and manufactured tooling; do not assert rim chips unless image evidence shows one.
+- Compare form-level discriminators (lobes, rim profile, base geometry, dimensions when supplied) before maker speculation; never treat resemblance or apparent handwriting alone as authentication.
 - Do not describe an unidentified form as simply Scandinavian-influenced when distinctive form + mark permit a more specific, clearly provisional candidate identification.
 - next_evidence should ask only for photos, measurements or tests that would materially change identification, dating, valuation or sale route.
 - catalogue_note is clean outward-facing wording but must preserve uncertainty.
@@ -140,7 +144,8 @@ function markNeedsReview(result: any, context: any): boolean {
   return items.some((obj: any) => {
     const mark = String(obj.marks_signatures_labels || "").trim();
     const note = String(obj.catalogue_note || "");
-    const visibleMark = /(?:inscri|signatur|signed|engraved|etched|hand.writ|mark)/i.test(mark + " " + note);
+    const evidenceText = (obj.evidence || []).map((e:any)=>String(e.claim || "")).join(" ");
+    const visibleMark = /(?:inscri|signatur|signed|engraved|etched|hand.writ|mark)/i.test(mark + " " + note + " " + evidenceText);
     const explicitlyAbsent = /^(?:none|no marks|no signatures|not visible|unmarked|unknown|n\/a)\.?$/i.test(mark);
     return visibleMark && !explicitlyAbsent;
   }) || /\b(?:signed|signature|inscription)\b/i.test(String(context?.user_notes || ""));
@@ -366,7 +371,7 @@ export default async function handler(req: any, res: any) {
             body:JSON.stringify({
               model,
               reasoning:{effort:"high"},
-              instructions:"You are a cautious specialist examining actual inscriptions on collectibles. The original photo is primary evidence. Never turn a candidate transcription into a verified provenance or maker. Always refer to the original image index.",
+              instructions:"You are a cautious specialist examining faint lettering on glass. Compare each proposed character against repeated strokes in the ORIGINAL source images. Separate engraved characters from crossing scratches, label residue, optical refraction and shadows. Compare base geometry and rim silhouette; do not infer opaque white glass from bright reflections. Where uncertain, provide a literal partial reading with ? marks, alternatives and contradictions. If illegible, return null rather than guess. Never turn a candidate transcription into a verified maker or provenance. Always refer to original image indices.",
               input:[{role:"user",content:detailContent}],
               text:{format:{type:"json_schema",name:"collector_inscription_review",strict:true,schema:inscriptionSchema}},
               max_output_tokens:1700
