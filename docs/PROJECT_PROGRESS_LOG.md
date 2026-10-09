@@ -36,3 +36,6 @@
 **Implemented:** commit `cc1cfbe` on draft PR #1 adds explicit inscriptions and original photo indices to the review card, displays candidate transcription/confidence/rationale, and shows all evidence claims. Captures second-pass review within `ai_analysis_runs.result` as an additional record field when the table permits JSON.
 **Unverified:** no live AI analysis performed (avoid unneeded Gateway spend), TypeScript/deployment check pending. Not merged to production at time recorded.
 **Gap identified:** `api/research-item.ts` works only on permanent records, and current AI Intake does not automatically retrieve internal Knowledge Brain evidence or external comps before draft approval. Requires deliberate staged integration with source and freshness records.
+
+## 2026-10-09 — Inscription patch merged
+**Implemented and merged:** PR #1, merge commit `b698aa4`, adds targeted image re-examination, provisional transcription with image references, and explicit review visibility. Preview build status success; production deployment check pending at merge. **No live 12-image regression or verified identification outcome yet.**
