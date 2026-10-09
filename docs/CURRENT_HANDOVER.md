@@ -44,3 +44,6 @@ The prototype Chrome extension v0.1/v0.2 failed to capture visible messages reli
 
 ## 2026-10-09 — Execution pass in progress
 User authorised full build-out without repeated interruptions. Active PR #1 now also includes commit `cc1cfbe`: draft review UI explicitly exposes source-image-indexed inscription candidate, confidence, rationale and all captured evidence, rather than hiding them behind the five-item display limit. Production remains unchanged until merge. Vercel preview check was pending at time of this entry. **Do not claim the 12-image regression was run**; browser live test remains required. Continue with internal Knowledge Brain retrieval and sale-ready research after inscription test.
+
+## 2026-10-09 — Release gate
+PR #1 preview Vercel check succeeded at commit `cc1cfbe`. PR marked ready for review. GitHub reports `mergeable: false`, so no merge was attempted and production remains on the prior code. Investigate mergeability/rebase with main and rerun checks before release; never mark this feature live until deployed. User explicitly prioritises progress and selling. All further tests should avoid unnecessary AI Gateway spend.
