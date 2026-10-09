@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from 'react'
+import { ChangeEvent, DragEvent, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, Check, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -57,20 +57,61 @@ export default function AIIntake() {
   const [analysisRunId,setAnalysisRunId] = useState<string|null>(null)
   const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'>('upload')
   const [message,setMessage] = useState('')
+  const [dragActive,setDragActive] = useState(false)
 
   const selectedCount = useMemo(()=>drafts.filter(d=>d.include!==false).length,[drafts])
 
-  const addFiles = (e:ChangeEvent<HTMLInputElement>) => {
-    const incoming = Array.from(e.target.files || [])
+  const addIncomingFiles = (files: File[]) => {
+    const supported = files.filter(file =>
+      ['image/jpeg','image/png','image/webp'].includes(file.type) ||
+      /\.(jpe?g|png|webp)$/i.test(file.name)
+    )
+    const rejected = files.length - supported.length
     const max = mode === 'single' ? 20 : 40
-    const room = Math.max(0,max-photos.length)
-    const accepted = incoming.slice(0,room).map((file,i)=>({
-      index: photos.length+i,
-      file,
-      preview: URL.createObjectURL(file)
-    }))
-    setPhotos(v=>[...v,...accepted])
+
+    setPhotos(current => {
+      const room = Math.max(0,max-current.length)
+      const accepted = supported.slice(0,room).map((file,i)=>({
+        index: current.length+i,
+        file,
+        preview: URL.createObjectURL(file)
+      }))
+      if (rejected) setMessage(`${rejected} unsupported file${rejected===1?' was':'s were'} ignored. Use JPEG, PNG or WebP.`)
+      else if (supported.length > room) setMessage(`Photo limit reached: ${max} for this intake mode.`)
+      else if (accepted.length) setMessage(`${accepted.length} photograph${accepted.length===1?'':'s'} added.`)
+      return [...current,...accepted]
+    })
+  }
+
+  const addFiles = (e:ChangeEvent<HTMLInputElement>) => {
+    addIncomingFiles(Array.from(e.target.files || []))
     e.target.value=''
+  }
+
+  const handleDragOver = (e:DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragActive(true)
+  }
+
+  const handleDragLeave = (e:DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setDragActive(false)
+  }
+
+  const handleDrop = (e:DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    const dropped = Array.from(e.dataTransfer.files || [])
+    if (!dropped.length) {
+      setMessage('No image files were detected in that drop.')
+      return
+    }
+    addIncomingFiles(dropped)
   }
 
   const removePhoto = (index:number) => {
@@ -287,7 +328,13 @@ export default function AIIntake() {
         </div>
 
         <div className="panel intakeDropPanel">
-          <label className="intakeDrop">
+          <label
+            className={dragActive ? "intakeDrop dragActive" : "intakeDrop"}
+            onDragEnter={handleDragOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <UploadCloud size={34}/>
             <strong>Drop or choose photographs</strong>
             <span>{mode==='single'?'Overall, base, rim, mark, condition and detail shots are ideal.':'All photographs for up to five objects. Order does not need to be perfect.'}</span>
