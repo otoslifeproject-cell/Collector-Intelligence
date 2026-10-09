@@ -125,6 +125,40 @@ function extractText(payload: any) {
   return "";
 }
 
+async function loadPricingCanon(url: string, key: string, token: string) {
+ const names = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","03_COMPARABLE_RESEARCH.md"];
+ const qp = new URLSearchParams({select:"document_key,content,content_sha256,ingested_at",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
+ const response=await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
+ if (!response.ok) throw new Error("CANONICAL_ACCESS_"+response.status);
+ const rows=await response.json();
+ if (!Array.isArray(rows)) throw new Error("CANONICAL_INVALID");
+ const selected=names.map(name=>rows.find((x:any)=>x.document_key===name));
+ if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
+ return {instructions:selected.map((x:any,i:number)=>"SOURCE "+names[i]+" [SHA256 "+x.content_sha256+"]\n"+x.content).join("\n\n"),
+ hashes:Object.fromEntries(names.map((n,i)=>[n,selected[i].content_sha256]))};
+}
+
+// Model-supplied source labels are evidence claims, not third-party verification.
+// Demand multiple apparently realised comparables before reporting research-based valuation confidence.
+function checkResearchEvidence(result:any) {
+ const comps=Array.isArray(result?.comparables)?result.comparables:[];
+ const soldClasses=new Set(["HAMMER_REALIZED","REALIZED_INCL_BP","MARKETPLACE_SOLD","DEALER_SOLD_CONFIRMED"]);
+ const sold=comps.filter((c:any)=>soldClasses.has(c.price_type) && c.price!==null && c.price>=0 && c.source_url &&
+   ["VERIFIED_DIRECT","INDEXED_SOLD"].includes(c.verification_status));
+ const audited={sold_candidates:sold.length,all_comparables:comps.length,independent_source_verification:false,
+   warning:"The AI has supplied source classifications; direct source verification must be carried out separately."};
+ if(sold.length<2){
+   result.valuation=result.valuation||{};
+   result.valuation.valuation_confidence=Math.min(Number(result.valuation.valuation_confidence)||0,30);
+   result.valuation.notes=[result.valuation.notes||"","PROVISIONAL VALUE — SOLD EVIDENCE INADEQUATE: fewer than two cited sold candidates."].join(" ");
+   result.routing=result.routing||{};
+   result.routing.sale_readiness="RESEARCH_FIRST";
+   result.routing.specialist_review=true;
+   audited.warning+=" Insufficient cited sold candidates; valuation confidence capped at 30%.";
+ }
+ return audited;
+}
+
 async function verifyUser(token: string, supabaseUrl: string, supabaseKey: string) {
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: supabaseKey }
@@ -147,6 +181,10 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
+  let canonical:{instructions:string,hashes:Record<string,string>};
+  try {canonical=await loadPricingCanon(supabaseUrl,supabaseKey,token);}
+  catch(e){return res.status(503).json({error:"Collector Intelligence source policy unavailable; research stopped to prevent drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"});}
+
 
   const { item, images = [] } = req.body || {};
   if (!item?.id) return res.status(400).json({ error: "Item record required" });
@@ -165,7 +203,7 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "high" },
-    instructions,
+    instructions: instructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions,
     tools: [{ type: "web_search", search_context_size: "medium" }],
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
@@ -184,7 +222,9 @@ export default async function handler(req: any, res: any) {
   if (!response.ok) return res.status(response.status).json({error:payload?.error?.message || "Research failed",details:payload?.error || null});
   const text = extractText(payload);
   try {
-    return res.status(200).json({model:payload.model || body.model,response_id:payload.id || null,result:JSON.parse(text)});
+    const result=JSON.parse(text);
+    const source_audit=checkResearchEvidence(result);
+    return res.status(200).json({model:payload.model || body.model,response_id:payload.id || null,result,source_audit,canonical_policy_hashes:canonical.hashes});
   } catch {
     return res.status(502).json({error:"Could not parse structured research output",raw:text.slice(0,2000)});
   }
