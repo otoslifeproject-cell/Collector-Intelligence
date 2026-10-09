@@ -129,9 +129,26 @@ export default function Research() {
       {message && <div className="note">{message}</div>}
     </div>
     <div className="panel">
-      <div className="panelHeader"><h2>Latest Knowledge Brain records</h2><span>{knowledge.length} shown · owner-scoped</span></div>
+      <div className="panelHeader"><h2>Latest Knowledge Brain records</h2><span>{current.length} current · {knowledge.length} versions</span></div>
       {knowledge.length===0?<div className="empty">No knowledge records yet. Save the first documented lead above.</div>:
-      <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th></tr></thead><tbody>{knowledge.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{k.verification_status||'UNVERIFIED'}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td></tr>)}</tbody></table></div>}
+      <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{k.verification_status||'UNVERIFIED'}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
     </div>
+    {selected && <div className="panel">
+      <div className="panelHeader"><h2>Check original source</h2><span>Creates a new version without modifying history</span></div>
+      <p><strong>{selected.entity_key}</strong>: {selected.claim}</p>
+      <p>{selected.source_url && <a href={selected.source_url} target="_blank" rel="noreferrer">Open original source</a>}</p>
+      <label>Evidence class<select value={reviewClass} onChange={e=>setReviewClass(e.target.value)}>
+        <option value="SECONDARY_REPORT">SECONDARY_REPORT — indirectly supported</option>
+        <option value="VERIFIED_DIRECT">VERIFIED_DIRECT — directly checked</option>
+        <option value="UNVERIFIED">UNVERIFIED — unresolved</option>
+      </select></label>
+      <label>Documentary basis, exact detail and limitations<textarea rows={4} value={reviewNote} onChange={e=>setReviewNote(e.target.value)} /></label>
+      <label><input type="checkbox" checked={checked} onChange={e=>setChecked(e.target.checked)}/> I checked the cited source personally and recorded the limitations.</label>
+      <div className="intakeActions">
+        <button className="secondaryButton" onClick={()=>setReviewId(null)}>Cancel</button>
+        <button className="primaryButton inlineButton" disabled={saving || !checked || reviewNote.trim().length<30} onClick={saveReview}>Save new revision</button>
+      </div>
+      {message && <div className="note">{message}</div>}
+    </div>}
   </div>
 }
