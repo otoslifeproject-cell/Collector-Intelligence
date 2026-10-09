@@ -51,3 +51,6 @@
 
 ## 2026-10-09 — Source integration honesty check
 **Verified:** source code has visual intake, conditional mark pass, separate AI web research on permanent items and saved evidence/history UI; internal-first Knowledge Brain query is not shown. **Database access blocker:** available Supabase connector exposes a different project; no Collector Intelligence SQL used. **Documentation:** `docs/KNOWLEDGE_AND_SOURCE_INTEGRATION_AUDIT.md` commit `abe54d8` defines evidence, gaps, build order and stop conditions. Latest main Vercel status success; full workflow still untested.
+
+## 2026-10-09 — Supabase connection restored and verified
+Read-only `list_projects` returned `bwdafrwkimjvwfoqomot` Collector Intelligence, healthy in `eu-west-1`. Table list and `knowledge_records` column structure verified. `knowledge_records`, `items`, `comparables` all initially empty. This establishes the existing Knowledge Brain schema but does NOT mean internal-first retrieval is connected. No SQL write. Next safe steps: inspect policies, implement read-only lookup in AI workflow, and write back only verified/approved evidence.
