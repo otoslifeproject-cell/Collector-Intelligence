@@ -280,7 +280,9 @@ export default async function handler(req: any, res: any) {
   try {
     let result = JSON.parse(text);
     let inscription_review = null;
+    let inscription_review_status = 'NOT_TRIGGERED';
     if (markNeedsReview(result, context)) {
+      inscription_review_status = 'ATTEMPTED';
       // Only examine already uploaded images. Prefer recent close-ups while retaining overall views.
       const selected = images.length <= 12 ? images : [images[0], images[1], ...images.slice(-10)];
       const detailContent: any[] = [{
@@ -312,16 +314,21 @@ export default async function handler(req: any, res: any) {
           const markText = extractText(markPayload);
           if (markText) {
             inscription_review = JSON.parse(markText);
+            inscription_review_status = inscription_review.mark_visible ? 'COMPLETED_MARK_VISIBLE' : 'COMPLETED_NO_MARK';
             // Exclude invented indices before attaching review to physical-object evidence.
             const uploadedIndices = new Set(images.map((image: any) => image.index));
             inscription_review.evidence_image_indices = (inscription_review.evidence_image_indices || []).filter((i: number) => uploadedIndices.has(i));
             result = applyInscriptionReview(result, inscription_review);
+          } else {
+            inscription_review_status = 'EMPTY_RESPONSE';
           }
         } else {
+          inscription_review_status = 'GATEWAY_ERROR_' + markResponse.status;
           // A failed second look must not discard the already completed draft.
           console.warn("Inscription review unavailable", markResponse.status);
         }
       } catch (err) {
+        inscription_review_status = 'REVIEW_ERROR';
         console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
       }
     }
@@ -329,7 +336,8 @@ export default async function handler(req: any, res: any) {
       model: payload.model || body.model,
       response_id: payload.id || null,
       result,
-      inscription_review
+      inscription_review,
+      inscription_review_status
     });
   } catch {
     return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
