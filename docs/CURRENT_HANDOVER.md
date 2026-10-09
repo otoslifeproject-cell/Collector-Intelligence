@@ -53,3 +53,6 @@ PR #1 merged as `b698aa4` (squash); Vercel production deployment check was **pen
 
 ## 2026-10-09 — Additional research guardrail
 Commit `fcbe91f` changes item research write-back to `OWNER_REVIEWED`; formerly AI source claims were auto-stamped `RESEARCH_VERIFIED`. Evidence tables still preserve source URLs and verification status but model claims are not trusted as independent validation. UI states this explicitly. Deployment build and actual approve-flow acceptance remain to be checked.
+
+## 2026-10-09 — Identification evidence tab
+Commit `c900be6` replaces the placeholder Identification tab with live `item_evidence` and `attribution_history` views, preserving source and verification statuses. GitHub deployment check pending at recording time; needs test against real owned item. User priority remains cataloguing/selling and source-trust discipline.
