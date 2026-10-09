@@ -257,6 +257,25 @@ function extractText(payload: any) {
   return "";
 }
 
+// Owner-scoped, versioned canonical policy retrieval before paid inference.
+// Fail closed: never silently fall back to an out-of-date prompt.
+async function loadCanonicalContext(url: string, key: string, token: string) {
+  const keys = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","01_PROJECT_INSTRUCTIONS.md","06_PHOTO_EXAMINATION.md"];
+  const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank",is_current:"eq.true",limit:"40"});
+  const resp = await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{
+    headers:{apikey:key,Authorization:`Bearer ${token}`}
+  });
+  if (!resp.ok) throw new Error("CANONICAL_ACCESS_" + resp.status);
+  const rows = await resp.json();
+  if (!Array.isArray(rows)) throw new Error("CANONICAL_INVALID");
+  const selected = keys.map(k=>rows.find((x:any)=>x.document_key===k));
+  if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
+  return {
+    instructions: keys.map((k,i)=>"SOURCE DOCUMENT "+k+" [SHA256 "+selected[i].content_sha256+"]\\n"+selected[i].content).join("\\n\\n"),
+    hashes: Object.fromEntries(keys.map((k,i)=>[k,selected[i].content_sha256]))
+  };
+}
+
 async function verifyUser(token: string, supabaseUrl: string, supabaseKey: string) {
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: supabaseKey }
@@ -281,6 +300,9 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
+  let canonical: {instructions:string,hashes:Record<string,string>};
+  try { canonical = await loadCanonicalContext(supabaseUrl,supabaseKey,token); }
+  catch (e) { return res.status(503).json({error:"Required Collector Intelligence policy cannot be loaded; AI analysis stopped to prevent policy drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"}); }
 
   const { mode = "single", images = [], context = {} } = req.body || {};
   if (!Array.isArray(images) || images.length < 1) return res.status(400).json({ error: "At least one image is required" });
@@ -310,7 +332,7 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "medium" },
-    instructions: systemPrompt,
+    instructions: systemPrompt + "\\n\\nMANDATORY CURRENT PROJECT SPECIFICATIONS (Master Brief governs):\\n" + canonical.instructions,
     input: [{ role: "user", content }],
     text: {
       format: {
@@ -408,7 +430,8 @@ export default async function handler(req: any, res: any) {
       result,
       inscription_review,
       inscription_review_status,
-      knowledge_lookup
+      knowledge_lookup,
+      canonical_policy_hashes:canonical.hashes
     });
   } catch {
     return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
