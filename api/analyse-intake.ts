@@ -137,7 +137,8 @@ export default async function handler(req: any, res: any) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
-  const gatewayToken = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || "";
+  const runtimeOidcToken = String(req.headers["x-vercel-oidc-token"] || "");
+  const gatewayToken = process.env.AI_GATEWAY_API_KEY || runtimeOidcToken || process.env.VERCEL_OIDC_TOKEN || "";
   const directOpenAIKey = process.env.OPENAI_API_KEY || "";
   const useGateway = Boolean(gatewayToken);
   const apiKey = gatewayToken || directOpenAIKey;
