@@ -138,10 +138,14 @@ export default async function handler(req: any, res: any) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
-  const apiKey = process.env.OPENAI_API_KEY || "";
+  const gatewayToken = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || "";
+  const directOpenAIKey = process.env.OPENAI_API_KEY || "";
+  const useGateway = Boolean(gatewayToken);
+  const apiKey = gatewayToken || directOpenAIKey;
   if (!token) return res.status(401).json({ error: "Not signed in" });
+  if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
-  if (!apiKey) return res.status(503).json({ error: "OPENAI_API_KEY is not configured in Vercel" });
+  if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
 
   const { item, images = [] } = req.body || {};
   if (!item?.id) return res.status(400).json({ error: "Item record required" });
@@ -152,8 +156,13 @@ export default async function handler(req: any, res: any) {
   }];
   for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
 
+  const configuredModel = process.env.OPENAI_RESEARCH_MODEL || "gpt-5.6-luna";
+  const model = useGateway
+    ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
+    : configuredModel.replace(/^openai\//, "");
+
   const body = {
-    model: process.env.OPENAI_RESEARCH_MODEL || "gpt-6-luna",
+    model,
     reasoning: { effort: "high" },
     instructions,
     tools: [{ type: "web_search", search_context_size: "medium" }],
@@ -162,11 +171,14 @@ export default async function handler(req: any, res: any) {
     max_output_tokens: 16000
   };
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch(
+    useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
+    {
     method:"POST",
     headers:{ "Content-Type":"application/json", Authorization:`Bearer ${apiKey}` },
-    body:JSON.stringify(body)
-  });
+      body:JSON.stringify(body)
+    }
+  );
   const payload = await response.json();
   if (!response.ok) return res.status(response.status).json({error:payload?.error?.message || "Research failed",details:payload?.error || null});
   const text = extractText(payload);
