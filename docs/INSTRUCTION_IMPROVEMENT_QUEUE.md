@@ -41,3 +41,5 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 | CI-016 | Historical chat findings stored as project documentation, not database facts | Controlled migration of validated reference records, hypotheses and research protocols, with separate evidence/verification classes | Source audit, owner approval and no promotion of unsupported attributions | Pending |
 
 | CI-017 | Retained Knowledge Brain entries were not consumed after lookup | Conservative per-object reconciliation requiring entity match, claimed source verification and freshness, without maker auto-certification | Test source mismatch, supersession, stale record and blind Holmegaard run; source claims must be reviewed independently | Code committed `46da1b6`, pending acceptance |
+
+| CI-019 | Stage 2 source reviews can race or accidentally be excluded from trusted reconciliation | Database unique successor enforcement plus allow current reviewed revisions in source reconciliation | SQL index read-back and Vercel pass; then duplicate insert rejection / owner review live test | Migration applied and code committed; live test pending |
