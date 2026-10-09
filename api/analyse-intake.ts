@@ -191,7 +191,7 @@ async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userTok
   if (!terms.length) return { status:"NO_DISCRIMINATING_TERMS", matches:[] };
   const query = new URLSearchParams({
     select:"id,knowledge_type,entity_type,entity_key,claim,certainty_class,confidence,evidence_provenance,source_reference,source_url,source_date,last_verified,freshness_requirement,verification_status,stance,tags,supersedes_id",
-    limit:"100",
+    limit:"300",
     order:"updated_at.desc"
   });
   const response = await fetch(`${supabaseUrl}/rest/v1/knowledge_records?${query}`, {
@@ -216,7 +216,6 @@ function reconcileKnowledge(result: any, lookup: any) {
   const trusted = lookup.matches.filter((k:any) =>
     k.verification_status === "VERIFIED_DIRECT" &&
     Boolean(k.source_url || k.source_reference) &&
-    !k.supersedes_id &&
     k.freshness_flag !== "CHECK_FRESHNESS" &&
     ["FACT","STRONG_ATTRIBUTION"].includes(k.certainty_class)
   );
