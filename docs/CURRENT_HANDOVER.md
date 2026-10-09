@@ -50,3 +50,6 @@ PR #1 preview Vercel check succeeded at commit `cc1cfbe`. PR marked ready for re
 
 ## 2026-10-09 — PR #1 merged
 PR #1 merged as `b698aa4` (squash); Vercel production deployment check was **pending** at the time of update. The prior paragraph describing a blocked merge is historical and superseded. Do not call it production-ready until Vercel success is verified. The 12-photo live regression and model-cost check still require testing.
+
+## 2026-10-09 — Additional research guardrail
+Commit `fcbe91f` changes item research write-back to `OWNER_REVIEWED`; formerly AI source claims were auto-stamped `RESEARCH_VERIFIED`. Evidence tables still preserve source URLs and verification status but model claims are not trusted as independent validation. UI states this explicitly. Deployment build and actual approve-flow acceptance remain to be checked.
