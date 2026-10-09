@@ -31,3 +31,8 @@
 **User decision:** Stop debugging ChatGPT Continuity Kit v0.1/v0.2 Chrome extension. Both displayed missing or inactive message capture. User prioritises cataloguing and selling stock urgently. Resume core Collector Intelligence implementation; do not spend further time on browser-extension fixes without a new request.
 **Continuity requirement:** For every substantial development or research iteration, record observable results, changes made, validation, next actions and any affected canonical instructions/skills. Maintain searchable handover and progress documentation in this repository. A scheduled daily review already exists; it cannot capture unseen ChatGPT conversations verbatim.
 **Required review loop:** Observe → log → compare master brief, evidence policy and category/workflow skills → propose tested amendments → implement only when approved → update handover. Protect time-to-sale as primary near-term objective.
+
+## 2026-10-09 — Source-image evidence review made visible
+**Implemented:** commit `cc1cfbe` on draft PR #1 adds explicit inscriptions and original photo indices to the review card, displays candidate transcription/confidence/rationale, and shows all evidence claims. Captures second-pass review within `ai_analysis_runs.result` as an additional record field when the table permits JSON.
+**Unverified:** no live AI analysis performed (avoid unneeded Gateway spend), TypeScript/deployment check pending. Not merged to production at time recorded.
+**Gap identified:** `api/research-item.ts` works only on permanent records, and current AI Intake does not automatically retrieve internal Knowledge Brain evidence or external comps before draft approval. Requires deliberate staged integration with source and freshness records.
