@@ -107,9 +107,77 @@ Hard rules:
 - For mixed batches, assign each image index to the object it depicts. Do not transfer evidence between objects.
 - The user may later research the market. This intake pass has no verified sold-comparable search. Therefore any value is VISUAL-ONLY PROVISIONAL; use null when evidence is inadequate and keep valuation confidence appropriately low.
 - If an attribution could materially change value, set specialist_review true and sale_readiness SPECIALIST_REVIEW or RESEARCH_FIRST.
+- Treat a visible mark or inscription as attribution-critical evidence. Examine ALL supplied detail and underside photographs, especially later indices, before describing it as unreadable or asking for another photograph.
+- Distinguish inscription present, candidate reading, confirmed transcription and independently verified maker attribution. Record literal uncertainty and refer to existing source image indices in the notes; never silently resolve unclear letters into a famous maker.
+- Different lighting can make clear glass look white, opalescent or dark. Distinguish confirmed intrinsic colour from background, shadow and optical refraction.
+- Do not describe an unidentified form as simply Scandinavian-influenced when distinctive form + mark permit a more specific, clearly provisional candidate identification.
 - next_evidence should ask only for photos, measurements or tests that would materially change identification, dating, valuation or sale route.
 - catalogue_note is clean outward-facing wording but must preserve uncertainty.
 - Return no prose outside the structured output.`;
+
+// Targeted second look at already supplied evidence, without performing unsupported external research.
+const inscriptionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["mark_visible","candidate_transcription","transcription_confidence","evidence_image_indices","candidate_maker","candidate_design","candidate_period","attribution_confidence","rationale","contradictions","needs_new_photograph"],
+  properties: {
+    mark_visible: { type: "boolean" },
+    candidate_transcription: { type: ["string","null"] },
+    transcription_confidence: { type: "integer", minimum: 0, maximum: 100 },
+    evidence_image_indices: { type: "array", items: { type: "integer", minimum: 0 } },
+    candidate_maker: { type: ["string","null"] },
+    candidate_design: { type: ["string","null"] },
+    candidate_period: { type: ["string","null"] },
+    attribution_confidence: { type: "integer", minimum: 0, maximum: 100 },
+    rationale: { type: "string" },
+    contradictions: { type: "array", items: { type: "string" } },
+    needs_new_photograph: { type: "boolean" }
+  }
+};
+
+function markNeedsReview(result: any, context: any): boolean {
+  const items = Array.isArray(result?.objects) ? result.objects : [];
+  return items.some((obj: any) => {
+    const mark = String(obj.marks_signatures_labels || "").trim();
+    const note = String(obj.catalogue_note || "");
+    const visibleMark = /(?:inscri|signatur|signed|engraved|etched|hand.writ|mark)/i.test(mark + " " + note);
+    const explicitlyAbsent = /^(?:none|no marks|no signatures|not visible|unmarked|unknown|n\/a)\.?$/i.test(mark);
+    return visibleMark && !explicitlyAbsent;
+  }) || /\b(?:signed|signature|inscription)\b/i.test(String(context?.user_notes || ""));
+}
+
+function applyInscriptionReview(result: any, review: any) {
+  if (!review?.mark_visible || !Array.isArray(result?.objects)) return result;
+  const valid = new Set((review.evidence_image_indices || []).filter((x: any) => Number.isInteger(x)));
+  const description = review.candidate_transcription
+    ? `Second-pass candidate inscription: "${review.candidate_transcription}" (${review.transcription_confidence}% transcription confidence; NOT independently verified).`
+    : "Second-pass examination detected a mark but could not transcribe it reliably.";
+  for (const object of result.objects) {
+    if (!Array.isArray(object.image_indices) || !object.image_indices.some((x: number) => valid.has(x))) continue;
+    const indices = object.image_indices.filter((x: number) => valid.has(x)).join(", ");
+    const source = `Source image indices: ${indices || "not determined"}. ${review.rationale || ""}`;
+    object.marks_signatures_labels = [object.marks_signatures_labels, description].filter(Boolean).join(" ");
+    object.evidence = Array.isArray(object.evidence) ? object.evidence : [];
+    object.evidence.push({ claim: description, provenance: "INFERENCE", certainty_class: "POSSIBLE_ATTRIBUTION", stance: "SUPPORTS", notes: source });
+    if (review.candidate_maker && !object.maker) {
+      object.current_attribution = [review.candidate_maker, review.candidate_design].filter(Boolean).join(" — ") + " (candidate only; research needed)";
+      object.catalogue_note = `Unverified inscription-led candidate: ${object.current_attribution}. ${object.catalogue_note || ""}`;
+      // Image-only maker readings are hypotheses, never confirmed identities.
+      object.identification_confidence = Math.min(74, Math.max(object.identification_confidence || 0, Math.min(review.attribution_confidence || 0, 74)));
+    }
+    if (review.candidate_period && !object.period_wording) object.period_wording = `Possible ${review.candidate_period}; unverified`;
+    if (review.candidate_maker) {
+      object.sale_readiness = "RESEARCH_FIRST";
+      object.status = "RESEARCH";
+      object.specialist_review = true;
+    }
+    // Do not request replacement photographs if the existing image already yields a candidate reading.
+    if (!review.needs_new_photograph && review.candidate_transcription && Array.isArray(object.next_evidence)) {
+      object.next_evidence = object.next_evidence.filter((e: any) => !/\b(?:inscription|signature|mark)\b/i.test(String(e.title || "")));
+    }
+  }
+  return result;
+}
 
 function extractText(payload: any) {
   if (typeof payload.output_text === "string" && payload.output_text) return payload.output_text;
@@ -210,11 +278,58 @@ export default async function handler(req: any, res: any) {
   if (!text) return res.status(502).json({ error: "Analysis returned no structured output" });
 
   try {
-    const result = JSON.parse(text);
+    let result = JSON.parse(text);
+    let inscription_review = null;
+    if (markNeedsReview(result, context)) {
+      // Only examine already uploaded images. Prefer recent close-ups while retaining overall views.
+      const selected = images.length <= 12 ? images : [images[0], images[1], ...images.slice(-10)];
+      const detailContent: any[] = [{
+        type: "input_text",
+        text: "Independently re-examine the ORIGINAL photographs for inscriptions and distinctive form. Images in this request are indexed using their original indices. The first-pass draft below is unverified and may have missed a legible inscription: " + JSON.stringify(result.objects.map((o: any) => ({image_indices:o.image_indices,marks:o.marks_signatures_labels,object_type:o.object_type,current_attribution:o.current_attribution}))) + ". Transcribe only letters/numbers actually visible, expressing uncertain characters with ?. Do not use internet research, assert an exact pattern without evidence, or pretend a maker attribution is confirmed. Indices must correspond to the source image containing the mark. If not readable leave null. Return a candidate maker/design only where form and mark jointly support it. New photographs are needed only if the supplied images do not already resolve the relevant detail."
+      }];
+      for (const image of selected) {
+        detailContent.push({type:"input_text",text:`IMAGE_INDEX=${image.index}; FILE=${image.fileName || "unnamed"}`});
+        detailContent.push({type:"input_image",image_url:image.url,detail:"original"});
+      }
+      try {
+        const markResponse = await fetch(
+          useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
+          {
+            method:"POST",
+            headers:{"Content-Type":"application/json", Authorization:`Bearer ${apiKey}`},
+            body:JSON.stringify({
+              model,
+              reasoning:{effort:"high"},
+              instructions:"You are a cautious specialist examining actual inscriptions on collectibles. The original photo is primary evidence. Never turn a candidate transcription into a verified provenance or maker. Always refer to the original image index.",
+              input:[{role:"user",content:detailContent}],
+              text:{format:{type:"json_schema",name:"collector_inscription_review",strict:true,schema:inscriptionSchema}},
+              max_output_tokens:1700
+            })
+          }
+        );
+        if (markResponse.ok) {
+          const markPayload = await markResponse.json();
+          const markText = extractText(markPayload);
+          if (markText) {
+            inscription_review = JSON.parse(markText);
+            // Exclude invented indices before attaching review to physical-object evidence.
+            const uploadedIndices = new Set(images.map((image: any) => image.index));
+            inscription_review.evidence_image_indices = (inscription_review.evidence_image_indices || []).filter((i: number) => uploadedIndices.has(i));
+            result = applyInscriptionReview(result, inscription_review);
+          }
+        } else {
+          // A failed second look must not discard the already completed draft.
+          console.warn("Inscription review unavailable", markResponse.status);
+        }
+      } catch (err) {
+        console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
+      }
+    }
     return res.status(200).json({
       model: payload.model || body.model,
       response_id: payload.id || null,
-      result
+      result,
+      inscription_review
     });
   } catch {
     return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
