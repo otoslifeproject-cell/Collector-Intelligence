@@ -41,3 +41,6 @@ The prototype Chrome extension v0.1/v0.2 failed to capture visible messages reli
 
 ## New-window instruction
 “Read `02_MASTER_PROJECT_BRIEF.md`, `docs/CURRENT_HANDOVER.md`, `docs/PROJECT_PROGRESS_LOG.md`, and `docs/INSTRUCTION_IMPROVEMENT_QUEUE.md` from the Collector Intelligence GitHub repository. Resume from the active PR and verify current state before changing code.”
+
+## 2026-10-09 — Execution pass in progress
+User authorised full build-out without repeated interruptions. Active PR #1 now also includes commit `cc1cfbe`: draft review UI explicitly exposes source-image-indexed inscription candidate, confidence, rationale and all captured evidence, rather than hiding them behind the five-item display limit. Production remains unchanged until merge. Vercel preview check was pending at time of this entry. **Do not claim the 12-image regression was run**; browser live test remains required. Continue with internal Knowledge Brain retrieval and sale-ready research after inscription test.
