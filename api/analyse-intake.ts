@@ -210,6 +210,37 @@ async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userTok
   return {status:matches.length?"MATCHES_FOUND":"NO_MATCHES",query_terms:terms,matches};
 }
 
+// Conservatively surface relevant existing knowledge without treating keyword overlap as proof.
+function reconcileKnowledge(result: any, lookup: any) {
+  if (!Array.isArray(result?.objects) || !Array.isArray(lookup?.matches)) return result;
+  const trusted = lookup.matches.filter((k:any) =>
+    k.verification_status === "VERIFIED_DIRECT" &&
+    Boolean(k.source_url || k.source_reference) &&
+    !k.supersedes_id &&
+    k.freshness_flag !== "CHECK_FRESHNESS" &&
+    ["FACT","STRONG_ATTRIBUTION"].includes(k.certainty_class)
+  );
+  for (const object of result.objects) {
+    const idText = [object.maker,object.current_attribution,object.marks_signatures_labels].filter(Boolean).join(" ").toLowerCase();
+    if (!idText || idText.length < 5) continue;
+    for (const record of trusted) {
+      const key = String(record.entity_key || "").trim().toLowerCase();
+      // Do not use generic descriptions to establish a maker; require named key.
+      if (!key || key.length < 5 || !idText.includes(key)) continue;
+      object.evidence = Array.isArray(object.evidence) ? object.evidence : [];
+      object.evidence.push({
+        claim:"Relevant existing Knowledge Brain claim (independent verification still required for this object's attribution): " + record.claim,
+        provenance:"INFERENCE",
+        certainty_class:"POSSIBLE_ATTRIBUTION",
+        stance:"SUPPORTS",
+        notes:"Knowledge record " + record.id + "; original source " + (record.source_url || record.source_reference) + "; last verified " + (record.last_verified || "unknown")
+      });
+      object.sale_readiness = "RESEARCH_FIRST";
+    }
+  }
+  return result;
+}
+
 function extractText(payload: any) {
   if (typeof payload.output_text === "string" && payload.output_text) return payload.output_text;
   for (const item of payload.output || []) {
@@ -366,6 +397,7 @@ export default async function handler(req: any, res: any) {
         console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
       }
     }
+    result = reconcileKnowledge(result, knowledge_lookup);
     return res.status(200).json({
       model: payload.model || body.model,
       response_id: payload.id || null,
