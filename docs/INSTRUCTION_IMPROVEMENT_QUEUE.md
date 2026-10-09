@@ -32,3 +32,5 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 | CI-011 | AI research draft owner approval was labelled RESEARCH_VERIFIED without independent source checking | Always preserve OWNER_REVIEWED until direct source validation is separately evidenced | Verify owner approval and a later independent-review workflow | Implemented on main; deployment/test pending |
 
 | CI-012 | Identification tab was only a placeholder despite existing database records | Show immutable attribution versions and provenance/verification of item-level evidence | Vercel build and test with populated item record | Implemented, awaiting test |
+
+| CI-013 | Holmegaard regression 2 repeats unidentified mark and optical-colour misreading | Record second-pass trigger/result/error state separately from identification; diagnose failures, then test photo-level mark analysis against independently verified image evidence | Gateway status, source image mapping, blind negative controls and app UI verified before attribution promotion | Diagnostic implemented, acceptance pending |
