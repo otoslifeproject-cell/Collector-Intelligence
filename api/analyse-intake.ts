@@ -271,7 +271,7 @@ async function loadCanonicalContext(url: string, key: string, token: string) {
   const selected = keys.map(k=>rows.find((x:any)=>x.document_key===k));
   if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
   return {
-    instructions: keys.map((k,i)=>"SOURCE DOCUMENT "+k+" [SHA256 "+selected[i].content_sha256+"]\\n"+selected[i].content).join("\\n\\n"),
+    instructions: keys.map((k,i)=>"SOURCE DOCUMENT "+k+" [SHA256 "+selected[i].content_sha256+"]\n"+selected[i].content).join("\n\n"),
     hashes: Object.fromEntries(keys.map((k,i)=>[k,selected[i].content_sha256]))
   };
 }
@@ -332,7 +332,7 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "medium" },
-    instructions: systemPrompt + "\\n\\nMANDATORY CURRENT PROJECT SPECIFICATIONS (Master Brief governs):\\n" + canonical.instructions,
+    instructions: systemPrompt + "\n\nMANDATORY CURRENT PROJECT SPECIFICATIONS (Master Brief governs):\n" + canonical.instructions,
     input: [{ role: "user", content }],
     text: {
       format: {
