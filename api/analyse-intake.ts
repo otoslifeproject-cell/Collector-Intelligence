@@ -168,7 +168,7 @@ function applyInscriptionReview(result: any, review: any) {
       object.current_attribution = [review.candidate_maker, review.candidate_design].filter(Boolean).join(" — ") + " (candidate only; research needed)";
       object.catalogue_note = `Unverified inscription-led candidate: ${object.current_attribution}. ${object.catalogue_note || ""}`;
       // Image-only maker readings are hypotheses, never confirmed identities.
-      object.identification_confidence = Math.min(74, Math.max(object.identification_confidence || 0, Math.min(review.attribution_confidence || 0, 74)));
+      object.identification_confidence = Math.min(74, object.identification_confidence || 0); // A speculative second-pass maker must not increase object-level identification certainty.
     }
     if (review.candidate_period && !object.period_wording) object.period_wording = `Possible ${review.candidate_period}; unverified`;
     if (review.candidate_maker) {
