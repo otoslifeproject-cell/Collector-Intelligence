@@ -55,6 +55,7 @@ export default function AIIntake() {
   const [drafts,setDrafts] = useState<DraftObject[]>([])
   const [batchSummary,setBatchSummary] = useState('')
   const [inscriptionReview,setInscriptionReview] = useState<any>(null)
+  const [inscriptionReviewStatus,setInscriptionReviewStatus] = useState('NOT_TRIGGERED')
   const [analysisRunId,setAnalysisRunId] = useState<string|null>(null)
   const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'>('upload')
   const [message,setMessage] = useState('')
@@ -164,6 +165,7 @@ export default function AIIntake() {
       setDrafts(objects)
       setBatchSummary(payload.result?.batch_summary || '')
       setInscriptionReview(payload.inscription_review || null)
+      setInscriptionReviewStatus(payload.inscription_review_status || 'UNKNOWN_VERSION')
       setMessage('Review the draft. Nothing has been written to the permanent catalogue yet.')
 
       const {data:run} = await supabase.from('ai_analysis_runs').insert({
@@ -383,6 +385,7 @@ export default function AIIntake() {
           <div className="reviewCount">{selectedCount} selected</div>
         </div>
 
+        <div className="note">Inscription second-pass status: <strong>{inscriptionReviewStatus}</strong>. This status indicates whether a second image examination ran; it does not prove a signature reading or maker attribution.</div>
         <div className="draftGrid">
           {drafts.map((d,idx)=><div className={d.include===false?'draftCard excluded':'draftCard'} key={idx}>
             <div className="draftHead">
