@@ -74,3 +74,6 @@ Commit `46da1b6` on main adds conservative reconciliation of read-only Knowledge
 
 ## 2026-10-10 — Stage 1 source lead capture
 Research page commit `7c93847` adds owner-scoped Knowledge Brain record browsing and a manual evidence-lead entry form. New claims remain UNVERIFIED with URL and no last_verified date; no database migration or historic import. Browser acceptance test pending; deployment check not yet confirmed. Next stage: source validation and explicit evidence promotion with audit trail. Continue phased delivery, checking logs and relevant project instructions each stage.
+
+## 2026-10-10 — Stage 2 source review checkpoint
+Research page commits `b218b09` and `d1aa7eb` add manual cited-source review, explicit evidence classification, and a new Knowledge Brain row linked through `supersedes_id`, preserving the original version. User must affirm personal source inspection and supply >=30 characters of documentary basis. Existing owner RLS applies. Vercel check pending at checkpoint; no live form insertion or AI test run. Stage 2 review must not be described as automatic source verification. Next: verify deploy, test old/new version RLS and status, then add duplicate/supersession backend enforcement and integrate source-backed write-back. No canonical facts imported.
