@@ -59,3 +59,6 @@ Commit `c900be6` replaces the placeholder Identification tab with live `item_evi
 
 ## 2026-10-09 — Regression #2 and diagnostics
 User reran identical 12-image Holmegaard candidate. Draft ID 55%, date 25%, value 20%; failed maker/inscription again. Do not approve generic draft. Main now has `3f6434c` diagnostic server status and `da6abca` UI status to distinguish second-pass not triggered/failure/completed. Deployment and live test not yet verified. Prioritize cause diagnosis rather than repeating blind Gateway calls. Mark source reading hypothesis only; do not preload target identity into blind image recognition.
+
+## 2026-10-09 — Internal-first audit
+Verified source architecture in actual code and committed `docs/KNOWLEDGE_AND_SOURCE_INTEGRATION_AUDIT.md`. Knowledge Brain retrieval is **not yet demonstrated** before analysis; live research is a distinct post-catalogue endpoint. Supabase connector currently lists only an unrelated Universal Marketing database, so CI database schema was not audited or changed. Latest main commit `34e57d95` Vercel status success (individual earlier diagnostic commit failed, later deploy succeeded). Next action: confirm CI database scope, then implement read-only internal retrieval with provenance/freshness.
