@@ -75,3 +75,17 @@ Commit `732ead4` revises the intake and second-look instructions to distinguish 
 
 ## 2026-10-10 — Object-level uncertainty and review safeguards
 **Code:** `da6e45f` displays original images with numbers, contradictory mark readings, and evidence notes, rather than first four thumbnails; `7012707` prevents a speculative second-pass maker from lifting identification confidence. Prior lighting/scratches revision `732ead4` Vercel success. **Unverified:** latest build, browser photo links and actual Holmegaard transcription. No model run, database mutation, or source promotion. Relevant rules remain the Master Brief's evidence separation/independent confidence requirements; no canon rewrite needed.
+
+## 2026-10-10 — Major recovery/migration and integrity fixes
+
+**Executed against correct Supabase project:** 19 full project Markdown source documents archived and checksummed; four GitHub operational docs and protocol archived. `canonical_documents` versioned store and RLS created. Initial incomplete-line endings were detected; failed second read emitted short placeholder text, also caught in post-import audit. Byte-correct source documents were recovered from intact original archived copies and re-published without deleting prior versions. New small-doc insert rejected by DB constraint; AI loaders reject inadequate or placeholder documents. This incident is deliberately logged rather than hidden.
+
+**Historical preservation:** four 12-image storage sets (48 photos total); `intake_photo_sessions` table records source object paths and timestamps; two analysis run links supported by matching chronology and counts; two explicitly unmatched. Neither draft approved, no permanent item inserted. Portable backup ZIP of originals and collection workbook created with manifest.
+
+**App integration:** `api/analyse-intake.ts` and `api/research-item.ts` now load controlling document versions from authenticated Supabase REST and fail closed if essential policies unavailable. AI Intake and item research save source hashes and diagnostic trust state in `ai_analysis_runs.result`; research valuations with insufficient cited sold candidates capped and routed to further research. Research screen displays canonical archive plus photo preservation sessions. Compiles/deployment check for screen commit `496930c` succeeded; authenticated end-to-end test pending.
+
+**Database security:** RLS owner read for canonical, no client insert/update/delete; immutable history. Hardened functions' search_path and enabled RLS on ci_migration_history. Security advisor retest leaves one account-level WARN: leaked-password protection disabled, plus INFO for migration history lacking client policy by design. No destructive data migrations.
+
+**Authoritative artifacts:** docs/CANONICAL_GOVERNANCE_AND_SOURCE_TRUST_PROTOCOL.md, docs/RECOVERY_MANIFEST_2026-10-10.md, skills/15_NO_DRIFT_MIGRATION_AND_SOURCE_TRUST.md, version-controlled migration SQL.
+
+**Pending:** latest logs/skills publication to DB, photo asset byte verification, authenticated UI smoke test, workbook Storage backup, independent seller/auction verification and Holmegaard retest.
