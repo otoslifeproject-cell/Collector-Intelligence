@@ -23,6 +23,18 @@ function sha256(text: string) {
   return crypto.createHash('sha256').update(text).digest('hex')
 }
 
+function normalizeConnectionString(value: string) {
+  try {
+    const url = new URL(value)
+    for (const key of ['sslmode','sslcert','sslkey','sslrootcert','sslsni']) {
+      url.searchParams.delete(key)
+    }
+    return url.toString()
+  } catch {
+    return value
+  }
+}
+
 async function connectDatabase() {
   const publicUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -45,7 +57,7 @@ async function connectDatabase() {
 
   for (const [source, connectionString] of candidates) {
     const client = new Client({
-      connectionString,
+      connectionString: normalizeConnectionString(connectionString),
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 8000
     })
