@@ -19,6 +19,13 @@ Updated: 2026-10-09. Open this first in any new work session.
 - Branch: `intake-inscription-fix`; commit `cac07947`.
 - Second-pass inscription review added; deploy check success; **not yet merged or acceptance-tested**.
 
+
+## Immediate commercial priority (user instruction 2026-10-09)
+Focus on practical cataloguing and selling. Do not further troubleshoot the optional cross-ChatGPT Chrome extension unless explicitly requested. Persist decisions and work outcomes in the repository log as work occurs. Each code/research enhancement must trigger an impact check against Master Brief, source policy, skills, relevant category playbooks, Knowledge Brain, item records and sales routing. Only revise canonical rules after verification; avoid speculative drift.
+
+## Continuity status
+The prototype Chrome extension v0.1/v0.2 failed to capture visible messages reliably in the user's browser; it is paused and **not** a trusted verbatim capture system. GitHub operational documentation plus scheduled daily checks are currently the durable continuity path. They are not real-time cross-window automatic synchronization. New-window readers must reload these docs explicitly.
+
 ## Next actions (in order)
 1. Review and run regression against same 12 Holmegaard/Fionia candidate images with a controlled AI spend budget.
 2. Inspect actual transcription, linked image indices and object confidence; never infer signature verification from plausible maker.
