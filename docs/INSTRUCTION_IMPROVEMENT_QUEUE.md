@@ -26,3 +26,5 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 
 | CI-008 | Source-linked second-pass inscription remains invisible beneath first five evidence entries | Show complete marks, candidate transcription, evidence image indices and uncertainties before permanent approval | Confirm rendered in preview and live 12-photo regression | Implemented in PR #1; unverified |
 | CI-009 | Research endpoint accepts only permanent items | Stage internal-first maker/design source retrieval and optional external verification before sale-ready valuation, without forcing approval of weak draft | Database-schema audit, citations/freshness and test | Proposed |
+
+| CI-010 | PR #1 merged but live regression incomplete | Verify production readiness, run one controlled image-set regression, inspect citation/attribution correctness and Gateway spend | Evidence from actual UI and billing | Awaiting test |
