@@ -300,8 +300,8 @@ export default function AIIntake() {
         created.push(item)
       }
 
-      const tempPaths = photos.map(p=>p.storagePath).filter(Boolean) as string[]
-      if (tempPaths.length) await supabase.storage.from('item-images').remove(tempPaths)
+      // Preserve the original intake photo files for forensic / source-evidence audit.
+      // Approved item photos are separate copies; deletion here would break historical manifests.
       if (analysisRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',analysisRunId)
 
       setMessage(`Created ${created.length} permanent object record${created.length===1?'':'s'}.`)
