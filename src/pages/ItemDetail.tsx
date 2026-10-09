@@ -111,7 +111,7 @@ export default function ItemDetail() {
         ['HAMMER_REALIZED','REALIZED_INCL_BP','MARKETPLACE_SOLD','DEALER_SOLD_CONFIRMED'].includes(c.price_type)
       )
       // Owner approval is not equivalent to independent source verification.
-      const reviewStatus = hasDirectVerifiedSource ? 'RESEARCH_VERIFIED' : 'RESEARCH_PROVISIONAL'
+      const reviewStatus = hasDirectVerifiedSource ? 'RESEARCH_VERIFIED' : 'OWNER_REVIEWED'
 
       const updatePayload:any = {
         maker: idu.maker ?? item.maker,
