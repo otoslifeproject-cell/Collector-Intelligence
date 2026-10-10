@@ -162,7 +162,7 @@ function checkResearchEvidence(result:any) {
      c.verification_status="UNVERIFIED";
    }
  }
- const audited={sold_candidates:sold.length,all_comparables:comps.length,independent_source_verification:false,
+ const audited={model_claimed_sold_candidates:sold.length,verified_sold_results:0,all_comparables:comps.length,independent_source_verification:false,
    warning:"The AI has supplied source classifications; direct source verification must be carried out separately."};
  // Even two AI-labelled sold candidates do not establish externally verified realisations.\n if(true){
    result.valuation=result.valuation||{};
@@ -207,6 +207,22 @@ export default async function handler(req: any, res: any) {
 
   const { item, images = [] } = req.body || {};
   if (!item?.id) return res.status(400).json({ error: "Item record required" });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(item.id))) return res.status(400).json({error:"Invalid item identifier"});
+  // An authenticated session does not itself authorise analysis of an arbitrary item ID.
+  // The items table uses owner-only RLS; do not incur paid research cost for inaccessible IDs.
+  const ownerQuery=new URLSearchParams({select:"id",id:"eq."+String(item.id),limit:"1"});
+  let authorisedItem:any[];
+  try {
+    const ownerResponse=await fetch(`${supabaseUrl}/rest/v1/items?${ownerQuery}`,{
+      headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
+    });
+    if(!ownerResponse.ok) return res.status(503).json({error:"Item ownership could not be checked; research stopped.",code:"ITEM_RLS_"+ownerResponse.status});
+    authorisedItem=await ownerResponse.json();
+  } catch {
+    return res.status(503).json({error:"Item ownership check unavailable; research stopped.",code:"ITEM_RLS_NETWORK"});
+  }
+  if(!Array.isArray(authorisedItem) || authorisedItem.length!==1) return res.status(403).json({error:"Item not found in your private collection or not authorised for research"});
+
 
   const content: any[] = [{
     type: "input_text",
