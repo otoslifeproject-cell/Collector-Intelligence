@@ -197,10 +197,21 @@ export default function Research() {
       evidence_explanation:compNote.trim()
     })
     if (error) {setSaving(false);return setMessage('Comparable review failed: '+error.message)}
-    // A reviewed observation alone does not rewrite the comparable source status.
-    // trusted_comparables_v1 still requires separate VERIFIED_DIRECT status.
+    // Owner-attested approval uses the database trigger for final evidence gating.
+    // A rejected/uncertain review is preserved without changing the original comparable.
+    if (approved) {
+      const {error:promotionError}=await supabase.from('comparables')
+        .update({verification_status:'VERIFIED_DIRECT'})
+        .eq('id',selectedComp.id).eq('owner_id',user.id)
+      if (promotionError) {
+        setSaving(false)
+        setMessage('Review saved, but trusted promotion was BLOCKED: '+promotionError.message)
+        await load()
+        return
+      }
+    }
     setSaving(false);setCompReviewId(null);setCompChecked(false);setCompNote('');setCompLocator('')
-    setMessage('Comparable review recorded. Original preserved. Trusted eligibility additionally requires VERIFIED_DIRECT status and a matching result basis.')
+    setMessage(approved?'Evidence review recorded and database promotion gate passed. Owner attestation is not independent authentication of the source.':'Review preserved without promoting the comparable to verified.')
     await load()
   }
 
