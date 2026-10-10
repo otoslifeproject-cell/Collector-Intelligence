@@ -199,10 +199,10 @@ async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userTok
     limit:"300",
     order:"updated_at.desc"
   });
-  const response = await fetch(`${supabaseUrl}/rest/v1/knowledge_records?${query}`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/trusted_knowledge_v1?${query}`, {
     headers:{ apikey:supabaseKey, Authorization:`Bearer ${userToken}` }
   });
-  if (!response.ok) return {status:"QUERY_ERROR_" + response.status,matches:[]};
+  if (!response.ok) return {status:"TRUST_GATE_UNAVAILABLE_" + response.status,matches:[]};
   const records = await response.json();
   if (!Array.isArray(records)) return {status:"INVALID_RESPONSE",matches:[]};
   const matches = records.filter((k:any) => {
