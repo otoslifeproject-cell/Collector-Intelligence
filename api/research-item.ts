@@ -171,7 +171,7 @@ function checkResearchEvidence(result:any) {
    result.routing=result.routing||{};
    result.routing.sale_readiness="RESEARCH_FIRST";
    result.routing.specialist_review=true;
-   audited.warning+=" Insufficient cited sold candidates; valuation confidence capped at 30%.";
+   audited.warning+=" Original sold outcomes not independently verified; valuation confidence capped at 30%.";
  }
  return audited;
 }
