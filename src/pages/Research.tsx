@@ -41,18 +41,23 @@ export default function Research() {
   const [reviewId,setReviewId] = useState<string|null>(null)
   const [reviewNote,setReviewNote] = useState('')
   const [reviewClass,setReviewClass] = useState('SECONDARY_REPORT')
+  const [reviewKind,setReviewKind] = useState('PRIMARY_DOCUMENT')
+  const [trustedIds,setTrustedIds] = useState<string[]>([])
   const [checked,setChecked] = useState(false)
 
   const load = async () => {
-    const [t,k,c,p,cs,cc] = await Promise.all([
+    const [t,k,c,p,cs,cc,trusted] = await Promise.all([
       supabase.from('research_tasks').select('*,items(item_code,title,current_attribution)').order('information_value',{ascending:false}),
       supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50),
       supabase.from('canonical_documents').select('id,document_key,source_class,authority_rank,content_sha256,ingested_at').order('ingested_at',{ascending:false}).limit(100),
       supabase.from('intake_photo_sessions').select('session_key,photo_count,linked_analysis_run,link_method,first_uploaded_at').order('first_uploaded_at',{ascending:false}).limit(50),
       supabase.from('conversation_sources').select('id,source_title,source_format,source_sha256,extraction_status,captured_at').order('captured_at',{ascending:false}).limit(50),
-      supabase.from('conversation_claims').select('id,source_id,source_locator,subject_key,claim_text,claim_type,certainty,created_at').order('created_at',{ascending:false}).limit(150)
+      supabase.from('conversation_claims').select('id,source_id,source_locator,subject_key,claim_text,claim_type,certainty,created_at').order('created_at',{ascending:false}).limit(150),
+      supabase.from('trusted_knowledge_v1').select('id').limit(500)
     ])
     setTasks(t.data||[])
+    setTrustedIds((trusted.data||[]).map((x:any)=>x.id))
+    if (trusted.error) setMessage('Trusted-only knowledge view unavailable: '+trusted.error.message)
     setKnowledge((k.data||[]) as KnowledgeRow[])
     setCanonicalDocs(c.data||[])
     setPhotoSessions(p.data||[])
@@ -119,20 +124,40 @@ export default function Research() {
     if (!user || user.id!==selected.owner_id) return setMessage('Owner verification failed.')
     if (knowledge.some(k=>k.supersedes_id===selected.id)) return setMessage('That version was already superseded.')
     setSaving(true)
-    const {error} = await supabase.from('knowledge_records').insert({
+    const direct = reviewClass === 'VERIFIED_DIRECT'
+    if (direct && !selected.source_url && !selected.source_reference) {
+      setSaving(false)
+      return setMessage('Direct verification requires an original source URL or specific document/lot reference.')
+    }
+    // First preserve a non-trusted historical revision; promotion is a separate gated step.
+    const {data:revision,error} = await supabase.from('knowledge_records').insert({
       owner_id:user.id, knowledge_type:selected.knowledge_type, entity_type:selected.entity_type,
       entity_key:selected.entity_key, claim:selected.claim, certainty_class:selected.certainty_class,
       confidence:selected.confidence, evidence_provenance:'OWNER_DOCUMENT_REVIEW',
       source_reference:selected.source_reference, source_url:selected.source_url,
-      source_date:selected.source_date, last_verified:new Date().toISOString().slice(0,10),
+      source_date:selected.source_date, last_verified:direct ? null : new Date().toISOString().slice(0,10),
       freshness_requirement:selected.freshness_requirement,
-      verification_status:reviewClass, stance:selected.stance, tags:selected.tags||[],
+      verification_status:direct ? 'UNVERIFIED' : reviewClass, stance:selected.stance, tags:selected.tags||[],
       supersedes_id:selected.id, notes:'Previous record: '+selected.id+'; Documentary review: '+reviewNote.trim()
-    })
+    }).select('id').single()
+    if (error || !revision) {setSaving(false);return setMessage('Could not preserve revision: '+(error?.message||'No revision ID returned'))}
+    if (direct) {
+      const {error:reviewError} = await supabase.from('evidence_reviews').insert({
+        owner_id:user.id, reviewer_id:user.id, knowledge_record_id:revision.id,
+        decision:'APPROVED', evidence_kind:reviewKind,
+        original_source_url:selected.source_url, original_source_reference:selected.source_reference,
+        verification_method:reviewNote.trim(),
+        notes:'Owner attestation; external source must be independently checked before relying on the maker or sale claim.'
+      })
+      if (reviewError) {setSaving(false);return setMessage('Revision preserved as UNVERIFIED; approval failed: '+reviewError.message)}
+      const {error:promotionError} = await supabase.from('knowledge_records')
+        .update({verification_status:'VERIFIED_DIRECT',last_verified:new Date().toISOString().slice(0,10)})
+        .eq('id',revision.id).eq('owner_id',user.id)
+      if (promotionError) {setSaving(false);return setMessage('Revision retained as UNVERIFIED; promotion blocked: '+promotionError.message)}
+    }
     setSaving(false)
-    if (error) return setMessage(error.message)
     setReviewId(null);setReviewNote('');setChecked(false)
-    setMessage('Source review saved as a new revision. Original preserved.')
+    setMessage(direct ? 'Reviewed new revision and passed the database evidence gate. This is owner-attested source review, not independent authentication of the physical object.' : 'Source review saved as a new revision. Original preserved.')
     await load()
   }
 
@@ -156,7 +181,7 @@ export default function Research() {
     <div className="panel">
       <div className="panelHeader"><h2>Latest Knowledge Brain records</h2><span>{current.length} current · {knowledge.length} versions</span></div>
       {knowledge.length===0?<div className="empty">No knowledge records yet. Save the first documented lead above.</div>:
-      <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{k.verification_status||'UNVERIFIED'}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
+      <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{trustedIds.includes(k.id)?'TRUST-GATED · '+k.verification_status:'NOT TRUST-GATED · '+(k.verification_status||'UNVERIFIED')}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
     </div>
     <div className="panel">
       <div className="panelHeader"><h2>Canonical project archive</h2><span>{latestCanonical.length} documents · exact stored versions</span></div>
@@ -198,6 +223,7 @@ export default function Research() {
         <option value="VERIFIED_DIRECT">VERIFIED_DIRECT — directly checked</option>
         <option value="UNVERIFIED">UNVERIFIED — unresolved</option>
       </select></label>
+      {reviewClass==='VERIFIED_DIRECT' && <label>Original evidence type<select value={reviewKind} onChange={e=>setReviewKind(e.target.value)}><option value="PRIMARY_DOCUMENT">Primary factory/catalogue document</option><option value="ORIGINAL_SALE_RESULT">Original sale result</option><option value="PHYSICAL_OBJECT">Physical object evidence</option><option value="RECOGNISED_SPECIALIST">Recognised specialist</option><option value="OTHER">Other independently traceable source</option></select></label>}
       <label>Documentary basis, exact detail and limitations<textarea rows={4} value={reviewNote} onChange={e=>setReviewNote(e.target.value)} /></label>
       <label><input type="checkbox" checked={checked} onChange={e=>setChecked(e.target.checked)}/> I checked the cited source personally and recorded the limitations.</label>
       <div className="intakeActions">
