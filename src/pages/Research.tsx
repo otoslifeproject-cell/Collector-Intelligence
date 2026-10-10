@@ -29,6 +29,8 @@ export default function Research() {
   const [knowledge,setKnowledge] = useState<KnowledgeRow[]>([])
   const [canonicalDocs,setCanonicalDocs] = useState<any[]>([])
   const [photoSessions,setPhotoSessions] = useState<any[]>([])
+  const [conversationSources,setConversationSources] = useState<any[]>([])
+  const [conversationClaims,setConversationClaims] = useState<any[]>([])
   const [openDoc,setOpenDoc] = useState<any>(null)
   const [loadingDoc,setLoadingDoc] = useState(false)
   const [entityKey,setEntityKey] = useState('')
@@ -42,16 +44,21 @@ export default function Research() {
   const [checked,setChecked] = useState(false)
 
   const load = async () => {
-    const [t,k,c,p] = await Promise.all([
+    const [t,k,c,p,cs,cc] = await Promise.all([
       supabase.from('research_tasks').select('*,items(item_code,title,current_attribution)').order('information_value',{ascending:false}),
       supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50),
       supabase.from('canonical_documents').select('id,document_key,source_class,authority_rank,content_sha256,ingested_at').order('ingested_at',{ascending:false}).limit(100),
-      supabase.from('intake_photo_sessions').select('session_key,photo_count,linked_analysis_run,link_method,first_uploaded_at').order('first_uploaded_at',{ascending:false}).limit(50)
+      supabase.from('intake_photo_sessions').select('session_key,photo_count,linked_analysis_run,link_method,first_uploaded_at').order('first_uploaded_at',{ascending:false}).limit(50),
+      supabase.from('conversation_sources').select('id,source_title,source_format,source_sha256,extraction_status,captured_at').order('captured_at',{ascending:false}).limit(50),
+      supabase.from('conversation_claims').select('id,source_id,source_locator,subject_key,claim_text,claim_type,certainty,created_at').order('created_at',{ascending:false}).limit(150)
     ])
     setTasks(t.data||[])
     setKnowledge((k.data||[]) as KnowledgeRow[])
     setCanonicalDocs(c.data||[])
     setPhotoSessions(p.data||[])
+    setConversationSources(cs.data||[])
+    setConversationClaims(cc.data||[])
+    if (cs.error || cc.error) setMessage('Historical learning ledger could not be read: '+(cs.error?.message||cc.error?.message))
     if (c.error) setMessage('Canonical source archive unavailable: '+c.error.message)
     if (k.error) setMessage('Knowledge Brain could not be read: '+k.error.message)
   }
@@ -163,6 +170,17 @@ export default function Research() {
         <button className="secondaryButton" onClick={()=>setOpenDoc(null)}>Close document</button>
         <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:440,overflow:'auto'}}>{openDoc.content}</pre>
       </div>}
+    </div>
+    <div className="panel">
+      <div className="panelHeader"><h2>Historical research learning ledger</h2><span>{conversationSources.length} archived conversations · {conversationClaims.length} extracted records</span></div>
+      <p>Archived research remains traceable to its original page or conversation. Historical AI attributions and price estimates are not automatically independently verified.</p>
+      {conversationSources.length===0 ? <div className="empty">No historical conversation source registered yet.</div> :
+        <div className="tableWrap"><table><thead><tr><th>Archived source</th><th>Ingestion</th><th>SHA-256</th></tr></thead><tbody>
+        {conversationSources.map((x:any)=><tr key={x.id}><td>{x.source_title}</td><td>{x.extraction_status}</td><td><code>{x.source_sha256.slice(0,16)}…</code></td></tr>)}
+        </tbody></table></div>}
+      {conversationClaims.length>0 && <div className="tableWrap"><table><thead><tr><th>Object/topic</th><th>Historical claim</th><th>Evidence status</th><th>Source location</th></tr></thead><tbody>
+      {conversationClaims.map((x:any)=><tr key={x.id}><td>{x.subject_key}</td><td>{x.claim_text}</td><td>{x.claim_type} · {x.certainty}</td><td>{x.source_locator}</td></tr>)}
+      </tbody></table></div>}
     </div>
     <div className="panel">
       <div className="panelHeader"><h2>Preserved photo intake history</h2><span>{photoSessions.length} upload sessions</span></div>
