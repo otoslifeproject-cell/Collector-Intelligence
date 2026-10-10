@@ -224,6 +224,20 @@ export default async function handler(req: any, res: any) {
   if(!Array.isArray(authorisedItem) || authorisedItem.length!==1) return res.status(403).json({error:"Item not found in your private collection or not authorised for research"});
 
 
+  // Owner-scoped, reviewed realised prices only. No fallback to raw comparable rows.
+  let trustedComparableRows:any[];
+  try {
+    const compQuery=new URLSearchParams({select:"id,venue,source_reference,source_url,lot_item_id,sale_date,price_type,price,currency,description,maker_attribution,dimensions,condition_summary,comparability_grade,verification_status",item_id:"eq."+String(item.id),limit:"50"});
+    const compResponse=await fetch(`${supabaseUrl}/rest/v1/trusted_comparables_v1?${compQuery}`,{
+      headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
+    });
+    if(!compResponse.ok) return res.status(503).json({error:"Verified comparable-sale gate unavailable; paid research stopped.",code:"TRUSTED_COMPS_"+compResponse.status});
+    trustedComparableRows=await compResponse.json();
+    if(!Array.isArray(trustedComparableRows)) return res.status(503).json({error:"Invalid verified-sale gate response",code:"TRUSTED_COMPS_INVALID"});
+  } catch {
+    return res.status(503).json({error:"Verified comparable-sale gate inaccessible; paid research stopped.",code:"TRUSTED_COMPS_NETWORK"});
+  }
+
   const content: any[] = [{
     type: "input_text",
     text: `Research this permanent Collector Intelligence record. Current record is working evidence, not guaranteed fact:\n${JSON.stringify(item, null, 2)}\nUse live web search for attribution and market evidence. Preserve uncertainty.`
@@ -238,7 +252,7 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "high" },
-    instructions: instructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge),
+    instructions: instructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
     tools: [{ type: "web_search", search_context_size: "medium" }],
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
@@ -258,7 +272,7 @@ export default async function handler(req: any, res: any) {
   const text = extractText(payload);
   try {
     const result=JSON.parse(text);
-    const source_audit=checkResearchEvidence(result);
+    const source_audit=checkResearchEvidence(result);\n    source_audit.trusted_database_comparables=trustedComparableRows.length;\n    source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
     return res.status(200).json({model:payload.model || body.model,response_id:payload.id || null,result,source_audit,canonical_policy_hashes:canonical.hashes});
   } catch {
     return res.status(502).json({error:"Could not parse structured research output",raw:text.slice(0,2000)});
