@@ -304,6 +304,18 @@ export default async function handler(req: any, res: any) {
   try { canonical = await loadCanonicalContext(supabaseUrl,supabaseKey,token); }
   catch (e) { return res.status(503).json({error:"Required Collector Intelligence policy cannot be loaded; AI analysis stopped to prevent policy drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"}); }
 
+  // Trust gate preflight BEFORE any paid AI request. No unreviewed fallback.
+  try {
+    const gate = await fetch(`${supabaseUrl}/rest/v1/trusted_knowledge_v1?select=id&limit=1`,{
+      headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
+    });
+    if (!gate.ok) return res.status(503).json({error:"Trusted Knowledge Brain unavailable; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_"+gate.status});
+    const rows = await gate.json();
+    if (!Array.isArray(rows)) return res.status(503).json({error:"Invalid trusted knowledge response; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_INVALID"});
+  } catch {
+    return res.status(503).json({error:"Trusted Knowledge Brain inaccessible; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_NETWORK"});
+  }
+
   const { mode = "single", images = [], context = {} } = req.body || {};
   if (!Array.isArray(images) || images.length < 1) return res.status(400).json({ error: "At least one image is required" });
   if (images.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
@@ -369,7 +381,10 @@ export default async function handler(req: any, res: any) {
     let result = JSON.parse(text);
     let knowledge_lookup: any = {status:'NOT_ATTEMPTED',matches:[]};
     try { knowledge_lookup = await lookupKnowledge(supabaseUrl,supabaseKey,token,result); }
-    catch { knowledge_lookup = {status:'LOOKUP_ERROR',matches:[]}; }
+    catch { return res.status(503).json({error:'Trusted knowledge retrieval failed after model analysis; result not approved.',code:'LOOKUP_ERROR'}); }
+    if (String(knowledge_lookup.status).startsWith('TRUST_GATE_UNAVAILABLE_') || knowledge_lookup.status === 'INVALID_RESPONSE') {
+      return res.status(503).json({error:'Trusted knowledge retrieval failed after model analysis; result not approved.',code:knowledge_lookup.status});
+    }
     let inscription_review = null;
     let inscription_review_status = 'NOT_TRIGGERED';
     if (markNeedsReview(result, context)) {
