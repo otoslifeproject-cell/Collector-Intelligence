@@ -138,6 +138,16 @@ async function loadPricingCanon(url: string, key: string, token: string) {
  hashes:Object.fromEntries(names.map((n,i)=>[n,selected[i].content_sha256]))};
 }
 
+// Retrieve only source-reviewed records; fail closed if trusted read cannot be completed.
+async function loadTrustedResearchContext(url:string,key:string,token:string) {
+ const qp=new URLSearchParams({select:"id,entity_key,claim,source_url,source_reference,last_verified,certainty_class",limit:"100"});
+ const response=await fetch(`${url}/rest/v1/trusted_knowledge_v1?${qp}`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
+ if(!response.ok) throw new Error("TRUSTED_KNOWLEDGE_ACCESS_"+response.status);
+ const rows=await response.json();
+ if(!Array.isArray(rows)) throw new Error("TRUSTED_KNOWLEDGE_INVALID");
+ return rows.map((r:any)=>({id:r.id,entity_key:r.entity_key,claim:r.claim,source_url:r.source_url,source_reference:r.source_reference,last_verified:r.last_verified,certainty_class:r.certainty_class}));
+}
+
 // Model-supplied source labels are evidence claims, not third-party verification.
 // Demand multiple apparently realised comparables before reporting research-based valuation confidence.
 function checkResearchEvidence(result:any) {
@@ -145,6 +155,13 @@ function checkResearchEvidence(result:any) {
  const soldClasses=new Set(["HAMMER_REALIZED","REALIZED_INCL_BP","MARKETPLACE_SOLD","DEALER_SOLD_CONFIRMED"]);
  const sold=comps.filter((c:any)=>soldClasses.has(c.price_type) && c.price!==null && c.price>=0 && c.source_url &&
    ["VERIFIED_DIRECT","INDEXED_SOLD"].includes(c.verification_status));
+ // Model labels are downgraded: no external sale page was independently verified here.
+ for (const c of comps) {
+   if (c.verification_status === "VERIFIED_DIRECT" || c.verification_status === "INDEXED_SOLD") {
+     c.notes=[c.notes||"","MODEL-SUPPLIED SOLD STATUS ONLY; original result not independently verified."].join(" ");
+     c.verification_status="UNVERIFIED";
+   }
+ }
  const audited={sold_candidates:sold.length,all_comparables:comps.length,independent_source_verification:false,
    warning:"The AI has supplied source classifications; direct source verification must be carried out separately."};
  if(sold.length<2){
