@@ -164,7 +164,7 @@ function checkResearchEvidence(result:any) {
  }
  const audited={sold_candidates:sold.length,all_comparables:comps.length,independent_source_verification:false,
    warning:"The AI has supplied source classifications; direct source verification must be carried out separately."};
- if(sold.length<2){
+ // Even two AI-labelled sold candidates do not establish externally verified realisations.\n if(true){
    result.valuation=result.valuation||{};
    result.valuation.valuation_confidence=Math.min(Number(result.valuation.valuation_confidence)||0,30);
    result.valuation.notes=[result.valuation.notes||"","PROVISIONAL VALUE — SOLD EVIDENCE INADEQUATE: fewer than two cited sold candidates."].join(" ");
@@ -201,7 +201,9 @@ export default async function handler(req: any, res: any) {
   let canonical:{instructions:string,hashes:Record<string,string>};
   try {canonical=await loadPricingCanon(supabaseUrl,supabaseKey,token);}
   catch(e){return res.status(503).json({error:"Collector Intelligence source policy unavailable; research stopped to prevent drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"});}
-
+  let trustedKnowledge:any[];
+  try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
+  catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
   const { item, images = [] } = req.body || {};
   if (!item?.id) return res.status(400).json({ error: "Item record required" });
@@ -220,7 +222,7 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "high" },
-    instructions: instructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions,
+    instructions: instructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge),
     tools: [{ type: "web_search", search_context_size: "medium" }],
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
