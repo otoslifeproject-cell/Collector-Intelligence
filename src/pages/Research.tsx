@@ -184,6 +184,7 @@ export default function Research() {
     const approved=compDecision==='APPROVED'
     if (approved && !['HAMMER','INCLUSIVE_REALIZED','CONFIRMED_MARKETPLACE_SOLD'].includes(compObserved))
       return setMessage('UNSOLD, ASKING, ESTIMATE or UNKNOWN cannot be approved as a realised sale.')
+    if (approved && (selectedComp.price==null || Number(selectedComp.price)<0 || !selectedComp.currency || !selectedComp.source_reference)) return setMessage('The sale needs a valid recorded amount, currency and original lot reference before approval.')
     const expected:any={HAMMER_REALIZED:'HAMMER',REALIZED_INCL_BP:'INCLUSIVE_REALIZED',MARKETPLACE_SOLD:'CONFIRMED_MARKETPLACE_SOLD',DEALER_SOLD_CONFIRMED:'CONFIRMED_MARKETPLACE_SOLD'}
     if (approved && expected[selectedComp.price_type]!==compObserved)
       return setMessage('The observed result type must match the recorded price basis before approval.')
@@ -194,7 +195,10 @@ export default function Research() {
       original_lot_url:/^https?:\/\//i.test(compLocator.trim())?compLocator.trim():null,
       original_lot_reference:/^https?:\/\//i.test(compLocator.trim())?null:compLocator.trim(),
       sale_date_checked:new Date().toISOString().slice(0,10),
-      evidence_explanation:compNote.trim()
+      evidence_explanation:compNote.trim(),
+      reviewed_price:approved?selectedComp.price:null,
+      reviewed_currency:approved?selectedComp.currency:null,
+      reviewed_price_type:approved?selectedComp.price_type:null
     })
     if (error) {setSaving(false);return setMessage('Comparable review failed: '+error.message)}
     // Owner-attested approval uses the database trigger for final evidence gating.
