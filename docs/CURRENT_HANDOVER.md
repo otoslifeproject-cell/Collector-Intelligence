@@ -200,3 +200,9 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - UI commit `67f92fa` passes matching snapshot on approval and rejects missing amount/currency/reference. This fixes after-approval amount/source mutation loopholes.
 - DB read-back confirmed v2 trigger installed on INSERT and relevant UPDATE fields. v3 migration returned success, but no authenticated full sale-fixture tests or independent source-authentication were completed. No user comparable was promoted.
 - Outstanding: regression fixtures testing valid realisation, unsold/asking, mismatched source, price mutation, later revocation and cross-owner RLS; production Vercel build, authenticated browser journey; independent auction-result verification remains to be built.
+
+## 2026-10-11 — Executed rollback-only comparable regression
+- Supabase SQL execution on exact project `bwdafrwkimjvwfoqomot` returned success for temp-table transaction testing: direct `VERIFIED_DIRECT` insertion without an approved evidence review was caught as `COMPARABLE_GATE:`; a provisional `AUCTION_ESTIMATE` insert succeeded within the same temp table; explicit `ROLLBACK` ensured no persistent fixture records.
+- Regression committed as `supabase/tests/20261011_comparable_gate_temp_rollback.sql`, commit `9c75861`.
+- Database readback returned `trusted_comparables_v1` count 0; no claimed sold fixtures were created or promoted.
+- NOT YET EXECUTED: positive approved review with real lot source, later revoked review, price/currency/source mutation using valid reviewed fixture, cross-owner authenticated RLS, actual browser/UI flow, Vercel production build and independent external sale verification. Test evidence supports two cases only.
