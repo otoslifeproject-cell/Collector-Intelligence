@@ -225,3 +225,9 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - Test result preserved in `supabase/tests/20261011_owner_rls_regression_results.md` (commit `2c11646`). This is DB RLS simulation, **not real two-account JWT/browser acceptance**.
 - GitHub combined Vercel status for commit `396f30a` was success. Newer commit deployment/browser runtime not certified.
 - Next: verify status of latest commit, browser UI with actual owner, genuine two-account RLS testing if a second authorised test user is available; inspect retention and owner-only archive retrieval.
+
+## 2026-10-11 — UI review preflight and latest deployment check
+- Vercel combined GitHub status for previous handover commit `0b72dfb` returned **success**, but this does not verify an authenticated browser UI or confirm later commits are deployed.
+- Research UI commit `da618d3` now refuses APPROVED comparable-sale review when entered source URL/lot reference does not exactly match either original field on the comparable, **before inserting** an evidence-review record; prior code could save a review only to fail subsequent DB promotion. Existing database remains final authority. This check is syntax/value equality only; original external result authenticity is NOT automatically verified.
+- Read-only live SQL on `public.comparable_source_matches` returned different lot reference=false, matching reference=true, different URL=false. No fake sale records inserted.
+- Remaining operational acceptance: actual signed-in browser Research review (no browser session currently accessible), proof latest UI commit deployed, automatic original auction result verification, full end-to-end approved/revoked review, and valid real second account RLS.
