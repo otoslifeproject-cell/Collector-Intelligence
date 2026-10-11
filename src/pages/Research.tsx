@@ -182,6 +182,11 @@ export default function Research() {
     const {data:{user}}=await supabase.auth.getUser()
     if (!user || user.id!==selectedComp.owner_id) return setMessage('Only the owner may review this comparable.')
     const approved=compDecision==='APPROVED'
+    const enteredLocator=compLocator.trim()
+    const sameOriginalReference=Boolean(selectedComp.source_reference && enteredLocator===selectedComp.source_reference.trim())
+    const sameOriginalUrl=Boolean(selectedComp.source_url && enteredLocator===selectedComp.source_url.trim())
+    if (approved && !sameOriginalReference && !sameOriginalUrl)
+      return setMessage('The approved lot URL/reference must exactly match the comparable source record. Correct the source record before reviewing a different lot.')
     if (approved && !['HAMMER','INCLUSIVE_REALIZED','CONFIRMED_MARKETPLACE_SOLD'].includes(compObserved))
       return setMessage('UNSOLD, ASKING, ESTIMATE or UNKNOWN cannot be approved as a realised sale.')
     if (approved && (selectedComp.price==null || Number(selectedComp.price)<0 || !selectedComp.currency || !selectedComp.source_reference)) return setMessage('The sale needs a valid recorded amount, currency and original lot reference before approval.')
@@ -215,7 +220,7 @@ export default function Research() {
       }
     }
     setSaving(false);setCompReviewId(null);setCompChecked(false);setCompNote('');setCompLocator('')
-    setMessage(approved?'Evidence review recorded and database promotion gate passed. Owner attestation is not independent authentication of the source.':'Review preserved without promoting the comparable to verified.')
+    setMessage(approved?'Owner review saved and database promotion accepted. This does NOT independently authenticate the auction result.':'Review preserved without promoting the comparable to verified.')
     await load()
   }
 
