@@ -219,3 +219,9 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - Executed read-only `SET LOCAL ROLE authenticated` query inside BEGIN/ROLLBACK; no evidence reviews visible. This confirms queryability but is NOT a two-authenticated-user cross-owner fixture test; records may be absent and no distinct real JWT principals were used.
 - GitHub combined status for commit `7efe8c202b827e04241d4cdc9e73c584304f335f` returned Vercel **success**, linked deployment `5BfVHzQ51ZzUC2CvaA1p2umw7edE`. This confirms CI deployment status for the specified commit; NOT authenticated browser runtime or that subsequent commits were deployed.
 - Next acceptance: two actual distinct test principals with test-owned items and review records; cross-owner select, insert and update attempts; restore rollback and remove synthetic fixtures; verify latest deployed commit and browser review workflow. Never infer cross-owner protection conclusively from policy text alone.
+
+## 2026-10-11 — Owner-isolation rollback regression
+- Live Supabase has one registered auth user. A controlled BEGIN/ROLLBACK SQL test used one owner and a simulated different JWT subject under role `authenticated`: the owner saw the synthetic comparable; the simulated outsider saw zero rows and could not insert an evidence review targeting that owner's comparable. No test records persisted. First run was invalid due to temporary-fixture SELECT privilege; corrected run passed.
+- Test result preserved in `supabase/tests/20261011_owner_rls_regression_results.md` (commit `2c11646`). This is DB RLS simulation, **not real two-account JWT/browser acceptance**.
+- GitHub combined Vercel status for commit `396f30a` was success. Newer commit deployment/browser runtime not certified.
+- Next: verify status of latest commit, browser UI with actual owner, genuine two-account RLS testing if a second authorised test user is available; inspect retention and owner-only archive retrieval.
