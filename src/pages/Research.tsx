@@ -52,9 +52,13 @@ export default function Research() {
   const [compNote,setCompNote] = useState('')
   const [compLocator,setCompLocator] = useState('')
   const [compChecked,setCompChecked] = useState(false)
+  const [sourceChecks,setSourceChecks] = useState<any[]>([])
+  const [sourceCheckId,setSourceCheckId] = useState<string|null>(null)
+  const [sourceCheckOutcome,setSourceCheckOutcome] = useState('UNKNOWN')
+  const [sourceCheckNote,setSourceCheckNote] = useState('')
 
   const load = async () => {
-    const [t,k,c,p,cs,cc,trusted,allComps,approvedComps] = await Promise.all([
+    const [t,k,c,p,cs,cc,trusted,allComps,approvedComps,sourceResult] = await Promise.all([
       supabase.from('research_tasks').select('*,items(item_code,title,current_attribution)').order('information_value',{ascending:false}),
       supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50),
       supabase.from('canonical_documents').select('id,document_key,source_class,authority_rank,content_sha256,ingested_at').order('ingested_at',{ascending:false}).limit(100),
@@ -63,8 +67,11 @@ export default function Research() {
       supabase.from('conversation_claims').select('id,source_id,source_locator,subject_key,claim_text,claim_type,certainty,created_at').order('created_at',{ascending:false}).limit(150),
       supabase.from('trusted_knowledge_v1').select('id').limit(500),
       supabase.from('comparables').select('id,owner_id,item_id,venue,source_reference,source_url,lot_item_id,sale_date,price_type,price,currency,description,verification_status').order('created_at',{ascending:false}).limit(100),
-      supabase.from('trusted_comparables_v1').select('id').limit(500)
+      supabase.from('trusted_comparables_v1').select('id').limit(500),
+      supabase.from('comparable_source_checks').select('id,comparable_id,source_url,checked_at,fetch_status,observed_result,verification_decision,notes').order('checked_at',{ascending:false}).limit(100)
     ])
+    setSourceChecks(sourceResult.data||[])
+    if(sourceResult.error) setMessage('Source-check ledger unavailable: '+sourceResult.error.message)
     setComps(allComps.data||[])
     setTrustedCompIds((approvedComps.data||[]).map((x:any)=>x.id))
     if (allComps.error || approvedComps.error) setMessage('Comparable review records unavailable: '+(allComps.error?.message||approvedComps.error?.message))
@@ -174,6 +181,28 @@ export default function Research() {
     await load()
   }
 
+  const stageManualSourceCheck = async () => {
+    const c=comps.find(x=>x.id===sourceCheckId)
+    if(!c||saving) return
+    if(!c.source_url || !/^https:\/\//i.test(c.source_url)) return setMessage('A recorded HTTPS original-source URL is required before staging a source check.')
+    if(sourceCheckNote.trim().length<20) return setMessage('Provide at least 20 characters describing what is or is not visible on the source.')
+    const {data:{user}}=await supabase.auth.getUser()
+    if(!user || user.id!==c.owner_id) return setMessage('Only this comparable’s owner may stage a source check.')
+    setSaving(true)
+    const {error}=await supabase.from('comparable_source_checks').insert({
+      owner_id:user.id,comparable_id:c.id,source_url:c.source_url,
+      original_lot_reference:c.source_reference||null,
+      fetch_status:'MANUAL_ONLY',verification_method:'OWNER_MANUAL',
+      verification_decision:'REVIEW_REQUIRED',observed_result:sourceCheckOutcome,
+      notes:sourceCheckNote.trim()
+    })
+    setSaving(false)
+    if(error) return setMessage('Source check was not saved: '+error.message)
+    setSourceCheckId(null);setSourceCheckNote('');setSourceCheckOutcome('UNKNOWN')
+    await load()
+    setMessage('Manual source observation staged as REVIEW_REQUIRED — NOT independently verified or valuation trusted.')
+  }
+
   const selectedComp = comps.find(c=>c.id===compReviewId)
   const saveComparableReview = async () => {
     if (!selectedComp || saving) return
@@ -245,6 +274,24 @@ export default function Research() {
       <div className="panelHeader"><h2>Latest Knowledge Brain records</h2><span>{current.length} current · {knowledge.length} versions</span></div>
       {knowledge.length===0?<div className="empty">No knowledge records yet. Save the first documented lead above.</div>:
       <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{trustedIds.includes(k.id)?'TRUST-GATED · '+k.verification_status:'NOT TRUST-GATED · '+(k.verification_status||'UNVERIFIED')}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
+    </div>
+    <div className="panel">
+      <div className="panelHeader"><h2>Original-source check ledger</h2><span>{sourceChecks.length} latest checks</span></div>
+      <p>Manual observations are always REVIEW_REQUIRED and cannot independently certify a sale. Independent fetch, archived snapshot and verifier review are still unavailable.</p>
+      {sourceChecks.length===0?<div className="empty">No source-check records. Nothing has been independently confirmed.</div>:
+      <div className="tableWrap"><table><thead><tr><th>Checked</th><th>Source</th><th>Outcome</th><th>Verification</th></tr></thead><tbody>
+      {sourceChecks.map(sc=><tr key={sc.id}><td>{sc.checked_at?.slice(0,10)}</td><td><a href={sc.source_url} target="_blank" rel="noreferrer">Original page</a></td><td>{sc.observed_result}</td><td>{sc.verification_decision}</td></tr>)}
+      </tbody></table></div>}
+      <label>Stage manual observation for a comparable
+        <select value={sourceCheckId||''} onChange={e=>{setSourceCheckId(e.target.value||null);setSourceCheckNote('');setSourceCheckOutcome('UNKNOWN')}}><option value="">Select comparable with original URL</option>{comps.filter(c=>c.source_url).map(c=><option key={c.id} value={c.id}>{c.venue||'Unknown venue'} — {c.source_reference}</option>)}</select>
+      </label>
+      {sourceCheckId&&<div className="note">
+        <label>Visible result classification<select value={sourceCheckOutcome} onChange={e=>setSourceCheckOutcome(e.target.value)}>
+        {['UNKNOWN','HAMMER','INCLUSIVE_REALIZED','MARKETPLACE_SOLD','UNSOLD','ASKING','ESTIMATE','AMBIGUOUS'].map(x=><option key={x} value={x}>{x}</option>)}
+        </select></label>
+        <label>Observation and limitations<textarea rows={3} value={sourceCheckNote} onChange={e=>setSourceCheckNote(e.target.value)} placeholder="Only record what the original page directly shows; do not claim an independent fetch."/></label>
+        <button className="primaryButton inlineButton" disabled={saving||sourceCheckNote.trim().length<20} onClick={stageManualSourceCheck}>Stage unverified source observation</button>
+      </div>}
     </div>
     <div className="panel">
       <div className="panelHeader"><h2>Comparable sale evidence reviews</h2><span>{trustedCompIds.length} trusted in current view · {comps.length} recent records</span></div>
