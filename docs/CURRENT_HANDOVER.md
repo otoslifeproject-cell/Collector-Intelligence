@@ -206,3 +206,10 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - Regression committed as `supabase/tests/20261011_comparable_gate_temp_rollback.sql`, commit `9c75861`.
 - Database readback returned `trusted_comparables_v1` count 0; no claimed sold fixtures were created or promoted.
 - NOT YET EXECUTED: positive approved review with real lot source, later revoked review, price/currency/source mutation using valid reviewed fixture, cross-owner authenticated RLS, actual browser/UI flow, Vercel production build and independent external sale verification. Test evidence supports two cases only.
+
+## 2026-10-11 — Positive comparable regression found and fixed source-match loophole
+- Executed BEGIN/ROLLBACK SQL against Supabase `bwdafrwkimjvwfoqomot` with synthetic temporary-lifetime physical object, comparable and review. First fixture strategy using a TEMP review table was invalid because production trigger qualifies `public.comparable_evidence_reviews`, so its error was not treated as a product failure.
+- Correct fixture inserted real rows inside a transaction (rolled back). Initial run FAILED for source-reference mutation: null review URL and null comp URL matched under previous `IS NOT DISTINCT FROM` expression, allowing a changed lot reference.
+- Applied migration `comparable_nonnull_source_match_fix_v4`: helper `public.comparable_source_matches` demands a **nonempty matching** original lot reference OR original lot URL, used by both promotion trigger and trusted-only view.
+- Repeated full rollback fixture succeeded: approved HAMMER 120 GBP returned by trusted view; price mutation to 121 rejected; changed lot reference rejected; later REJECTED/UNSOLD review removed trusted view eligibility. Full rollback; no synthetic sales stored.
+- Current scope of tests is SQL-level. Browser production, authenticated cross-owner RLS, external independently authenticated result, deployment and UI review remain to test. Do not claim externally verified genuine hammer sales were created.
