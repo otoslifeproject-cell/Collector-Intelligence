@@ -74,10 +74,11 @@ export default async function handler(req:any,res:any){
        archive_reference:archiveReference,orphan_reconciliation_required:true})
    }
    if(!ledger.ok){
-     // A clear rejection means no ledger row was created; delete the unlinked file.
-     const deleted=await cleanup()
-     return res.status(502).json({error:'Provisional ledger rejected snapshot',
-       cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})
+     // HTTP error responses can be emitted after a committed write (proxy/timeouts).
+     // Keep evidence until a reconciliation query proves it unlinked.
+     return res.status(502).json({error:'Ledger did not acknowledge snapshot; preserved for reconciliation',
+       ledger_http_status:ledger.status,archive_reference:archiveReference,
+       orphan_reconciliation_required:true})
    }
    let entries:any
    try{entries=await ledger.json()}catch{
