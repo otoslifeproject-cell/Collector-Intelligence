@@ -254,3 +254,9 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - SECURITY: User-provided bytes can be fabricated and MUST NEVER satisfy `SOURCE_CONFIRMED`. The endpoint does not insert source-check rows, independently retrieve original sites, parse sales, or verify original auction provenance; therefore trusted_comparables_v1 remains unaffected. Staged Supabase bucket is not a replacement for the mandated original Drive archive.
 - Acceptance still pending: service-role environment availability, deployed API build, actual signed-in upload/read-back, cleanup for upload/readback failures, orphan/reconciliation queue, quota/rate limiting, private bucket access tests, permitted Drive export, SSRF-safe independent-source retrieval and actual source classification. No snapshots uploaded in this session.
 - GitHub combined status for `b707e98` had no statuses at first check; not deployment proof.
+
+## 2026-10-12 — Snapshot archival audit
+- Vercel combined status for snapshot staging endpoint commit `b707e98` returned SUCCESS. This is build/deployment status, not a live signed-in upload/read-back test.
+- Supabase confirmed `comparable-source-snapshots` bucket exists and is private. Storage objects policy inventory shows only image-related policies; need confirm their bucket predicates before claiming exclusive access.
+- Endpoint source inspection found failure handling returns an error if uploaded snapshot read-back fails or hash mismatches, **but does not delete that uploaded object**. An attempted GitHub code update for cleanup was blocked; cleanup is NOT deployed. Required: delete failed object using service credentials and record if cleanup fails; add reconciliation scan for orphaned snapshot objects.
+- No actual snapshot bytes were uploaded or authenticated during this audit; live owner session acceptance remains outstanding.
