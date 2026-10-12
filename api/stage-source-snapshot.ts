@@ -26,12 +26,14 @@ export default async function handler(req:any,res:any){
    if(!userResp.ok)return res.status(401).json({error:'Invalid signed-in session'})
    const user=await userResp.json()
    if(!ID.test(user.id))return res.status(401).json({error:'Invalid owner identity'})
-   const query=new URLSearchParams({select:'id,owner_id',id:`eq.${cid}`,limit:'1'})
+   const query=new URLSearchParams({select:'id,owner_id,source_url,source_reference',id:`eq.${cid}`,limit:'1'})
    const owned=await fetch(`${base}/rest/v1/comparables?${query}`,{headers:clientHeaders})
    if(!owned.ok)return res.status(503).json({error:'Ownership check unavailable'})
    const rows=await owned.json()
    if(!Array.isArray(rows)||rows.length!==1||rows[0].owner_id!==user.id)
      return res.status(403).json({error:'Comparable is not owned by this user'})
+   const sourceUrl=String(rows[0].source_url||'')
+   if(!/^https:\/\//i.test(sourceUrl)) return res.status(422).json({error:'Comparable requires a recorded HTTPS original source URL'})
    const sha=createHash('sha256').update(bytes).digest('hex')
    const path=`${user.id}/${cid}/${randomUUID()}.snapshot`
    const bucket='comparable-source-snapshots'
@@ -50,7 +52,42 @@ export default async function handler(req:any,res:any){
      const deleted=await cleanup()
      return res.status(502).json({error:'Snapshot read-back exception',cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})
    }
-   return res.status(200).json({status:'STAGED_UNVERIFIED',archive_reference:`supabase://${bucket}/${path}`,
+   // Record a provisional ledger entry only AFTER byte-for-byte storage read-back.
+   // Use the owner's bearer token: RLS enforces parent ownership and disallows SOURCE_CONFIRMED.
+   const archiveReference=`supabase://${bucket}/${path}`
+   let ledger:Response
+   try {
+     ledger=await fetch(`${base}/rest/v1/comparable_source_checks`,{
+       method:'POST',
+       headers:{...clientHeaders,'Content-Type':'application/json',Prefer:'return=representation'},
+       body:JSON.stringify({
+         owner_id:user.id,comparable_id:cid,source_url:sourceUrl,
+         original_lot_reference:rows[0].source_reference||null,
+         fetch_status:'MANUAL_ONLY',observed_result:'UNKNOWN',
+         verification_method:'OWNER_MANUAL',verification_decision:'REVIEW_REQUIRED',
+         snapshot_sha256:sha,archive_reference:archiveReference,
+         notes:'User-supplied bytes with successful archive hash read-back; not an independent source check.'
+       })
+     })
+   } catch {
+     return res.status(502).json({error:'Ledger outcome uncertain: preserve snapshot for reconciliation',
+       archive_reference:archiveReference,orphan_reconciliation_required:true})
+   }
+   if(!ledger.ok){
+     // A clear rejection means no ledger row was created; delete the unlinked file.
+     const deleted=await cleanup()
+     return res.status(502).json({error:'Provisional ledger rejected snapshot',
+       cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})
+   }
+   let entries:any
+   try{entries=await ledger.json()}catch{
+     return res.status(502).json({error:'Ledger acknowledgement uncertain; preserve snapshot',
+       archive_reference:archiveReference,orphan_reconciliation_required:true})
+   }
+   if(!Array.isArray(entries)||entries.length!==1||!ID.test(String(entries[0].id||'')))
+     return res.status(502).json({error:'Ledger acknowledgement ambiguous; preserve snapshot',
+       archive_reference:archiveReference,orphan_reconciliation_required:true})
+   return res.status(200).json({source_check_id:entries[0].id,status:'STAGED_UNVERIFIED',archive_reference:`supabase://${bucket}/${path}`,
      sha256:sha,byte_count:bytes.length,readback_verified:true,source_authenticated:false,
      warning:'User-supplied bytes; does not establish original auction provenance, sale price or source confirmation. Drive primary archive sync still required.'})
  }catch{
