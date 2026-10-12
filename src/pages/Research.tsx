@@ -56,6 +56,8 @@ export default function Research() {
   const [sourceCheckId,setSourceCheckId] = useState<string|null>(null)
   const [sourceCheckOutcome,setSourceCheckOutcome] = useState('UNKNOWN')
   const [sourceCheckNote,setSourceCheckNote] = useState('')
+  const [snapshotText,setSnapshotText] = useState('')
+  const [snapshotMedia,setSnapshotMedia] = useState('text/plain')
   const [integrityBusy,setIntegrityBusy] = useState<string|null>(null)
   const [integrityResults,setIntegrityResults] = useState<Record<string,string>>({})
 
@@ -200,6 +202,29 @@ export default function Research() {
     } finally {setIntegrityBusy(null)}
   }
 
+  const stageSnapshotFromText = async () => {
+    const comparable=comps.find(c=>c.id===sourceCheckId)
+    if(!comparable||saving)return
+    const bytes=new TextEncoder().encode(snapshotText)
+    if(bytes.length<20||bytes.length>262144){setMessage('Paste 20 bytes to 256 KiB of original-page text or HTML.');return}
+    const {data:{session}}=await supabase.auth.getSession()
+    if(!session?.access_token){setMessage('Sign in to store evidence.');return}
+    let binary=''
+    for(const byte of bytes)binary+=String.fromCharCode(byte)
+    setSaving(true)
+    try{
+      const response=await fetch('/api/stage-source-snapshot',{method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+        body:JSON.stringify({comparable_id:comparable.id,snapshot_base64:btoa(binary),media_type:snapshotMedia})})
+      const payload=await response.json()
+      if(!response.ok)throw new Error(payload.error||'Snapshot staging failed')
+      setSnapshotText('')
+      await load()
+      setMessage('Provisional snapshot staged and ledger linked. Hash read-back succeeded; original source NOT independently authenticated.')
+    }catch(error){setMessage(error instanceof Error?error.message:'Source staging failed')}
+    finally{setSaving(false)}
+  }
+
   const stageManualSourceCheck = async () => {
     const c=comps.find(x=>x.id===sourceCheckId)
     if(!c||saving) return
@@ -310,6 +335,10 @@ export default function Research() {
         </select></label>
         <label>Observation and limitations<textarea rows={3} value={sourceCheckNote} onChange={e=>setSourceCheckNote(e.target.value)} placeholder="Only record what the original page directly shows; do not claim an independent fetch."/></label>
         <button className="primaryButton inlineButton" disabled={saving||sourceCheckNote.trim().length<20} onClick={stageManualSourceCheck}>Stage unverified source observation</button>
+        <p>Optional: preserve pasted original-page text/HTML as a <strong>user-supplied, unverified</strong> snapshot. Pasting content does not independently prove auction provenance.</p>
+        <label>Snapshot format<select value={snapshotMedia} onChange={e=>setSnapshotMedia(e.target.value)}><option value="text/plain">Plain text</option><option value="text/html">HTML source</option></select></label>
+        <label>Source contents<textarea rows={5} value={snapshotText} onChange={e=>setSnapshotText(e.target.value)} placeholder="Paste actual page text or HTML. Maximum 256 KiB UTF-8."/></label>
+        <button className="secondaryButton" disabled={saving||snapshotText.length<20} onClick={()=>void stageSnapshotFromText()}>Archive provisional snapshot</button>
       </div>}
     </div>
     <div className="panel">
