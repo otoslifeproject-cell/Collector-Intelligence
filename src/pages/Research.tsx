@@ -56,6 +56,8 @@ export default function Research() {
   const [sourceCheckId,setSourceCheckId] = useState<string|null>(null)
   const [sourceCheckOutcome,setSourceCheckOutcome] = useState('UNKNOWN')
   const [sourceCheckNote,setSourceCheckNote] = useState('')
+  const [integrityBusy,setIntegrityBusy] = useState<string|null>(null)
+  const [integrityResults,setIntegrityResults] = useState<Record<string,string>>({})
 
   const load = async () => {
     const [t,k,c,p,cs,cc,trusted,allComps,approvedComps,sourceResult] = await Promise.all([
@@ -68,7 +70,7 @@ export default function Research() {
       supabase.from('trusted_knowledge_v1').select('id').limit(500),
       supabase.from('comparables').select('id,owner_id,item_id,venue,source_reference,source_url,lot_item_id,sale_date,price_type,price,currency,description,verification_status').order('created_at',{ascending:false}).limit(100),
       supabase.from('trusted_comparables_v1').select('id').limit(500),
-      supabase.from('comparable_source_checks').select('id,comparable_id,source_url,checked_at,fetch_status,observed_result,verification_decision,notes').order('checked_at',{ascending:false}).limit(100)
+      supabase.from('comparable_source_checks').select('id,comparable_id,source_url,checked_at,fetch_status,observed_result,verification_decision,archive_reference,notes').order('checked_at',{ascending:false}).limit(100)
     ])
     setSourceChecks(sourceResult.data||[])
     if(sourceResult.error) setMessage('Source-check ledger unavailable: '+sourceResult.error.message)
@@ -181,6 +183,23 @@ export default function Research() {
     await load()
   }
 
+  const inspectSnapshotIntegrity = async (sourceCheckId:string) => {
+    setIntegrityBusy(sourceCheckId)
+    try {
+      const {data:{session}}=await supabase.auth.getSession()
+      if(!session?.access_token) throw new Error('Sign in required')
+      const response=await fetch('/api/check-snapshot-integrity',{
+        method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+        body:JSON.stringify({source_check_id:sourceCheckId})
+      })
+      const body=await response.json()
+      const label=response.ok?(body.integrity_verified?'ARCHIVE HASH MATCH':'ARCHIVE HASH MISMATCH'):(body.error||body.status||'Integrity check failed')
+      setIntegrityResults(prev=>({...prev,[sourceCheckId]:label}))
+    } catch (error) {
+      setIntegrityResults(prev=>({...prev,[sourceCheckId]:error instanceof Error?error.message:'Integrity check failed'}))
+    } finally {setIntegrityBusy(null)}
+  }
+
   const stageManualSourceCheck = async () => {
     const c=comps.find(x=>x.id===sourceCheckId)
     if(!c||saving) return
@@ -279,8 +298,8 @@ export default function Research() {
       <div className="panelHeader"><h2>Original-source check ledger</h2><span>{sourceChecks.length} latest checks</span></div>
       <p>Manual observations are always REVIEW_REQUIRED and cannot independently certify a sale. Independent fetch, archived snapshot and verifier review are still unavailable.</p>
       {sourceChecks.length===0?<div className="empty">No source-check records. Nothing has been independently confirmed.</div>:
-      <div className="tableWrap"><table><thead><tr><th>Checked</th><th>Source</th><th>Outcome</th><th>Verification</th></tr></thead><tbody>
-      {sourceChecks.map(sc=><tr key={sc.id}><td>{sc.checked_at?.slice(0,10)}</td><td><a href={sc.source_url} target="_blank" rel="noreferrer">Original page</a></td><td>{sc.observed_result}</td><td>{sc.verification_decision}</td></tr>)}
+      <div className="tableWrap"><table><thead><tr><th>Checked</th><th>Source</th><th>Outcome</th><th>Verification</th><th>Archive integrity</th></tr></thead><tbody>
+      {sourceChecks.map(sc=><tr key={sc.id}><td>{sc.checked_at?.slice(0,10)}</td><td><a href={sc.source_url} target="_blank" rel="noreferrer">Original page</a></td><td>{sc.observed_result}</td><td>{sc.verification_decision}</td><td>{sc.archive_reference?<><button className="secondaryButton" disabled={integrityBusy===sc.id} onClick={()=>void inspectSnapshotIntegrity(sc.id)}>Check saved bytes</button><div>{integrityResults[sc.id]||'Not checked'}</div></>:'No saved snapshot'}</td></tr>)}
       </tbody></table></div>}
       <label>Stage manual observation for a comparable
         <select value={sourceCheckId||''} onChange={e=>{setSourceCheckId(e.target.value||null);setSourceCheckNote('');setSourceCheckOutcome('UNKNOWN')}}><option value="">Select comparable with original URL</option>{comps.filter(c=>c.source_url).map(c=><option key={c.id} value={c.id}>{c.venue||'Unknown venue'} — {c.source_reference}</option>)}</select>
