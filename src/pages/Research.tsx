@@ -298,7 +298,7 @@ export default function Research() {
   }
 
   return <div>
-    <div className="pageHeader"><div className="eyebrow">RESEARCH QUEUE & KNOWLEDGE BRAIN</div><h1>Evidence before attribution</h1><p>Preserve source-backed discoveries without treating an unverified lead as fact.</p></div>
+    <div className="pageHeader"><div className="eyebrow">RESEARCH</div><h1>Next evidence first</h1><p>Work through open checks. Source reviews and archives are available below when needed.</p></div>
     <div className="panel">
       <div className="panelHeader"><h2>Research tasks</h2><span>Highest-information evidence first</span></div>
       {tasks.length===0?<div className="empty">No open research tasks recorded.</div>:
@@ -314,11 +314,15 @@ export default function Research() {
       <div className="intakeActions"><button className="primaryButton inlineButton" disabled={saving} onClick={addLead}>{saving?'Saving…':'Save provisional reference'}</button></div>
       {message && <div className="note">{message}</div>}
     </div>
-    <div className="panel">
+    <details className="panel">
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Knowledge Brain records — details</summary>
+      <div>
       <div className="panelHeader"><h2>Latest Knowledge Brain records</h2><span>{current.length} current · {knowledge.length} versions</span></div>
       {knowledge.length===0?<div className="empty">No knowledge records yet. Save the first documented lead above.</div>:
-      <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td>{k.claim}</td><td>{trustedIds.includes(k.id)?'TRUST-GATED · '+k.verification_status:'NOT TRUST-GATED · '+(k.verification_status||'UNVERIFIED')}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
+      <div className="tableWrap"><table><thead><tr><th>Entity</th><th>Claim</th><th>Verification</th><th>Source</th><th>Review</th></tr></thead><tbody>{current.map(k=><tr key={k.id}><td>{k.entity_key||'—'}</td><td><div style={{maxWidth:370,maxHeight:90,overflow:"auto"}}>{k.claim}</div></td><td>{trustedIds.includes(k.id)?'TRUST-GATED · '+k.verification_status:'NOT TRUST-GATED · '+(k.verification_status||'UNVERIFIED')}<div>Last verified: {k.last_verified||'Not yet'}</div></td><td>{k.source_url?<a href={k.source_url} target="_blank" rel="noreferrer">Open source</a>:'—'}</td><td><button className="secondaryButton" onClick={()=>{setReviewId(k.id);setChecked(false);setReviewNote('')}}>Review</button></td></tr>)}</tbody></table></div>}
     </div>
+    </details>
+
     <div className="panel">
       <div className="panelHeader"><h2>Original-source check ledger</h2><span>{sourceChecks.length} latest checks</span></div>
       <p>Manual observations are always REVIEW_REQUIRED and cannot independently certify a sale. Independent fetch, archived snapshot and verifier review are still unavailable.</p>
@@ -373,7 +377,9 @@ export default function Research() {
           <button className="primaryButton inlineButton" disabled={saving||!compChecked||compNote.trim().length<30||!compLocator.trim()} onClick={saveComparableReview}>Record evidence review</button></div>
       </div>}
     </div>
-    <div className="panel">
+    <details className="panel">
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Project governance & source archive — details</summary>
+      <div>
       <div className="panelHeader"><h2>Canonical project archive</h2><span>{latestCanonical.length} documents · exact stored versions</span></div>
       <p>These are the controlling instructions, research rules, skills and project logs stored in the Collector Intelligence Supabase database. They are read-only and content-hashed.</p>
       {canonicalDocs.length===0 ? <div className="empty">Canonical documents not available — do not rely on AI results until this is resolved.</div> :
@@ -386,7 +392,11 @@ export default function Research() {
         <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:440,overflow:'auto'}}>{openDoc.content}</pre>
       </div>}
     </div>
-    <div className="panel">
+    </details>
+
+    <details className="panel">
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Historical research archive — details</summary>
+      <div>
       <div className="panelHeader"><h2>Historical research learning ledger</h2><span>{conversationSources.length} archived conversations · {conversationClaims.length} extracted records</span></div>
       <p>Archived research remains traceable to its original page or conversation. Historical AI attributions and price estimates are not automatically independently verified.</p>
       {conversationSources.length===0 ? <div className="empty">No historical conversation source registered yet.</div> :
@@ -394,16 +404,22 @@ export default function Research() {
         {conversationSources.map((x:any)=><tr key={x.id}><td>{x.source_title}</td><td>{x.extraction_status}</td><td><code>{x.source_sha256.slice(0,16)}…</code></td></tr>)}
         </tbody></table></div>}
       {conversationClaims.length>0 && <div className="tableWrap"><table><thead><tr><th>Object/topic</th><th>Historical claim</th><th>Evidence status</th><th>Source location</th></tr></thead><tbody>
-      {conversationClaims.map((x:any)=><tr key={x.id}><td>{x.subject_key}</td><td>{x.claim_text}</td><td>{x.claim_type} · {x.certainty}</td><td>{x.source_locator}</td></tr>)}
+      {conversationClaims.map((x:any)=><tr key={x.id}><td>{x.subject_key}</td><td><div style={{maxWidth:380,maxHeight:85,overflow:"auto"}}>{x.claim_text}</div></td><td>{x.claim_type} · {x.certainty}</td><td>{x.source_locator}</td></tr>)}
       </tbody></table></div>}
     </div>
-    <div className="panel">
+    </details>
+
+    <details className="panel">
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Earlier photo uploads — details</summary>
+      <div>
       <div className="panelHeader"><h2>Preserved photo intake history</h2><span>{photoSessions.length} upload sessions</span></div>
       <p>Historic photos remain in private storage. A linked analysis is based on matching the upload time and photo count; an unmatched session is not assigned to a guessed draft.</p>
       {photoSessions.length>0 && <div className="tableWrap"><table><thead><tr><th>Uploaded</th><th>Photos</th><th>Evidence link</th></tr></thead><tbody>
       {photoSessions.map((p:any)=><tr key={p.session_key}><td>{new Date(p.first_uploaded_at).toLocaleString()}</td><td>{p.photo_count}</td><td>{p.linked_analysis_run ? 'Analysis linked by '+p.link_method : 'UNMATCHED — preserved'}</td></tr>)}
       </tbody></table></div>}
     </div>
+    </details>
+
     {selected && <div className="panel">
       <div className="panelHeader"><h2>Check original source</h2><span>Creates a new version without modifying history</span></div>
       <p><strong>{selected.entity_key}</strong>: {selected.claim}</p>
