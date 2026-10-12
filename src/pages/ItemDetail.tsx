@@ -247,7 +247,10 @@ export default function ItemDetail() {
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
           <div className="pillRow"><span className="pill">{item.status.replaceAll('_',' ')}</span>{item.sale_readiness && <span className="pill accent">{item.sale_readiness.replaceAll('_',' ')}</span>}</div>
         </div>
-        <div className="heroActions"><button className="primaryButton inlineButton" onClick={save}><Save size={17}/> Save</button></div>
+        <div className="heroActions">
+          <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
+          <button className="secondaryButton" onClick={()=>setTab('sales')}>Sell / route</button>
+        </div>
       </div>
       {message && <div className="saveToast">{message}</div>}
 
@@ -255,7 +258,25 @@ export default function ItemDetail() {
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
 
-      {tab==='overview' && <div className="detailGrid">
+      {tab==='overview' && <div>
+        <div className="panel">
+          <div className="panelHeader"><h2>At a glance</h2><span>{item.item_code}</span></div>
+          <div className="valueSummary">
+            <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
+            <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
+            <div><small>Fast cash · provisional</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
+            <div><small>Next action</small><strong>{(item.sale_readiness||'RESEARCH_FIRST').replaceAll('_',' ')}</strong></div>
+          </div>
+          <p>{item.condition_summary ? item.condition_summary.slice(0,180) : 'Condition not yet recorded.'}</p>
+          <details><summary>Show identification and valuation confidence</summary>
+            <Confidence label="Identification" value={item.identification_confidence}/>
+            <Confidence label="Dating" value={item.dating_confidence}/>
+            <Confidence label="Valuation" value={item.valuation_confidence}/>
+          </details>
+        </div>
+        <details style={{marginTop:16}}>
+          <summary style={{cursor:'pointer',fontWeight:700,padding:'12px 0'}}>Edit full item record, commercial details and values</summary>
+          <div className="detailGrid">
         <div className="panel span2">
           <div className="panelHeader"><h2>Object record</h2><span>Permanent factual core</span></div>
           <div className="formGrid">
@@ -305,6 +326,9 @@ export default function ItemDetail() {
             <label>Expected net<input type="number" value={item.expected_net??''} onChange={e=>update('expected_net',e.target.value?Number(e.target.value):null)}/></label>
           </div>
         </div>
+          </div>
+          <div style={{marginTop:12}}><button className="primaryButton inlineButton" onClick={save}><Save size={17}/> Save changes</button></div>
+        </details>
       </div>}
 
       {tab==='photos' && <div className="panel">
