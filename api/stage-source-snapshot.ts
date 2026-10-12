@@ -40,11 +40,16 @@ export default async function handler(req:any,res:any){
    const cleanup = async () => { try { const response=await fetch(uri,{method:'DELETE',headers:serviceHeaders}); return response.ok } catch { return false } }
    const upload=await fetch(uri,{method:'POST',headers:{...serviceHeaders,'Content-Type':format,'x-upsert':'false'},body:bytes})
    if(!upload.ok)return res.status(502).json({error:'Private snapshot upload failed'})
-   const read=await fetch(uri,{headers:serviceHeaders})
-   if(!read.ok){const deleted=await cleanup();return res.status(502).json({error:'Snapshot read-back failed',cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})}
-   const saved=Buffer.from(await read.arrayBuffer())
-   const confirmed=createHash('sha256').update(saved).digest('hex')
-   if(confirmed!==sha||saved.length!==bytes.length){const deleted=await cleanup();return res.status(502).json({error:'Snapshot hash/length mismatch',cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})}
+   try {
+     const read=await fetch(uri,{headers:serviceHeaders})
+     if(!read.ok){const deleted=await cleanup();return res.status(502).json({error:'Snapshot read-back failed',cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})}
+     const saved=Buffer.from(await read.arrayBuffer())
+     const confirmed=createHash('sha256').update(saved).digest('hex')
+     if(confirmed!==sha||saved.length!==bytes.length){const deleted=await cleanup();return res.status(502).json({error:'Snapshot hash/length mismatch',cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})}
+   } catch {
+     const deleted=await cleanup()
+     return res.status(502).json({error:'Snapshot read-back exception',cleanup_attempted:true,cleanup_succeeded:deleted,orphan_reconciliation_required:!deleted})
+   }
    return res.status(200).json({status:'STAGED_UNVERIFIED',archive_reference:`supabase://${bucket}/${path}`,
      sha256:sha,byte_count:bytes.length,readback_verified:true,source_authenticated:false,
      warning:'User-supplied bytes; does not establish original auction provenance, sale price or source confirmation. Drive primary archive sync still required.'})
