@@ -21,6 +21,7 @@ export default function ItemDetail() {
   const [researchDraft,setResearchDraft] = useState<any|null>(null)
   const [researchRunId,setResearchRunId] = useState<string|null>(null)
   const [researchAudit,setResearchAudit] = useState<any>(null)
+  const [savedResearchRuns,setSavedResearchRuns] = useState<any[]>([])
 
   const load = async () => {
     if (!id) return
@@ -36,6 +37,8 @@ export default function ItemDetail() {
     ])
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
+    const {data:runs}=await supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').eq('status','APPROVED').order('created_at',{ascending:false}).limit(40)
+    setSavedResearchRuns((runs||[]).filter((x:any)=>x.user_context?.item_id===id))
     const rows = (photoData || []) as ItemPhoto[]
     if (rows.length) {
       const signed = await Promise.all(rows.map(async p => {
@@ -120,8 +123,9 @@ export default function ItemDetail() {
     try {
       const {error}=await supabase.from('ai_analysis_runs')
         .update({status:'APPROVED',approved_at:new Date().toISOString()})
-        .eq('id',researchRunId).eq('mode','research').eq('status','DRAFT')
+        .eq('id',researchRunId).eq('mode','research').eq('status','DRAFT').select('id').single()
       if(error) throw error
+      await load()
       setResearchDraft(null)
       setMessage('Provisional research preserved in analysis history. Item attribution, values and comparables were NOT changed; original-source verification remains required.')
     } catch(err:any) {
@@ -251,6 +255,14 @@ export default function ItemDetail() {
       </div>}
 
       {tab==='market' && <div className="marketStack">
+        {savedResearchRuns.length>0 && <details className="panel">
+          <summary style={{cursor:'pointer',fontWeight:700}}>Preserved provisional research ({savedResearchRuns.length})</summary>
+          {savedResearchRuns.map((run:any)=><div className="note" key={run.id}>
+            <strong>{new Date(run.created_at).toLocaleDateString()} — owner-reviewed research</strong>
+            <p>{run.result?.research_summary||'No summary recorded'}</p>
+            <button className="secondaryButton" disabled={researching} onClick={()=>{setResearchDraft(run.result);setResearchAudit(run.result?.source_audit||null);setResearchRunId(null)}}>View preserved findings</button>
+          </div>)}
+        </details>}
         <div className="panel researchLauncher">
           <div>
             <div className="eyebrow">LIVE MARKET RESEARCH</div>
