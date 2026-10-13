@@ -164,7 +164,8 @@ function checkResearchEvidence(result:any) {
  }
  const audited={model_claimed_sold_candidates:sold.length,verified_sold_results:0,all_comparables:comps.length,independent_source_verification:false,
    warning:"The AI has supplied source classifications; direct source verification must be carried out separately."};
- // Even two AI-labelled sold candidates do not establish externally verified realisations.\n if(true){
+ // Even two AI-labelled sold candidates do not establish externally verified realisations.
+ if(true){
    result.valuation=result.valuation||{};
    result.valuation.valuation_confidence=Math.min(Number(result.valuation.valuation_confidence)||0,30);
    result.valuation.notes=[result.valuation.notes||"","PROVISIONAL VALUE — SOLD EVIDENCE INADEQUATE: fewer than two cited sold candidates."].join(" ");
