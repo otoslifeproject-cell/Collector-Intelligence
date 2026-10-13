@@ -85,8 +85,11 @@ export default function ItemDetail() {
         headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
         body:JSON.stringify({item,images:Object.values(photoUrls).filter(Boolean).slice(0,12)})
       })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Research failed')
+      const rawResponse = await response.text()
+      let payload:any
+      try { payload=JSON.parse(rawResponse) }
+      catch { throw new Error('Research service returned an unexpected response (HTTP '+response.status+'). Please retry after deployment; no research was saved.') }
+      if (!response.ok) throw new Error(payload.error || ('Research request failed (HTTP '+response.status+')'))
       setResearchDraft(payload.result)
       setResearchAudit(payload.source_audit || null)
       const {data:run} = await supabase.from('ai_analysis_runs').insert({
