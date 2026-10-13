@@ -272,7 +272,9 @@ export default async function handler(req: any, res: any) {
   const text = extractText(payload);
   try {
     const result=JSON.parse(text);
-    const source_audit=checkResearchEvidence(result);\n    source_audit.trusted_database_comparables=trustedComparableRows.length;\n    source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
+    const source_audit=checkResearchEvidence(result);
+    source_audit.trusted_database_comparables=trustedComparableRows.length;
+    source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
     return res.status(200).json({model:payload.model || body.model,response_id:payload.id || null,result,source_audit,canonical_policy_hashes:canonical.hashes});
   } catch {
     return res.status(502).json({error:"Could not parse structured research output",raw:text.slice(0,2000)});
