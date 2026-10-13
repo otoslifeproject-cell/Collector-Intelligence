@@ -109,135 +109,25 @@ export default function ItemDetail() {
     }
   }
 
+  // Preserve provisional analysis atomically in its existing research-run record.
+  // Do not mutate item, attribution history, valuation history or comparable trust status.
   const approveResearch = async () => {
-    if (!item || !researchDraft) return
-    setResearching(true)
-    setMessage('Writing verified research back to the permanent record…')
-    try {
-      const idu = researchDraft.identification_update || {}
-      const v = researchDraft.valuation || {}
-      const r = researchDraft.routing || {}
-      const sources = Array.isArray(researchDraft.comparables) ? researchDraft.comparables : []
-      const hasDirectVerifiedSource = sources.some((c:any) =>
-        c.verification_status === 'VERIFIED_DIRECT' &&
-        Boolean(c.source_url) &&
-        ['HAMMER_REALIZED','REALIZED_INCL_BP','MARKETPLACE_SOLD','DEALER_SOLD_CONFIRMED'].includes(c.price_type)
-      )
-      // Owner approval is not equivalent to independent source verification.
-      const reviewStatus = 'OWNER_REVIEWED' // Model-provided verification labels are claims, not independently verified facts.
-
-      const updatePayload:any = {
-        maker: idu.maker ?? item.maker,
-        current_attribution: idu.attribution ?? item.current_attribution,
-        period_wording: idu.period_wording ?? item.period_wording,
-        region_country: idu.region_country ?? item.region_country,
-        identification_confidence: idu.identification_confidence ?? item.identification_confidence,
-        dating_confidence: idu.dating_confidence ?? item.dating_confidence,
-        valuation_confidence: v.valuation_confidence ?? item.valuation_confidence,
-        currency: v.currency || item.currency || 'GBP',
-        quick_sale_value: v.quick_sale_value,
-        balanced_value_low: v.balanced_low,
-        balanced_value_high: v.balanced_high,
-        auction_value_low: v.auction_low,
-        auction_value_high: v.auction_high,
-        private_sale_low: v.private_low,
-        private_sale_high: v.private_high,
-        dealer_asking_low: v.dealer_asking_low,
-        dealer_asking_high: v.dealer_asking_high,
-        sale_readiness: r.sale_readiness || item.sale_readiness,
-        strategy: r.strategy || null,
-        best_venue: r.best_venue,
-        backup_venue: r.backup_venue,
-        status: r.specialist_review ? 'SPECIALIST_REVIEW' : (r.sale_readiness === 'SELL_NOW' ? 'READY_TO_SELL' : 'RESEARCH'),
-        catalogue_review_status:reviewStatus,
-        notes:[item.notes || '', researchDraft.research_summary ? `Research summary: ${researchDraft.research_summary}` : '', v.notes ? `Valuation notes: ${v.notes}` : ''].filter(Boolean).join('\n\n')
-      }
-      const {error:updateError} = await supabase.from('items').update(updatePayload).eq('id',item.id)
-      if (updateError) throw updateError
-
-      await supabase.from('attribution_history').update({
-        attribution_status:'PREVIOUS',
-        valid_to:new Date().toISOString()
-      }).eq('item_id',item.id).eq('attribution_status','CURRENT')
-
-      if (idu.attribution || idu.maker) {
-        const {error} = await supabase.from('attribution_history').insert({
-          item_id:item.id,
-          attribution_text:idu.attribution || idu.maker || item.title || item.object_type || 'Unattributed object',
-          maker:idu.maker,
-          region_country:idu.region_country,
-          period_wording:idu.period_wording,
-          confidence:idu.identification_confidence,
-          attribution_status:'CURRENT',
-          evidence_summary:idu.rationale,
-          change_reason:'Live web research review'
-        })
-        if (error) throw error
-      }
-
-      if (Array.isArray(researchDraft.comparables) && researchDraft.comparables.length) {
-        const rows = researchDraft.comparables.map((c:any)=>({
-          item_id:item.id,
-          venue:c.venue,
-          source_reference:c.source_reference || c.source_url || 'Research source',
-          source_url:c.source_url,
-          date_checked:new Date().toISOString().slice(0,10),
-          sale_date:c.sale_date || null,
-          price_type:c.price_type,
-          price:c.price,
-          currency:c.currency,
-          description:c.description,
-          maker_attribution:c.maker_attribution,
-          dimensions:c.dimensions,
-          condition_summary:c.condition_summary,
-          comparability_grade:c.comparability_grade,
-          verification_status:c.verification_status,
-          notes:c.notes
-        }))
-        const {error} = await supabase.from('comparables').insert(rows)
-        if (error) throw error
-      }
-
-      const {error:valError} = await supabase.from('valuation_history').insert({
-        item_id:item.id,
-        identification_confidence:idu.identification_confidence,
-        dating_confidence:idu.dating_confidence,
-        valuation_confidence:v.valuation_confidence,
-        quick_sale_value:v.quick_sale_value,
-        balanced_low:v.balanced_low,
-        balanced_high:v.balanced_high,
-        auction_low:v.auction_low,
-        auction_high:v.auction_high,
-        private_sale_low:v.private_low,
-        private_sale_high:v.private_high,
-        dealer_asking_low:v.dealer_asking_low,
-        dealer_asking_high:v.dealer_asking_high,
-        currency:v.currency || 'GBP',
-        methodology_notes:v.notes
-      })
-      if (valError) throw valError
-
-      if (Array.isArray(researchDraft.next_evidence) && researchDraft.next_evidence.length) {
-        await supabase.from('research_tasks').insert(researchDraft.next_evidence.map((n:any)=>({
-          item_id:item.id,
-          task_type:'EVIDENCE',
-          title:n.title,
-          information_value:n.information_value,
-          notes:n.why
-        })))
-      }
-
-      if (researchRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',researchRunId)
-      setResearchDraft(null)
-      setMessage(hasDirectVerifiedSource ? 'Research saved for owner review; source verification remains required.' : 'Research written back as PROVISIONAL: no directly verified sold comparable was supplied.')
-      await load()
-    } catch (err:any) {
-      setMessage(err?.message || 'Could not save research')
-    } finally {
-      setResearching(false)
+    if (!item || !researchDraft || !researchRunId) {
+      setMessage('Research draft could not be linked to a saved analysis run. Keep this draft open.')
+      return
     }
+    setResearching(true)
+    try {
+      const {error}=await supabase.from('ai_analysis_runs')
+        .update({status:'APPROVED',approved_at:new Date().toISOString()})
+        .eq('id',researchRunId).eq('mode','research').eq('status','DRAFT')
+      if(error) throw error
+      setResearchDraft(null)
+      setMessage('Provisional research preserved in analysis history. Item attribution, values and comparables were NOT changed; original-source verification remains required.')
+    } catch(err:any) {
+      setMessage(err?.message || 'Research not saved; draft remains open.')
+    } finally {setResearching(false)}
   }
-
 
   if (!item) return <div className="empty">Loading object record…</div>
 
@@ -376,7 +266,7 @@ export default function ItemDetail() {
           <div className="panelHeader"><div><h2>Research draft</h2><span>Review before permanent write-back</span></div><span className="pill accent">DRAFT</span></div>
           <div className="researchSummary">{researchDraft.research_summary}</div>
           {researchAudit && <div className="note"><strong>Source trust review:</strong> {researchAudit.warning} Sold candidates: {researchAudit.sold_candidates} of {researchAudit.all_comparables} supplied records. These classifications must be checked against original sources before approval.</div>}
-          <div className="note">Approval records this analysis and its sources; it does not independently validate them. Directly verified sold evidence requires a source URL, appropriate sold-price classification and VERIFIED_DIRECT evidence status.</div>
+          <div className="note">Preserving this draft retains its provisional research record only. It will NOT change the item's maker, valuation or comparables. Independent original-source checks are required before promotion.</div>
           <div className="researchMetricGrid">
             <div><small>Attribution</small><strong>{researchDraft.identification_update?.attribution || researchDraft.identification_update?.maker || 'Unresolved'}</strong><span>{researchDraft.identification_update?.identification_confidence}% ID confidence</span></div>
             <div><small>Balanced value</small><strong>{money(researchDraft.valuation?.balanced_low,researchDraft.valuation?.currency||'GBP')}–{money(researchDraft.valuation?.balanced_high,researchDraft.valuation?.currency||'GBP')}</strong><span>{researchDraft.valuation?.valuation_confidence}% value confidence</span></div>
@@ -386,7 +276,7 @@ export default function ItemDetail() {
           <div className="tableWrap researchPreviewTable"><table><thead><tr><th>Venue</th><th>Class</th><th>Price</th><th>Verification</th><th>Comparable</th></tr></thead><tbody>
             {(researchDraft.comparables||[]).map((c:any,i:number)=><tr key={i}><td>{c.venue}{c.source_url && <> <a href={c.source_url} target="_blank"><ExternalLink size={12}/></a></>}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')}</td><td>{c.comparability_grade}</td></tr>)}
           </tbody></table></div>
-          <div className="researchApprove"><button className="secondaryButton" onClick={()=>setResearchDraft(null)} disabled={researching}>Discard draft</button><button className="primaryButton inlineButton" onClick={approveResearch} disabled={researching}><Check size={17}/> Approve research & write back</button></div>
+          <div className="researchApprove"><button className="secondaryButton" onClick={()=>setResearchDraft(null)} disabled={researching}>Discard draft</button><button className="primaryButton inlineButton" onClick={approveResearch} disabled={researching}><Check size={17}/> Preserve provisional research</button></div>
         </div>}
 
         <div className="panel">
