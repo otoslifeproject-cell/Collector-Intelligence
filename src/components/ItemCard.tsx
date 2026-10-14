@@ -3,7 +3,7 @@ import { Item } from '../types'
 import { money } from '../lib/format'
 
 export default function ItemCard({item,imageUrl}: {item:Item,imageUrl?:string}) {
-  const label = item.current_attribution || item.title || item.object_type || 'Unidentified object'
+  const label = item.title || item.object_type || item.current_attribution || 'Unidentified object'
   return (
     <Link to={`/item/${item.id}`} className="itemCard">
       <div className="itemCardImage placeholderGlass">
@@ -11,12 +11,12 @@ export default function ItemCard({item,imageUrl}: {item:Item,imageUrl?:string}) 
         <span>{item.item_code}</span>
       </div>
       <div className="itemCardBody">
-        <div className="itemMeta"><span>{item.category || 'Uncategorised'}</span><span>{item.status.replaceAll('_',' ')}</span></div>
+        <div className="itemMeta"><span>{item.category || 'Object'}</span><span>{(item.sale_readiness || item.status).replaceAll('_',' ')}</span></div>
         <h3>{label}</h3>
-        <p>{[item.maker, item.period_wording, item.region_country].filter(Boolean).join(' · ') || 'Attribution pending'}</p>
+        <p>{item.maker || 'Maker not confirmed'}</p>
         <div className="itemPriceRow">
           <div><small>Fast cash</small><strong>{money(item.quick_sale_value, item.currency || 'GBP')}</strong></div>
-          <div><small>Balanced</small><strong>{money(item.balanced_value_low, item.currency || 'GBP')}–{money(item.balanced_value_high, item.currency || 'GBP')}</strong></div>
+
         </div>
       </div>
     </Link>
