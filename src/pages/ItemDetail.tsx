@@ -22,6 +22,7 @@ export default function ItemDetail() {
   const [researchRunId,setResearchRunId] = useState<string|null>(null)
   const [researchAudit,setResearchAudit] = useState<any>(null)
   const [savedResearchRuns,setSavedResearchRuns] = useState<any[]>([])
+  const [pendingResearchRuns,setPendingResearchRuns] = useState<any[]>([])
 
   const load = async () => {
     if (!id) return
@@ -37,8 +38,10 @@ export default function ItemDetail() {
     ])
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
-    const {data:runs}=await supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').eq('status','APPROVED').order('created_at',{ascending:false}).limit(40)
-    setSavedResearchRuns((runs||[]).filter((x:any)=>x.user_context?.item_id===id))
+    const {data:runs}=await supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100)
+    const itemRuns=(runs||[]).filter((x:any)=>x.user_context?.item_id===id)
+    setSavedResearchRuns(itemRuns.filter((x:any)=>x.status==='APPROVED'))
+    setPendingResearchRuns(itemRuns.filter((x:any)=>x.status==='DRAFT'))
     const rows = (photoData || []) as ItemPhoto[]
     if (rows.length) {
       const signed = await Promise.all(rows.map(async p => {
@@ -255,6 +258,17 @@ export default function ItemDetail() {
       </div>}
 
       {tab==='market' && <div className="marketStack">
+        {pendingResearchRuns.length>0 && <div className="panel">
+          <div className="panelHeader"><h2>Recovered research drafts</h2><span>{pendingResearchRuns.length} saved drafts</span></div>
+          {pendingResearchRuns.map((run:any)=><div className="note" key={run.id}>
+            <strong>{new Date(run.created_at).toLocaleString()} — provisional, not yet preserved</strong>
+            <p>{String(run.result?.research_summary||'Research result saved').slice(0,350)}</p>
+            <button className="primaryButton inlineButton" disabled={researching} onClick={()=>{
+              setResearchDraft(run.result);setResearchAudit(run.result?.source_audit||null);setResearchRunId(run.id);
+              setMessage('Existing research draft restored. No new AI research has run.')
+            }}>Restore existing draft</button>
+          </div>)}
+        </div>}
         {savedResearchRuns.length>0 && <details className="panel">
           <summary style={{cursor:'pointer',fontWeight:700}}>Preserved provisional research ({savedResearchRuns.length})</summary>
           {savedResearchRuns.map((run:any)=><div className="note" key={run.id}>
