@@ -25,6 +25,9 @@ type KnowledgeRow = {
 }
 
 export default function Research() {
+  const [museumItems,setMuseumItems] = useState<any[]>([])
+  const [museumTarget,setMuseumTarget] = useState('')
+  const [museumSaving,setMuseumSaving] = useState<string|null>(null)
   const [museumSource,setMuseumSource] = useState<'vam'|'europeana'>('vam')
   const [museumQuery,setMuseumQuery] = useState('')
   const [museumResults,setMuseumResults] = useState<any[]>([])
@@ -65,6 +68,33 @@ export default function Research() {
   const [snapshotMedia,setSnapshotMedia] = useState('text/plain')
   const [integrityBusy,setIntegrityBusy] = useState<string|null>(null)
   const [integrityResults,setIntegrityResults] = useState<Record<string,string>>({})
+
+  useEffect(()=>{
+    supabase.from('items').select('id,item_code,title').order('updated_at',{ascending:false}).limit(100)
+      .then(({data,error})=>{if(!error)setMuseumItems(data||[])})
+  },[])
+
+  const saveMuseumLead=async (m:any) => {
+    if(!museumTarget){setMuseumMessage('Select the CI object before saving.');return}
+    if(!m.sourceUrl || !/^https:\/\/(collections\.vam\.ac\.uk|www\.europeana\.eu)\//.test(m.sourceUrl)){
+      setMuseumMessage('Unrecognised source URL; no record saved.');return
+    }
+    setMuseumSaving(m.id);setMuseumMessage('')
+    try{
+      const {data:userResult,error:userError}=await supabase.auth.getUser()
+      if(userError||!userResult.user)throw new Error('Sign in again.')
+      const owner=userResult.user.id
+      // Recheck object ownership; item_evidence has owner RLS as an independent backstop.
+      const {data:found,error:checkError}=await supabase.from('items').select('id').eq('id',museumTarget).single()
+      if(checkError||!found)throw new Error('Selected item not accessible.')
+      const claim='REFERENCE ONLY: '+(m.provider||'Museum')+' catalogue entry "'+String(m.title||'Untitled').slice(0,160)+'"'+(m.maker?' (catalogued maker: '+String(m.maker).slice(0,120)+')':'')+(m.date?' (catalogued date: '+String(m.date).slice(0,80)+')':'')+'. No attribution of this CI object is asserted.'
+      const record={owner_id:owner,item_id:museumTarget,claim,provenance:'EXTERNAL_MUSEUM_CATALOGUE_LEAD',certainty_class:'POSSIBLE_ATTRIBUTION',stance:'NEUTRAL',source_reference:String(m.provider)+': '+String(m.id),source_url:m.sourceUrl,verification_status:'UNVERIFIED',notes:'Saved manually from museum search. Museum catalogue record is not authentication of the collection object. No sold-price evidence. Original source must be checked.'}
+      const {error}=await supabase.from('item_evidence').insert(record)
+      if(error)throw error
+      setMuseumMessage('Provisional museum lead saved against the selected CI item. No maker, value or verified comparable changed.')
+    }catch(err:any){setMuseumMessage(err?.message||'Museum lead was not saved.')}
+    finally{setMuseumSaving(null)}
+  }
 
   const searchMuseum = async () => {
     const q=museumQuery.trim()
@@ -329,8 +359,9 @@ export default function Research() {
         <input aria-label="Search museum objects" value={museumQuery} onChange={e=>setMuseumQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchMuseum()}} placeholder="Maker, material, object type…" style={{flex:1,minWidth:100}} />
         <button className="secondaryButton" disabled={museumLoading} onClick={searchMuseum}>{museumLoading?'Searching…':'Search museum'}</button>
       </div>
+      {museumResults.length>0 && <label style={{display:'block',marginBottom:12}}>Save references against item <select value={museumTarget} onChange={e=>setMuseumTarget(e.target.value)}><option value="">Choose an item — required</option>{museumItems.map((i:any)=><option key={i.id} value={i.id}>{i.item_code} — {i.title||'Untitled'}</option>)}</select></label>}
       {museumMessage && <p className="note">{museumMessage}</p>}
-      {museumResults.length>0 && <div className="tableWrap"><table><thead><tr><th>Museum object</th><th>Type / maker</th><th>Date</th><th>Original record</th></tr></thead><tbody>
+      {museumResults.length>0 && <div className="tableWrap"><table><thead><tr><th>Museum object</th><th>Type / maker</th><th>Date</th><th>Original record</th><th>Save lead</th></tr></thead><tbody>
       {museumResults.map((m:any)=><tr key={m.id}><td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td><td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">{m.provider==='Europeana'?'Europeana record ↗':'V&A catalogue ↗'}</a></td></tr>)}
       </tbody></table></div>}
     </details>
