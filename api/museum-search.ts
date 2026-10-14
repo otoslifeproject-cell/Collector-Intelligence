@@ -12,26 +12,52 @@ export default async function handler(req: any, res: any) {
   } catch{return res.status(503).json({error:'Authentication temporarily unavailable'})}
   const raw=typeof req.query?.q==='string'?req.query.q.trim():'';
   if(raw.length<3||raw.length>100)return res.status(400).json({error:'Enter a search term of 3–100 characters'});
+  const source=req.query?.source==='europeana'?'europeana':'vam';
+  if(source==='europeana'&&!process.env.EUROPEANA_API_KEY)return res.status(503).json({error:'Europeana connector awaits an official API key. V&A is available now.'});
   try {
+    if(source==='europeana'){
+      const endpoint=new URL('https://api.europeana.eu/record/v2/search.json');
+      endpoint.searchParams.set('wskey',String(process.env.EUROPEANA_API_KEY));
+      endpoint.searchParams.set('query',raw);
+      endpoint.searchParams.set('rows','10');
+      const reply=await fetch(endpoint,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
+      if(!reply.ok)return res.status(502).json({error:'Europeana service unavailable',upstream_status:reply.status});
+      const body=await reply.json();
+      if(!Array.isArray(body.items))return res.status(502).json({error:'Europeana response format changed'});
+      const textField=(v:any):string=>typeof v==='string'?v:Array.isArray(v)?String(v.find((x:any)=>typeof x==='string')||''):''; 
+      const results=body.items.slice(0,10).map((x:any)=>({
+        id:String(x.id||''),
+        title:textField(x.title)||'Untitled museum object',
+        objectType:textField(x.type),
+        maker:textField(x.dcCreator),
+        date:textField(x.year),
+        sourceUrl:typeof x.guid==='string'&&x.guid.startsWith('https://www.europeana.eu/')?x.guid:null,
+        provider:'Europeana',
+        evidenceStatus:'REFERENCE_LEAD_UNVERIFIED_FOR_USER_OBJECT'
+      })).filter((x:any)=>x.id&&x.sourceUrl);
+      res.setHeader('Cache-Control','private, no-store');
+      return res.status(200).json({provider:'Europeana',query:raw,records:results,warning:'Museum records are leads only; not object authentication or sold-price evidence.'});
+    }
     const endpoint=new URL('https://api.vam.ac.uk/v2/objects/search');
     endpoint.searchParams.set('q',raw);
-    endpoint.searchParams.set('page_size','8');
+    endpoint.searchParams.set('page_size','20');
     const reply=await fetch(endpoint,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
     if(!reply.ok)return res.status(502).json({error:'V&A catalogue unavailable',upstream_status:reply.status});
     const body=await reply.json();
     if(!Array.isArray(body.records))return res.status(502).json({error:'V&A response format changed; no records accepted'});
-    const results=body.records.slice(0,8).map((x:any)=>{
+    const readable=(value:any):string => typeof value==='string'?value:typeof value?.name==='string'?value.name:'';
+    const results=body.records.slice(0,20).map((x:any)=>{
       const id=String(x.systemNumber||'');
       return {
-        id,title:String(x._primaryTitle||x._objectType||'Untitled museum object').slice(0,220),
-        objectType:String(x._objectType||'').slice(0,120),
-        maker:String(x._primaryMaker?.name||x._primaryMaker||'').slice(0,160),
-        date:String(x._primaryDate||'').slice(0,120),
+        id,title:(readable(x._primaryTitle)||readable(x.objectType)||'Untitled museum object').slice(0,220),
+        objectType:readable(x.objectType).slice(0,120),
+        maker:readable(x._primaryMaker).slice(0,160),
+        date:readable(x._primaryDate).slice(0,120),
         sourceUrl:/^O\d+$/.test(id)?'https://collections.vam.ac.uk/item/'+encodeURIComponent(id)+'/':null,
         provider:'Victoria and Albert Museum',
         evidenceStatus:'REFERENCE_LEAD_UNVERIFIED_FOR_USER_OBJECT'
       };
-    }).filter((r:any)=>r.id && r.sourceUrl);
+    }).filter((r:any)=>r.id && r.sourceUrl).filter((r:any,i:number,a:any[])=>a.findIndex((p:any)=>p.id===r.id)===i).slice(0,8);
     res.setHeader('Cache-Control','private, no-store');
     return res.status(200).json({provider:'Victoria and Albert Museum',query:raw,records:results,warning:'Museum catalogue records are reference leads only; they do not authenticate your object or verify market prices.'});
   }catch{return res.status(502).json({error:'Museum lookup unavailable; try again later'})}
