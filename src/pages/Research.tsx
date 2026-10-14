@@ -27,7 +27,7 @@ type KnowledgeRow = {
 
 export default function Research() {
   const [museumItems,setMuseumItems] = useState<any[]>([])
-  const [museumTarget,setMuseumTarget] = useState('')
+  const [museumTarget,setMuseumTarget] = useState(()=>new URLSearchParams(window.location.search).get('item')||'')
   const [museumSaving,setMuseumSaving] = useState<string|null>(null)
   const [museumSource,setMuseumSource] = useState<'vam'|'europeana'>('vam')
   const [museumQuery,setMuseumQuery] = useState('')
