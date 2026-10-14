@@ -25,6 +25,10 @@ type KnowledgeRow = {
 }
 
 export default function Research() {
+  const [museumQuery,setMuseumQuery] = useState('')
+  const [museumResults,setMuseumResults] = useState<any[]>([])
+  const [museumMessage,setMuseumMessage] = useState('')
+  const [museumLoading,setMuseumLoading] = useState(false)
   const [tasks,setTasks] = useState<any[]>([])
   const [knowledge,setKnowledge] = useState<KnowledgeRow[]>([])
   const [canonicalDocs,setCanonicalDocs] = useState<any[]>([])
@@ -60,6 +64,23 @@ export default function Research() {
   const [snapshotMedia,setSnapshotMedia] = useState('text/plain')
   const [integrityBusy,setIntegrityBusy] = useState<string|null>(null)
   const [integrityResults,setIntegrityResults] = useState<Record<string,string>>({})
+
+  const searchMuseum = async () => {
+    const q=museumQuery.trim()
+    if(q.length<3) {setMuseumMessage('Enter at least three characters.');return}
+    setMuseumLoading(true);setMuseumResults([]);setMuseumMessage('')
+    try {
+      const {data}=await supabase.auth.getSession()
+      const token=data.session?.access_token
+      if(!token)throw new Error('Please sign in again.')
+      const response=await fetch('/api/museum-search?q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+token}})
+      const payload=await response.json()
+      if(!response.ok)throw new Error(payload.error||'Museum lookup failed')
+      setMuseumResults(payload.records||[])
+      setMuseumMessage((payload.records||[]).length?'Museum references only — these do not authenticate your item or establish a sold price.':'No catalogue records returned. Try a maker, technique or object type.')
+    } catch(err:any){setMuseumMessage(err?.message||'Museum service unavailable')}
+    finally{setMuseumLoading(false)}
+  }
 
   const load = async () => {
     const [t,k,c,p,cs,cc,trusted,allComps,approvedComps,sourceResult] = await Promise.all([
@@ -299,6 +320,18 @@ export default function Research() {
 
   return <div>
     <div className="pageHeader"><div className="eyebrow">RESEARCH</div><h1>Next evidence first</h1><p>Work through open checks. Source reviews and archives are available below when needed.</p></div>
+    <details className="panel">
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — V&A live catalogue search</summary>
+      <p>Search documented museum collection objects. Results are research leads, not maker authentication or confirmed sale prices.</p>
+      <div className="toolbar">
+        <input aria-label="Search V&A museum objects" value={museumQuery} onChange={e=>setMuseumQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchMuseum()}} placeholder="Maker, material, object type…" style={{flex:1,minWidth:100}} />
+        <button className="secondaryButton" disabled={museumLoading} onClick={searchMuseum}>{museumLoading?'Searching…':'Search museum'}</button>
+      </div>
+      {museumMessage && <p className="note">{museumMessage}</p>}
+      {museumResults.length>0 && <div className="tableWrap"><table><thead><tr><th>Museum object</th><th>Type / maker</th><th>Date</th><th>Original record</th></tr></thead><tbody>
+      {museumResults.map((m:any)=><tr key={m.id}><td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td><td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">V&A catalogue ↗</a></td></tr>)}
+      </tbody></table></div>}
+    </details>
     <div className="panel">
       <div className="panelHeader"><h2>Research tasks</h2><span>Highest-information evidence first</span></div>
       {tasks.length===0?<div className="empty">No open research tasks recorded.</div>:
