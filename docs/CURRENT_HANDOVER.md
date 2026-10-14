@@ -387,3 +387,8 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - User screenshot confirms deployed Choose an object selector plus 3 task disclosure panels and new logo; source-check ledger unexpectedly visible by default, causing ongoing cognitive overload. User previously stated ADHD-specific visual overload; prioritize calm default, short labels and fewer exposed tech panels.
 - GitHub commits `cd2a31b`, `7204786`: converted original-source check ledger and comparable-sale review panels from always-open panels to closed Advanced disclosures. The content and evidence controls are retained, not deleted. Research selection and museum panel remain available.
 - Real browser acceptance pending and Vercel status must be checked. Follow up with consolidating all archive/research advanced panels into single 'Advanced tools' if still overwhelming. No database/evidence or pricing state changed.
+
+## 2026-10-14 — Two-click system-wide UX requirement (owner approved)
+- User explicitly requires an exceptionally simple, ADHD-friendly, low-text presentation across all screens, with advanced details collapsed and frequent actions completed in one or two clicks where realistically possible.
+- Mandatory cross-product contract committed as `docs/TWO_CLICK_UX_STANDARD_V1.md` at `6bc4ed4`. It governs Dashboard, Inventory, object, research, intake, quick-buy, sales, catalogue, reports, and new workflows, subordinate to privacy, evidence verification, paid actions and consent. Includes click-acceptance matrix and accessibility requirements.
+- This is a committed **design specification**, not proof all existing screens meet it. A screen-by-screen navigation audit and browser acceptance are required; do not falsely mark implementation complete.
