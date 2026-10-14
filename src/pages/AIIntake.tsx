@@ -54,6 +54,7 @@ export default function AIIntake() {
   const [context,setContext] = useState(emptyContext)
   const [drafts,setDrafts] = useState<DraftObject[]>([])
   const [batchSummary,setBatchSummary] = useState('')
+  const [savedItems,setSavedItems] = useState<any[]>([])
   const [inscriptionReview,setInscriptionReview] = useState<any>(null)
   const [inscriptionReviewStatus,setInscriptionReviewStatus] = useState('NOT_TRIGGERED')
   const [knowledgeLookup,setKnowledgeLookup] = useState<any>({status:'NOT_ATTEMPTED',matches:[]})
@@ -304,9 +305,9 @@ export default function AIIntake() {
       // Approved item photos are separate copies; deletion here would break historical manifests.
       if (analysisRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',analysisRunId)
 
-      setMessage(`Created ${created.length} permanent object record${created.length===1?'':'s'}.`)
-      if (created.length===1) nav(`/item/${created[0].id}`)
-      else nav('/inventory')
+      setSavedItems(created)
+      setStage('complete')
+      setMessage(`${created.length} records saved. Choose an object to continue.`)
     } catch (err:any) {
       setStage('review')
       setMessage(err?.message || 'Could not create records')
@@ -382,77 +383,83 @@ export default function AIIntake() {
       </div>}
 
       {(stage==='review' || stage==='saving') && <>
-        <div className="reviewTop panel">
-          <div><div className="eyebrow">DRAFT — NOT YET PERMANENT</div><h2>{drafts.length} object{drafts.length===1?'':'s'} detected</h2><p>{batchSummary}</p></div>
-          <div className="reviewCount">{selectedCount} selected</div>
-        </div>
-
-        <div className="note">Inscription second-pass status: <strong>{inscriptionReviewStatus}</strong>. This status indicates whether a second image examination ran; it does not prove a signature reading or maker attribution.</div>
-        <div className="panel">
-          <strong>Knowledge Brain — existing source lookup</strong>
-          <p>Retrieval status: {knowledgeLookup.status}. Matches are evidence leads, not confirmed identification. Existing records must retain source and freshness checks.</p>
-          {(knowledgeLookup.matches||[]).map((k:any)=><div key={k.id} className="note">
-            <strong>{k.entity_key || k.entity_type || k.knowledge_type}</strong> — {k.claim}
-            <div>{k.certainty_class || 'UNCLASSIFIED'} · {k.verification_status || 'UNVERIFIED'} · {k.freshness_flag}</div>
-            {k.source_url && <a href={k.source_url} target="_blank" rel="noreferrer">Source</a>}
-          </div>)}
+        <div className="reviewTop panel" style={{padding:16}}>
+          <div><div className="eyebrow">REVIEW BEFORE SAVING</div><h2>{selectedCount} objects ready</h2></div>
+          <details><summary style={{cursor:'pointer',fontSize:12,color:'var(--muted)'}}>Batch notes and analysis status</summary>
+            <p>{batchSummary}</p>
+            <p>Inscription recheck: {inscriptionReviewStatus}. Existing knowledge: {knowledgeLookup.status}. Neither confirms a maker.</p>
+          </details>
         </div>
         <div className="draftGrid">
-          {drafts.map((d,idx)=><div className={d.include===false?'draftCard excluded':'draftCard'} key={idx}>
-            <div className="draftHead">
-              <label className="draftInclude"><input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/><span>Include</span></label>
-              <span className="draftNumber">OBJECT {String.fromCharCode(65+idx)}</span>
+          {drafts.map((d,idx)=>{
+            const hero=photos.find(p=>d.image_indices.includes(p.index))
+            return <div className={d.include===false?'draftCard excluded':'draftCard'} key={idx}>
+              <div className="draftHead">
+                <label className="draftInclude"><input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/><span>Save this object</span></label>
+                <span className="draftNumber">OBJECT {String.fromCharCode(65+idx)}</span>
+              </div>
+              <div style={{display:'flex',gap:12,alignItems:'center',marginBottom:12}}>
+                {hero && <img src={hero.preview} alt={d.working_title} style={{width:104,height:104,objectFit:'cover',borderRadius:9}}/>}
+                <div style={{flex:1,minWidth:0}}>
+                  <strong style={{fontSize:16,display:'block',lineHeight:1.3}}>{d.working_title}</strong>
+                  <div style={{fontSize:12,color:'var(--muted)',marginTop:6}}>Maker {d.maker||'not confirmed'} · ID {d.identification_confidence}%</div>
+                  <div style={{fontSize:13,marginTop:7,color:'var(--accent)'}}>{d.preliminary_value.quick_sale===null?'Value needs research':d.preliminary_value.currency+' '+d.preliminary_value.quick_sale+' provisional quick-sale'}</div>
+                </div>
+              </div>
+              <details style={{borderTop:'1px solid var(--line)',paddingTop:12}}>
+                <summary style={{cursor:'pointer',fontWeight:750}}>Edit details and inspect evidence</summary>
+                <div style={{marginTop:14}}>
+                  <div className="draftImages">{photos.filter(p=>d.image_indices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index}><img src={p.preview} alt={'Photograph '+(p.index+1)}/><small>Photo {p.index+1}</small></a>)}</div>
+                  <label>Working title<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
+                  <div className="formGrid">
+                    <label>Type<input value={d.object_type} onChange={e=>patchDraft(idx,'object_type',e.target.value)}/></label>
+                    <label>Maker<input value={d.maker||''} onChange={e=>patchDraft(idx,'maker',e.target.value||null)}/></label>
+                    <label>Attribution<input value={d.current_attribution||''} onChange={e=>patchDraft(idx,'current_attribution',e.target.value||null)}/></label>
+                    <label>Period<input value={d.period_wording||''} onChange={e=>patchDraft(idx,'period_wording',e.target.value||null)}/></label>
+                  </div>
+                  <div className="confidenceMiniRow"><span>ID {d.identification_confidence}%</span><span>Date {d.dating_confidence}%</span><span>Value {d.valuation_confidence}%</span></div>
+                  <label>Condition<textarea rows={3} value={d.condition_summary} onChange={e=>patchDraft(idx,'condition_summary',e.target.value)}/></label>
+                  {d.marks_signatures_labels && <p><strong>Marks:</strong> {d.marks_signatures_labels}</p>}
+                  {inscriptionReview?.mark_visible && d.image_indices.some((i:number)=>(inscriptionReview.evidence_image_indices||[]).includes(i)) && <p>Possible inscription: {inscriptionReview.candidate_transcription||'Unclear'} · Unverified visual lead.</p>}
+                  <details><summary style={{cursor:'pointer'}}>Evidence ({d.evidence.length})</summary>
+                    {d.evidence.map((ev,i)=><p key={i}><strong>{ev.certainty_class}</strong> {ev.claim}</p>)}
+                  </details>
+                  <details><summary style={{cursor:'pointer'}}>Next checks ({d.next_evidence.length})</summary>
+                    {d.next_evidence.map((n,i)=><p key={i}>{n.title}</p>)}
+                  </details>
+                  <p style={{fontSize:12,color:'var(--muted)'}}>Provisional value only. {d.preliminary_value.basis}</p>
+                </div>
+              </details>
             </div>
-            <div className="draftImages">{photos.filter(p=>d.image_indices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index} title={`Open original photograph ${p.index+1}`}><img src={p.preview} alt={`Original photograph ${p.index+1}`}/><small>Photo {p.index+1}</small></a>)}</div>
-            <label>Working title<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
-            <div className="formGrid">
-              <label>Object type<input value={d.object_type} onChange={e=>patchDraft(idx,'object_type',e.target.value)}/></label>
-              <label>Maker<input value={d.maker||''} onChange={e=>patchDraft(idx,'maker',e.target.value||null)}/></label>
-              <label>Attribution<input value={d.current_attribution||''} onChange={e=>patchDraft(idx,'current_attribution',e.target.value||null)}/></label>
-              <label>Period<input value={d.period_wording||''} onChange={e=>patchDraft(idx,'period_wording',e.target.value||null)}/></label>
-            </div>
-            <div className="confidenceMiniRow">
-              <span>ID <strong>{d.identification_confidence}%</strong></span>
-              <span>Date <strong>{d.dating_confidence}%</strong></span>
-              <span>Value <strong>{d.valuation_confidence}%</strong></span>
-            </div>
-            <div className="draftStatusRow">
-              <span className="pill">{d.sale_readiness.replaceAll('_',' ')}</span>
-              {d.specialist_review && <span className="pill riskPill">PROTECT / SPECIALIST</span>}
-            </div>
-            {d.marks_signatures_labels && <div className="panel" style={{padding:12,marginTop:12}}>
-              <strong>Marks and inscriptions — check original photo</strong>
-              <p>{d.marks_signatures_labels}</p>
-              {inscriptionReview?.mark_visible && d.image_indices.some((i:number)=>(inscriptionReview.evidence_image_indices||[]).includes(i)) && <div>
-                <p><strong>Candidate transcription:</strong> {inscriptionReview.candidate_transcription || 'Not reliably readable'}</p>
-                <p>Transcription confidence: {inscriptionReview.transcription_confidence}% · Unverified — visual examination only</p>
-                <p>Original photograph numbers: {(inscriptionReview.evidence_image_indices||[]).map((i:number)=>i+1).join(', ') || 'Not identified'}</p>
-                <p>{inscriptionReview.rationale}</p>
-                {inscriptionReview.contradictions?.length>0 && <div><strong>Conflicting interpretations</strong>{inscriptionReview.contradictions.map((c:string,i:number)=><p key={i}>{c}</p>)}</div>}
-                <p>Maker candidate: {inscriptionReview.candidate_maker || "None"} · Design candidate: {inscriptionReview.candidate_design || "None"} · Attribution confidence: {inscriptionReview.attribution_confidence}% (not signature confidence)</p>
-              </div>}
-            </div>}
-            <label>Condition<textarea rows={3} value={d.condition_summary} onChange={e=>patchDraft(idx,'condition_summary',e.target.value)}/></label>
-            <div className="draftEvidence">
-              <strong>Evidence captured</strong>
-              {d.evidence.map((ev,i)=><div key={i}><span>{ev.certainty_class.replaceAll('_',' ')}</span>{ev.claim}{ev.notes && <small> — {ev.notes}</small>}</div>)}
-            </div>
-            {d.next_evidence.length>0 && <div className="nextEvidence"><strong>Best next evidence</strong>{d.next_evidence.slice(0,3).map((n,i)=><div key={i}>{n.title} <small>{n.information_value}/100</small></div>)}</div>}
-            <div className="provisionalValue">
-              <span>Visual-only provisional</span>
-              <strong>{d.preliminary_value.quick_sale!==null ? `${d.preliminary_value.currency} ${d.preliminary_value.quick_sale} quick-sale` : 'No defensible value yet'}</strong>
-              <small>{d.preliminary_value.basis}</small>
-            </div>
-          </div>)}
+          })}
         </div>
-
         {message && <div className="note">{message}</div>}
         <div className="intakeActions stickyActions">
-          <button className="secondaryButton" disabled={stage==='saving'} onClick={()=>setStage('upload')}>Back to photographs</button>
-          <button className="primaryButton intakeBigButton" disabled={stage==='saving' || !selectedCount} onClick={approve}>
-            {stage==='saving'?<><LoaderCircle className="spin" size={17}/> Creating records…</>:<><Check size={18}/> Approve & create {selectedCount} permanent record{selectedCount===1?'':'s'}</>}
-          </button>
+          <button className="secondaryButton" disabled={stage==='saving'} onClick={()=>setStage('upload')}>Back to photos</button>
+          <button className="primaryButton intakeBigButton" disabled={stage==='saving'||!selectedCount} onClick={approve}>{stage==='saving'?'Saving…':'Save '+selectedCount+' objects →'}</button>
         </div>
+      </>}
+      {stage==='complete' && <div>
+        <div className="panel" style={{padding:16,marginBottom:14}}>
+          <h2>{savedItems.length} objects saved</h2>
+          <p style={{color:'var(--muted)',margin:0}}>Choose an object to research, or view your collection.</p>
+        </div>
+        <div className="draftGrid">
+          {savedItems.map((item:any,i:number)=>{
+            const d=drafts.filter(x=>x.include!==false)[i]
+            const hero=photos.find(p=>d?.image_indices.includes(p.index))
+            return <div className="draftCard" key={item.id}>
+              {hero&&<img src={hero.preview} alt={item.title||'Saved object'} style={{width:'100%',height:150,objectFit:'cover',borderRadius:9,marginBottom:12}}/>}
+              <strong>{item.item_code} · {item.title||'Untitled'}</strong>
+              <p style={{fontSize:12,color:'var(--muted)'}}>Provisional identification · original photographs preserved</p>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <button className="primaryButton" onClick={()=>nav('/item/'+item.id)}>Open / research →</button>
+                <button className="secondaryButton" onClick={()=>nav('/research?item='+item.id)}>Museum search</button>
+              </div>
+            </div>
+          })}
+        </div>
+        <div className="intakeActions"><button className="secondaryButton" onClick={()=>nav('/inventory')}>All objects</button></div>
       </>}
     </div>
   )
