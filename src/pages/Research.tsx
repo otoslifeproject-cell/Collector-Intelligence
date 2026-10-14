@@ -387,7 +387,7 @@ export default function Research() {
       <label>Exact claim from source (not a guess)<textarea rows={3} value={claim} onChange={e=>setClaim(e.target.value)}/></label>
       <div className="intakeActions"><button className="primaryButton inlineButton" disabled={saving} onClick={addLead}>{saving?'Saving…':'Save provisional reference'}</button></div>
       {message && <div className="note">{message}</div>}
-    </div>
+    </details>
     <details className="panel">
       <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Knowledge Brain records — details</summary>
       <div>
