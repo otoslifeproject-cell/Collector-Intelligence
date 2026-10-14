@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 type KnowledgeRow = {
@@ -350,7 +351,16 @@ export default function Research() {
   }
 
   return <div>
-    <div className="pageHeader"><div className="eyebrow">RESEARCH</div><h1>Next evidence first</h1><p>Work through open checks. Source reviews and archives are available below when needed.</p></div>
+    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Choose an object</h1><p>Research and saved findings belong to each object.</p></div></div>
+    <div className="panel" style={{padding:16}}>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+        <select aria-label="Choose an object" value={museumTarget} onChange={e=>setMuseumTarget(e.target.value)} style={{flex:'1 1 240px',minWidth:0}}>
+          <option value="">Select a CI object</option>
+          {museumItems.map((i:any)=><option key={i.id} value={i.id}>{i.item_code} — {i.title||'Untitled'}</option>)}
+        </select>
+        {museumTarget?<Link to={'/item/'+museumTarget} className="primaryButton">Open object →</Link>:<span style={{fontSize:12,color:'var(--muted)'}}>Select an object to see its findings</span>}
+      </div>
+    </div>
     <details className="panel">
       <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — V&A and Europeana</summary>
       <p>Search documented museum collection objects. Results are research leads, not maker authentication or confirmed sale prices.</p>
@@ -365,13 +375,11 @@ export default function Research() {
       {museumResults.map((m:any)=><tr key={m.id}><td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td><td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">{m.provider==='Europeana'?'Europeana record ↗':'V&A catalogue ↗'}</a></td></tr>)}
       </tbody></table></div>}
     </details>
-    <div className="panel">
-      <div className="panelHeader"><h2>Research tasks</h2><span>Highest-information evidence first</span></div>
+    <details className="panel"><summary style={{cursor:"pointer",fontWeight:700}}>Research tasks ({tasks.length})</summary><div style={{marginTop:14}} className="panelHeader"><h2>Research tasks</h2><span>Highest-information evidence first</span></div>
       {tasks.length===0?<div className="empty">No open research tasks recorded.</div>:
       <div className="tableWrap"><table><thead><tr><th>Item</th><th>Task</th><th>Type</th><th>Information value</th><th>Status</th></tr></thead><tbody>{tasks.map(t=><tr key={t.id}><td>{t.items?.item_code}</td><td>{t.title}</td><td>{t.task_type||'—'}</td><td>{t.information_value??'—'}</td><td>{t.status}</td></tr>)}</tbody></table></div>}
-    </div>
-    <div className="panel">
-      <div className="panelHeader"><h2>Add a source-backed research lead</h2><span>Always saved as UNVERIFIED initially</span></div>
+    </details>
+    <details className="panel"><summary style={{cursor:"pointer",fontWeight:700}}>Manual source entry — advanced</summary><div className="panelHeader" style={{marginTop:14}}><h2>Add a source-backed research lead</h2><span>Always saved as UNVERIFIED initially</span></div>
       <div className="formGrid">
         <label>Named maker, pattern or design<input value={entityKey} onChange={e=>setEntityKey(e.target.value)} placeholder="e.g. Fionia"/></label>
         <label>Original source URL<input value={sourceUrl} onChange={e=>setSourceUrl(e.target.value)} placeholder="https://..."/></label>
