@@ -453,7 +453,7 @@ export default function AIIntake() {
               <strong>{item.item_code} · {item.title||'Untitled'}</strong>
               <p style={{fontSize:12,color:'var(--muted)'}}>Provisional identification · original photographs preserved</p>
               <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                <button className="primaryButton" onClick={()=>nav('/item/'+item.id)}>Open / research →</button>
+                <button className="primaryButton" onClick={()=>nav('/item/'+item.id+'?tab=market')}>Research & value →</button>
                 <button className="secondaryButton" onClick={()=>nav('/research?item='+item.id)}>Museum search</button>
               </div>
             </div>
