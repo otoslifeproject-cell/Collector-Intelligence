@@ -1,3 +1,5 @@
+> **CURRENT BUILD NOTICE (2026-10-14):** The project-wide approved visual identity is **Concept C — The Collector's Facet**, governed by [docs/APPROVED_BRAND_IDENTITY_V1.md](docs/APPROVED_BRAND_IDENTITY_V1.md). Brand fidelity must follow the user's reference board, not the old temporary 'CI' placeholder. Exact symbol/wordmark vector masters are still required before asset replacement. Consult [docs/CURRENT_HANDOVER.md](docs/CURRENT_HANDOVER.md) for actual deployed/tested status and [docs/BRAND_SKILL_SWEEP_20261014.md](docs/BRAND_SKILL_SWEEP_20261014.md) for unresolved governance and skill-review items. Historical build instructions below may describe superseded research approval behaviour: current research results are preserved as PROVISIONAL in analysis history, and model-claimed sales are never independently verified through approval alone. The controlling product Master Brief v4.0 and Source & Evidence Policy v4.0 supersede older README workflows.
+
 # Collector Intelligence — Collection OS
 
 A private web application for cataloguing, researching, valuing, managing and selling collectible objects.
