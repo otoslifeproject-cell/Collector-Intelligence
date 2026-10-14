@@ -23,7 +23,7 @@ export default function Login() {
         <div className="loginBrand">CI</div>
         <div className="eyebrow">COLLECTION OS</div>
         <h1>Collector Intelligence</h1>
-        <p>Private collection management, identification, valuation and sales intelligence.</p>
+        <p>Advanced intelligence. Verified evidence. Confident decisions.</p>
         <form onSubmit={submit}>
           <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required /></label>
           <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={6} required /></label>
