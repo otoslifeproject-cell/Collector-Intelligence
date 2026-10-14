@@ -59,7 +59,7 @@ export default function AIIntake() {
   const [inscriptionReviewStatus,setInscriptionReviewStatus] = useState('NOT_TRIGGERED')
   const [knowledgeLookup,setKnowledgeLookup] = useState<any>({status:'NOT_ATTEMPTED',matches:[]})
   const [analysisRunId,setAnalysisRunId] = useState<string|null>(null)
-  const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'>('upload')
+  const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'|'complete'>('upload')
   const [message,setMessage] = useState('')
   const [dragActive,setDragActive] = useState(false)
 
@@ -460,7 +460,7 @@ export default function AIIntake() {
           })}
         </div>
         <div className="intakeActions"><button className="secondaryButton" onClick={()=>nav('/inventory')}>All objects</button></div>
-      </>}
+      </div>}
     </div>
   )
 }
