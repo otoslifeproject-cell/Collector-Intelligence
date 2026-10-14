@@ -143,9 +143,9 @@ export default function ItemDetail() {
       <div className="itemHero">
         <div>
           <div className="eyebrow">{item.item_code}</div>
-          <h1>{item.current_attribution || item.title || item.object_type || 'Unidentified object'}</h1>
+          <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
-          <div className="pillRow"><span className="pill">{item.status.replaceAll('_',' ')}</span>{item.sale_readiness && <span className="pill accent">{item.sale_readiness.replaceAll('_',' ')}</span>}</div>
+          <div className="pillRow"><span className="pill accent">{(item.sale_readiness || item.status).replaceAll('_',' ')}</span></div>
         </div>
         <div className="heroActions">
           <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
