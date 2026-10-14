@@ -20,7 +20,7 @@ export default function Login() {
   return (
     <div className="loginPage">
       <div className="loginPanel">
-        <div className="loginBrand">CI</div>
+        <div className="loginBrand"><img src="/brand/app-icon.png" alt="Collector Intelligence faceted mark" width="70" height="70" style={{objectFit:"contain"}} onError={e=>{e.currentTarget.style.display="none";e.currentTarget.parentElement!.textContent="CI"}} /></div>
         <div className="eyebrow">COLLECTION OS</div>
         <h1>Collector Intelligence</h1>
         <p>Advanced intelligence. Verified evidence. Confident decisions.</p>
