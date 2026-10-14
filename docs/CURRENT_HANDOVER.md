@@ -376,3 +376,9 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - No permanent maker, price, comparables, reviewed knowledge, or original source snapshots modified. It is a user-approved research lead, not independently authenticated evidence. No paid AI call.
 - Queried real `item_evidence` schema, owner_all RLS and CHECK constraints before/after code changes. Front-end signed-in insert/readback and UI usability await user browser test; code compile/deployment status separately tracked.
 - Next: confirm saved item_evidence from real session and show saved leads on item Research/Identification in collapsible format; then consider server-verified source capture and duplicates prevention.
+
+## 2026-10-14 — Cognitive-load cleanup / object-first navigation
+- User reports ADHD-related visual overload and Research-vs-item confusion. Treat as product usability priority, not as request for more explanations. Never require user to process research archives in default page.
+- `src/pages/Research.tsx` commits `381c3b6`, `d3d7a5d`: replaced oversized research landing heading with concise Choose an object selector and Open object route; tasks and manual source forms collapsed. Museum search remains optional and source-preserving. No schema/data changes.
+- `src/pages/ItemDetail.tsx` commit `892b503`: replaces full saved-research summaries in default Market view with one concise 'Saved research' indicator, provisional status and View findings; older runs in collapsed history. Clarifies AI repeat search as optional paid Run new research instead of misleading 'Run verified research'. Prior research and evidence untouched.
+- Browser layout and real-user navigation need acceptance. Verify deployment compile and screenshot before calling UX ready. Remaining cleanup: item photo-led overview, clear 'next action', consolidate repeated statuses, split advanced evidence tools further.
