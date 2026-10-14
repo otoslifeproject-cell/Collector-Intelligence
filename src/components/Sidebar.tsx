@@ -23,7 +23,7 @@ export default function Sidebar() {
         <div className="brandMark">CI</div>
         <div>
           <strong>Collector Intelligence</strong>
-          <span>Collection OS</span>
+          <span>Identify · Research · Value</span>
         </div>
       </div>
 
