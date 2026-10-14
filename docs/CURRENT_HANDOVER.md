@@ -370,3 +370,9 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - Added Europeana Search API adapter using officially documented `https://api.europeana.eu/record/v2/search.json`, requires server-only `EUROPEANA_API_KEY`, validates returned records, does not ingest data automatically, no new truth claims. Without key, returns explicit 503 (not silent fabricated results).
 - `src/pages/Research.tsx` commit `511a89a` selects V&A or Europeana, labels Europeana key-required and preserves raw source links; no comparable/source trust gate changes.
 - Source: https://developers.vam.ac.uk/guide/v2/results/introduction.html ; https://europeana.atlassian.net/wiki/spaces/EF/pages/2385739812 (consulted October 14 2026). Key acquisition and signed-in acceptance remain outstanding.
+
+## 2026-10-14 — Per-object provisional museum lead preservation
+- Commits `adca008` and `8066f22` add explicit choose-CI-item + Save provisional action per live V&A/Europeana result in Research page. User is checked with getUser; selected item is re-read under item-owner RLS. Insert only one `item_evidence` row with source URL, museum provider/id, neutral stance, `POSSIBLE_ATTRIBUTION`, `RESEARCH_SOURCE` (per actual DB CHECK constraint), `UNVERIFIED`, and clear non-authentication disclaimer.
+- No permanent maker, price, comparables, reviewed knowledge, or original source snapshots modified. It is a user-approved research lead, not independently authenticated evidence. No paid AI call.
+- Queried real `item_evidence` schema, owner_all RLS and CHECK constraints before/after code changes. Front-end signed-in insert/readback and UI usability await user browser test; code compile/deployment status separately tracked.
+- Next: confirm saved item_evidence from real session and show saved leads on item Research/Identification in collapsible format; then consider server-verified source capture and duplicates prevention.
