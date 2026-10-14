@@ -25,6 +25,7 @@ type KnowledgeRow = {
 }
 
 export default function Research() {
+  const [museumSource,setMuseumSource] = useState<'vam'|'europeana'>('vam')
   const [museumQuery,setMuseumQuery] = useState('')
   const [museumResults,setMuseumResults] = useState<any[]>([])
   const [museumMessage,setMuseumMessage] = useState('')
@@ -73,7 +74,7 @@ export default function Research() {
       const {data}=await supabase.auth.getSession()
       const token=data.session?.access_token
       if(!token)throw new Error('Please sign in again.')
-      const response=await fetch('/api/museum-search?q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+token}})
+      const response=await fetch('/api/museum-search?source='+museumSource+'&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+token}})
       const payload=await response.json()
       if(!response.ok)throw new Error(payload.error||'Museum lookup failed')
       setMuseumResults(payload.records||[])
@@ -321,15 +322,16 @@ export default function Research() {
   return <div>
     <div className="pageHeader"><div className="eyebrow">RESEARCH</div><h1>Next evidence first</h1><p>Work through open checks. Source reviews and archives are available below when needed.</p></div>
     <details className="panel">
-      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — V&A live catalogue search</summary>
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — V&A and Europeana</summary>
       <p>Search documented museum collection objects. Results are research leads, not maker authentication or confirmed sale prices.</p>
       <div className="toolbar">
-        <input aria-label="Search V&A museum objects" value={museumQuery} onChange={e=>setMuseumQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchMuseum()}} placeholder="Maker, material, object type…" style={{flex:1,minWidth:100}} />
+        <select aria-label="Museum source" value={museumSource} onChange={e=>{setMuseumSource(e.target.value as 'vam'|'europeana');setMuseumResults([]);setMuseumMessage('')}}><option value="vam">V&A — active</option><option value="europeana">Europeana — API key required</option></select>
+        <input aria-label="Search museum objects" value={museumQuery} onChange={e=>setMuseumQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchMuseum()}} placeholder="Maker, material, object type…" style={{flex:1,minWidth:100}} />
         <button className="secondaryButton" disabled={museumLoading} onClick={searchMuseum}>{museumLoading?'Searching…':'Search museum'}</button>
       </div>
       {museumMessage && <p className="note">{museumMessage}</p>}
       {museumResults.length>0 && <div className="tableWrap"><table><thead><tr><th>Museum object</th><th>Type / maker</th><th>Date</th><th>Original record</th></tr></thead><tbody>
-      {museumResults.map((m:any)=><tr key={m.id}><td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td><td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">V&A catalogue ↗</a></td></tr>)}
+      {museumResults.map((m:any)=><tr key={m.id}><td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td><td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">{m.provider==='Europeana'?'Europeana record ↗':'V&A catalogue ↗'}</a></td></tr>)}
       </tbody></table></div>}
     </details>
     <div className="panel">
