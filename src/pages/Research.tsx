@@ -88,7 +88,7 @@ export default function Research() {
       const {data:found,error:checkError}=await supabase.from('items').select('id').eq('id',museumTarget).single()
       if(checkError||!found)throw new Error('Selected item not accessible.')
       const claim='REFERENCE ONLY: '+(m.provider||'Museum')+' catalogue entry "'+String(m.title||'Untitled').slice(0,160)+'"'+(m.maker?' (catalogued maker: '+String(m.maker).slice(0,120)+')':'')+(m.date?' (catalogued date: '+String(m.date).slice(0,80)+')':'')+'. No attribution of this CI object is asserted.'
-      const record={owner_id:owner,item_id:museumTarget,claim,provenance:'EXTERNAL_MUSEUM_CATALOGUE_LEAD',certainty_class:'POSSIBLE_ATTRIBUTION',stance:'NEUTRAL',source_reference:String(m.provider)+': '+String(m.id),source_url:m.sourceUrl,verification_status:'UNVERIFIED',notes:'Saved manually from museum search. Museum catalogue record is not authentication of the collection object. No sold-price evidence. Original source must be checked.'}
+      const record={owner_id:owner,item_id:museumTarget,claim,provenance:'RESEARCH_SOURCE',certainty_class:'POSSIBLE_ATTRIBUTION',stance:'NEUTRAL',source_reference:String(m.provider)+': '+String(m.id),source_url:m.sourceUrl,verification_status:'UNVERIFIED',notes:'Saved manually from museum search. Museum catalogue record is not authentication of the collection object. No sold-price evidence. Original source must be checked.'}
       const {error}=await supabase.from('item_evidence').insert(record)
       if(error)throw error
       setMuseumMessage('Provisional museum lead saved against the selected CI item. No maker, value or verified comparable changed.')
