@@ -397,8 +397,8 @@ export default function Research() {
     </div>
     </details>
 
-    <div className="panel">
-      <div className="panelHeader"><h2>Original-source check ledger</h2><span>{sourceChecks.length} latest checks</span></div>
+    <details className="panel"><summary style={{cursor:"pointer",fontWeight:700}}>Advanced · Source verification ({sourceChecks.length})</summary>
+      <div className="panelHeader" style={{marginTop:16}}><h2>Original-source check ledger</h2><span>{sourceChecks.length} latest checks</span></div>
       <p>Manual observations are always REVIEW_REQUIRED and cannot independently certify a sale. Independent fetch, archived snapshot and verifier review are still unavailable.</p>
       {sourceChecks.length===0?<div className="empty">No source-check records. Nothing has been independently confirmed.</div>:
       <div className="tableWrap"><table><thead><tr><th>Checked</th><th>Source</th><th>Outcome</th><th>Verification</th><th>Archive integrity</th></tr></thead><tbody>
@@ -419,8 +419,9 @@ export default function Research() {
         <button className="secondaryButton" disabled={saving||snapshotText.length<20} onClick={()=>void stageSnapshotFromText()}>Archive provisional snapshot</button>
       </div>}
     </div>
-    <div className="panel">
-      <div className="panelHeader"><h2>Comparable sale evidence reviews</h2><span>{trustedCompIds.length} trusted in current view · {comps.length} recent records</span></div>
+    </details>
+    <details className="panel"><summary style={{cursor:"pointer",fontWeight:700}}>Advanced · Comparable reviews ({comps.length})</summary>
+      <div className="panelHeader" style={{marginTop:16}}><h2>Comparable sale evidence reviews</h2><span>{trustedCompIds.length} trusted in current view · {comps.length} recent records</span></div>
       <p>Review the original auction result, not an AI summary. A review does not independently authenticate the result or promote the original comparable status.</p>
       {comps.length===0?<div className="empty">No comparable records yet. AI-reported sales remain provisional until an original result is recorded.</div>:
       <div className="tableWrap"><table><thead><tr><th>Source</th><th>Price basis</th><th>Amount</th><th>Trust gate</th><th>Review</th></tr></thead><tbody>
