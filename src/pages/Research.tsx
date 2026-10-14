@@ -451,7 +451,7 @@ export default function Research() {
         <div className="intakeActions"><button className="secondaryButton" onClick={()=>setCompReviewId(null)}>Cancel</button>
           <button className="primaryButton inlineButton" disabled={saving||!compChecked||compNote.trim().length<30||!compLocator.trim()} onClick={saveComparableReview}>Record evidence review</button></div>
       </div>}
-    </div>
+    </details>
     <details className="panel">
       <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Project governance & source archive — details</summary>
       <div>
