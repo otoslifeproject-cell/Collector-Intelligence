@@ -396,3 +396,8 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 ## 2026-10-14 — System-wide two-click UX: Dashboard and Inventory pass 1
 - Commits `38b5231`, `96c5010`, `60eca89` simplify Dashboard and Inventory presentation to comply with `docs/TWO_CLICK_UX_STANDARD_V1.md`: Dashboard prominent Analyse photos / All objects links, collection totals collapsed, short Continue with an object heading; ItemCard uses shorter title, one commercial status and quick-sale estimate without duplicate balanced-price display; Inventory gets shortened heading and search placeholder and privately signed object-linked photo thumbnails.
 - Code-only; existing attribution, sales values, evidence and source controls unchanged. Inventory owner-scoped photo lookup and signed URLs need live browser test; do not claim acceptance on compile alone. Two-click audit remaining: object overview, AI Intake, Quick Buy, Sales and Reports. Avoid expanding technical panels by default.
+
+## 2026-10-14 — Build failure corrected after two-click navigation pass
+- The Vercel statuses for commits `7204786` through `60eca89` were FAILED. Review isolated an extra `</div>` left in `src/pages/Research.tsx` when wrapping the source-check panel in `<details>`; corrected in commit `05e31f0`.
+- Dashboard/Inventory UI work in `38b5231`, `96c5010`, `60eca89` was committed but **not deployment-accepted** before the JSX correction. Verify new Vercel build success and signed-in browser screenshots before marking complete.
+- Never assume commit status SUCCESS equals finished browser acceptance; no source, item or valuation records were changed in these UI commits.
