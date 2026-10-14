@@ -20,7 +20,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brandMark">CI</div>
+        <div className="brandMark"><img src="/brand/logo-symbol.png" alt="" width="40" height="40" onError={e=>{e.currentTarget.style.display="none";e.currentTarget.parentElement!.textContent="CI"}} /></div>
         <div>
           <strong>Collector Intelligence</strong>
           <span>Identify · Research · Value</span>
