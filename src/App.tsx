@@ -31,6 +31,16 @@ export default function App() {
     <div className="appShell">
       <Sidebar/>
       <main className="mainContent">
+        <aside aria-label="Collector Intelligence brand vision" style={{
+          position:'sticky',top:0,zIndex:15,background:'rgba(17,23,28,0.97)',
+          border:'1px solid rgba(203,163,83,0.28)',borderRadius:10,
+          padding:'10px 14px',marginBottom:18,boxShadow:'0 3px 12px rgba(0,0,0,0.14)'
+        }}>
+          <div style={{fontSize:10,fontWeight:800,letterSpacing:'0.15em',color:'#dcb765',marginBottom:4}}>OUR STANDARD</div>
+          <p style={{fontSize:'clamp(12px,1.05vw,14px)',lineHeight:1.45,margin:0,color:'#e8edf0'}}>
+            Collector Intelligence is a premium, evidence-led technology platform — combining the precision of a specialist appraisal laboratory, the trustworthiness of an established auction house, and the intelligence of modern AI software.
+          </p>
+        </aside>
         <Routes>
           <Route path="/" element={<Dashboard/>}/>
           <Route path="/inventory" element={<Inventory/>}/>
