@@ -2,11 +2,12 @@ import { Link } from 'react-router-dom'
 import { Item } from '../types'
 import { money } from '../lib/format'
 
-export default function ItemCard({item}: {item:Item}) {
+export default function ItemCard({item,imageUrl}: {item:Item,imageUrl?:string}) {
   const label = item.current_attribution || item.title || item.object_type || 'Unidentified object'
   return (
     <Link to={`/item/${item.id}`} className="itemCard">
       <div className="itemCardImage placeholderGlass">
+        {imageUrl && <img src={imageUrl} alt={item.title||item.object_type||"Collection object"} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
         <span>{item.item_code}</span>
       </div>
       <div className="itemCardBody">
