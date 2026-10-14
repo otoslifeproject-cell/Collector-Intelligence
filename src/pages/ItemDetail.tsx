@@ -13,7 +13,7 @@ export default function ItemDetail() {
   const [comps,setComps] = useState<Comparable[]>([])
   const [evidenceRecords,setEvidenceRecords] = useState<any[]>([])
   const [attributionVersions,setAttributionVersions] = useState<any[]>([])
-  const [tab,setTab] = useState('overview')
+  const [tab,setTab] = useState(()=>new URLSearchParams(window.location.search).get('tab')==='market'?'market':'overview')
   const [message,setMessage] = useState('')
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
