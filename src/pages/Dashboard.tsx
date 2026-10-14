@@ -9,10 +9,24 @@ import { money } from '../lib/format'
 export default function Dashboard() {
   const [items,setItems] = useState<Item[]>([])
   const [loading,setLoading] = useState(true)
+  const [coverUrls,setCoverUrls] = useState<Record<string,string>>({})
 
   useEffect(() => {
     supabase.from('items').select('*').order('updated_at',{ascending:false}).limit(50)
-      .then(({data}) => { setItems((data || []) as Item[]); setLoading(false) })
+      .then(async ({data}) => {
+        const rows=(data||[]) as Item[]
+        setItems(rows); setLoading(false)
+        const ids=rows.slice(0,6).map(x=>x.id)
+        if(!ids.length)return
+        const {data:photos}=await supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',ids).order('position',{ascending:true})
+        const selected=new Map<string,string>()
+        for(const p of (photos||[]).sort((a:any,b:any)=>Number(b.is_hero)-Number(a.is_hero)))if(!selected.has(p.item_id))selected.set(p.item_id,p.storage_path)
+        const signed=await Promise.all(Array.from(selected.entries()).map(async ([itemId,path])=>{
+          const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,3600)
+          return [itemId,url?.signedUrl||''] as const
+        }))
+        setCoverUrls(Object.fromEntries(signed))
+      })
   },[])
 
   const ready = items.filter(i=>i.sale_readiness === 'SELL_NOW' || i.status === 'READY_TO_SELL').length
@@ -35,7 +49,7 @@ export default function Dashboard() {
         <div className="sectionHeader"><div><h2>Recently worked</h2><p>Latest catalogue and research activity.</p></div></div>
         {loading ? <div className="empty">Loading…</div> :
           items.length === 0 ? <div className="empty"><h3>No items yet</h3><p>Your first five glass pieces can become CI-000001 onward.</p></div> :
-          <div className="cardGrid">{items.slice(0,6).map(i=><ItemCard item={i} key={i.id}/>)}</div>}
+          <div className="cardGrid">{items.slice(0,6).map(i=><ItemCard item={i} imageUrl={coverUrls[i.id]} key={i.id}/>)}</div>}
       </section>
     </div>
   )
