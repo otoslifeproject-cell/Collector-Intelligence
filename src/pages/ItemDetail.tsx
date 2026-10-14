@@ -269,22 +269,26 @@ export default function ItemDetail() {
             }}>Restore existing draft</button>
           </div>)}
         </div>}
-        {savedResearchRuns.length>0 && <details className="panel">
-          <summary style={{cursor:'pointer',fontWeight:700}}>Preserved provisional research ({savedResearchRuns.length})</summary>
-          {savedResearchRuns.map((run:any)=><div className="note" key={run.id}>
-            <strong>{new Date(run.created_at).toLocaleDateString()} — owner-reviewed research</strong>
-            <p>{run.result?.research_summary||'No summary recorded'}</p>
-            <button className="secondaryButton" disabled={researching} onClick={()=>{setResearchDraft(run.result);setResearchAudit(run.result?.source_audit||null);setResearchRunId(null)}}>View preserved findings</button>
-          </div>)}
-        </details>}
-        <div className="panel researchLauncher">
+        {savedResearchRuns.length>0 && <div className="panel" style={{padding:16}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+            <div><strong>Saved research · {savedResearchRuns.length}</strong><div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>Provisional — maker and sold prices not verified</div></div>
+            <button className="secondaryButton" onClick={()=>{const run=savedResearchRuns[0];setResearchDraft(run.result);setResearchAudit(run.result?.source_audit||null);setResearchRunId(null)}}>View findings</button>
+          </div>
+          <details style={{marginTop:12}}><summary style={{cursor:'pointer',fontSize:12,color:'var(--muted)'}}>Earlier saved research</summary>
+            {savedResearchRuns.slice(1).map((run:any)=><div className="note" key={run.id}>
+              <span>{new Date(run.created_at).toLocaleDateString()} · Provisional</span>
+              <button className="secondaryButton" onClick={()=>{setResearchDraft(run.result);setResearchAudit(run.result?.source_audit||null);setResearchRunId(null)}}>Open</button>
+            </div>)}
+          </details>
+        </div>}
+                <div className="panel researchLauncher">
           <div>
             <div className="eyebrow">LIVE MARKET RESEARCH</div>
-            <h2>Verify attribution, sold evidence and sale route</h2>
-            <p>Uses live web search. Sold/realized evidence is kept separate from estimates and asking prices.</p>
+            <h2>Need more research?</h2>
+            <p>Optional paid AI search. Existing findings are saved above.</p>
           </div>
           <button className="primaryButton inlineButton" onClick={runResearch} disabled={researching}>
-            {researching ? <><LoaderCircle className="spin" size={17}/> Researching…</> : <><Search size={17}/> Run verified research</>}
+            {researching ? <><LoaderCircle className="spin" size={17}/> Researching…</> : <><Search size={17}/> Run new research</>}
           </button>
         </div>
 
