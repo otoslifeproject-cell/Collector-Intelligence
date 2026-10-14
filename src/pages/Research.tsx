@@ -418,7 +418,6 @@ export default function Research() {
         <label>Source contents<textarea rows={5} value={snapshotText} onChange={e=>setSnapshotText(e.target.value)} placeholder="Paste actual page text or HTML. Maximum 256 KiB UTF-8."/></label>
         <button className="secondaryButton" disabled={saving||snapshotText.length<20} onClick={()=>void stageSnapshotFromText()}>Archive provisional snapshot</button>
       </div>}
-    </div>
     </details>
     <details className="panel"><summary style={{cursor:"pointer",fontWeight:700}}>Advanced · Comparable reviews ({comps.length})</summary>
       <div className="panelHeader" style={{marginTop:16}}><h2>Comparable sale evidence reviews</h2><span>{trustedCompIds.length} trusted in current view · {comps.length} recent records</span></div>
