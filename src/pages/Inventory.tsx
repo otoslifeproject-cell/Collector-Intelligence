@@ -72,7 +72,7 @@ export default function Inventory() {
               <p>{object.condition_summary}</p>
               <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. Original image access and full draft resumption still require restoration.</p>
             </details>
-            <Link className="primaryButton" style={{display:'inline-flex',marginTop:12}} to="/intake">Continue intake →</Link>
+            <Link className="primaryButton" style={{display:'inline-flex',marginTop:12}} to="/intake">Open intake</Link>
           </div>
         </div>)}</div>
       </section>}
