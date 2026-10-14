@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, SlidersHorizontal } from 'lucide-react'
+import { Search, SlidersHorizontal, LayoutGrid, List, Grid2X2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
@@ -11,6 +11,10 @@ export default function Inventory() {
   const [covers,setCovers] = useState<Record<string,string>>({})
   const [query,setQuery] = useState('')
   const [status,setStatus] = useState('ALL')
+  const [view,setView] = useState<'tiles'|'list'|'compact'>(()=>{
+    try {const stored=window.localStorage.getItem('ci-inventory-view');return stored==='list'||stored==='compact'?stored:'tiles'}catch{return 'tiles'}
+  })
+  const changeView=(next:'tiles'|'list'|'compact')=>{setView(next);try{window.localStorage.setItem('ci-inventory-view',next)}catch{ /* Storage optional */ }}
 
   useEffect(()=>{
     supabase.from('ai_analysis_runs').select('id,mode,status,created_at,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(({data,error})=>{if(!error)setDraftRuns((data||[]).filter((run:any)=>Array.isArray(run.result?.objects)))})
@@ -56,10 +60,15 @@ export default function Inventory() {
           <option>SPECIALIST_REVIEW</option><option>READY_TO_SELL</option><option>LISTED</option><option>CONSIGNED</option><option>SOLD</option><option>ARCHIVED</option>
         </select></div>
       </div>
+      <div className="ci-view-switch" role="group" aria-label="Inventory display">
+        <button type="button" className={view==='tiles'?'active':''} aria-label="Tile view" aria-pressed={view==='tiles'} onClick={()=>changeView('tiles')} title="Tiles"><LayoutGrid size={18}/><span>Tiles</span></button>
+        <button type="button" className={view==='list'?'active':''} aria-label="List view" aria-pressed={view==='list'} onClick={()=>changeView('list')} title="List"><List size={18}/><span>List</span></button>
+        <button type="button" className={view==='compact'?'active':''} aria-label="Compact icon view" aria-pressed={view==='compact'} onClick={()=>changeView('compact')} title="Compact"><Grid2X2 size={18}/><span>Icons</span></button>
+      </div>
       <div className="inventorySummary">{(status==='DRAFT'?0:filtered.length)+(showDrafts?unfinished.length:0)} objects · {unfinished.length} unfinished drafts</div>
       {showDrafts&&unfinished.length>0&&<section className="section">
         <h2 style={{fontSize:18}}>Unfinished AI reports · {unfinished.length}</h2>
-        <div className="cardGrid">{unfinished.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{unfinished.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
           <div className="itemCardBody" style={{padding:16}}>
             <div className="itemMeta"><span>Draft {String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
             <h3>{object.working_title||object.object_type||'Untitled object'}</h3>
@@ -76,7 +85,7 @@ export default function Inventory() {
           </div>
         </div>)}</div>
       </section>}
-      {status!=='DRAFT'&&<div className="cardGrid">{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
+      {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
     </div>
   )
 }
