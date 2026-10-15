@@ -122,3 +122,32 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
  .ci-inventory-controls .ci-view-switch{flex:0 0 auto;gap:3px}
  .ci-inventory-controls .ci-view-switch button{padding:8px}
 }
+
+/* Site-wide CI layout contract v1. Applies to every page, not just Inventory. */
+:root{--ci-page-width:1280px;--ci-page-gutter:clamp(16px,3.3vw,48px);--ci-control-height:42px;--ci-section-gap:24px;--ci-card-radius:12px;--ci-body-size:13px}
+.mainContent{max-width:none;margin:0;min-width:0;padding:24px var(--ci-page-gutter) 72px}
+.mainContent>aside[aria-label="Collector Intelligence brand vision"]{position:relative!important;top:auto!important;max-width:var(--ci-page-width);margin:0 auto 24px!important}
+.mainContent>div,.mainContent>.ci-page{max-width:var(--ci-page-width);margin-inline:auto;min-width:0}
+.pageHeader,.ci-page-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 0 24px;min-width:0}
+.pageHeader h1,.ci-page-header h1{font-size:clamp(27px,2.6vw,38px)!important;line-height:1.1!important;letter-spacing:-.035em!important;margin:5px 0 7px!important}
+.ci-page-header p,.pageHeader p{font-size:13px!important;line-height:1.5;color:var(--muted);margin:0}
+.pageHeader>div,.ci-page-header>div{min-width:0}
+.pageHeader .inlineButton,.ci-page-header .inlineButton{flex:0 0 auto}
+.ci-page-meta{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 14px}
+.ci-page-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin:12px 0 16px}
+.ci-inline-note{margin:8px 0 14px}
+.ci-record-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,390px),1fr));gap:16px;align-items:start}
+.ci-review-card{min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:var(--ci-card-radius);padding:16px;display:flex;flex-direction:column;gap:12px}
+.ci-review-photo{display:block;width:100%;height:180px;object-fit:contain;background:#10171c;border-radius:9px}
+.ci-review-no-photo{display:grid;place-items:center;color:var(--muted);font-size:12px}
+.ci-review-title{font-size:17px;line-height:1.35;letter-spacing:-.015em;margin:0;overflow-wrap:anywhere}
+.ci-review-caption{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
+.ci-review-card p{font-size:12px;line-height:1.55;margin:0;overflow-wrap:anywhere}
+.ci-review-fields{display:grid;gap:10px}
+.ci-review-fields label{font-size:11px}
+.ci-review-fields input,.ci-review-fields textarea{font-size:13px;min-width:0}
+.ci-review-card details{border-top:1px solid var(--line);padding-top:9px;font-size:12px}
+.ci-review-card details summary{cursor:pointer;font-weight:700}
+.ci-page .primaryButton,.ci-page .secondaryButton{min-height:var(--ci-control-height)}
+:where(.pageHeader,.ci-page-header,.ci-review-card,.panel) :is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:760px){.mainContent{padding:18px 16px 56px}.pageHeader,.ci-page-header{display:flex;align-items:flex-start;flex-wrap:wrap;gap:12px}.ci-page-header h1,.pageHeader h1{font-size:29px!important}.ci-record-grid{grid-template-columns:minmax(0,1fr)}.ci-review-photo{height:170px}}
