@@ -177,7 +177,7 @@ export default function AIIntake() {
         status:'DRAFT',
         input_photo_count: uploaded.length,
         user_context: context,
-        result: { ...payload.result, inscription_review: payload.inscription_review || null, inscription_review_status:payload.inscription_review_status || null, knowledge_lookup:payload.knowledge_lookup || null, canonical_policy_hashes:payload.canonical_policy_hashes || null }
+        result: { ...payload.result, image_manifest_version:1, image_manifest:uploaded.map(p=>({index:p.index,storage_path:p.storagePath,file_name:p.file.name})), inscription_review: payload.inscription_review || null, inscription_review_status:payload.inscription_review_status || null, knowledge_lookup:payload.knowledge_lookup || null, canonical_policy_hashes:payload.canonical_policy_hashes || null }
       }).select('id').single()
       if (run?.id) setAnalysisRunId(run.id)
       setStage('review')
