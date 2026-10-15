@@ -169,9 +169,9 @@ export default function AIIntake() {
       setInscriptionReview(payload.inscription_review || null)
       setInscriptionReviewStatus(payload.inscription_review_status || 'UNKNOWN_VERSION')
       setKnowledgeLookup(payload.knowledge_lookup || {status:'UNAVAILABLE',matches:[]})
-      setMessage('Review the draft. Nothing has been written to the permanent catalogue yet.')
+      setMessage('Saving your analysis and original photo references…')
 
-      const {data:run} = await supabase.from('ai_analysis_runs').insert({
+      const {data:run,error:runError} = await supabase.from('ai_analysis_runs').insert({
         mode,
         model: payload.model || 'unknown',
         status:'DRAFT',
@@ -179,7 +179,9 @@ export default function AIIntake() {
         user_context: context,
         result: { ...payload.result, image_manifest_version:1, image_manifest:uploaded.map(p=>({index:p.index,storage_path:p.storagePath,file_name:p.file.name})), inscription_review: payload.inscription_review || null, inscription_review_status:payload.inscription_review_status || null, knowledge_lookup:payload.knowledge_lookup || null, canonical_policy_hashes:payload.canonical_policy_hashes || null }
       }).select('id').single()
-      if (run?.id) setAnalysisRunId(run.id)
+      if (runError || !run?.id) throw new Error('The AI analysis finished but your report could not be saved. Please keep this page open and contact support; do not run paid analysis again.')
+      setAnalysisRunId(run.id)
+      setMessage('AI report saved with original photo references. Review and catalogue when ready.')
       setStage('review')
     } catch (err:any) {
       setStage('upload')
