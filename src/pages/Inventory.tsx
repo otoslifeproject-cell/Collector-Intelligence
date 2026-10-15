@@ -4,6 +4,7 @@ import { Search, SlidersHorizontal, LayoutGrid, List, Grid2X2 } from 'lucide-rea
 import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
+import DraftPhotoRecovery from '../components/DraftPhotoRecovery'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
@@ -18,7 +19,7 @@ export default function Inventory() {
   const changeView=(next:'tiles'|'list'|'compact')=>{setView(next);try{window.localStorage.setItem('ci-inventory-view',next)}catch{ /* Storage optional */ }}
 
   useEffect(()=>{
-    supabase.from('ai_analysis_runs').select('id,mode,status,created_at,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
+    supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
       if(error)return
       const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects))
       setDraftRuns(runs)
@@ -87,7 +88,11 @@ export default function Inventory() {
       </div>
       <div className="inventorySummary">{(status==='DRAFT'?0:filtered.length)+(showDrafts?unfinished.length:0)} objects · {unfinished.length} unfinished drafts</div>
       {showDrafts&&unfinished.length>0&&<section className="section">
-        <h2 style={{fontSize:18}}>Unfinished AI reports · {unfinished.length}</h2>
+        <h2 style={{fontSize:18}}>Unfinished AI reports · {unfinished.length}</h2> 
+        <details style={{margin:'10px 0 15px'}}><summary style={{cursor:'pointer',fontSize:13,fontWeight:700}}>Recover older photographs</summary>
+          <p style={{fontSize:12,color:'var(--muted)'}}>Safe previews only. AI reports remain saved; no objects are created or photo associations assumed.</p>
+          {draftRuns.filter((run:any)=>!Array.isArray(run.result?.image_manifest)).map((run:any)=><div key={run.id} style={{borderTop:'1px solid var(--line)',padding:'8px 0'}}><strong style={{fontSize:12}}>{run.mode==='batch'?'Mixed batch':'Single object'} · {new Date(run.created_at).toLocaleDateString()} · {run.input_photo_count} originals</strong><DraftPhotoRecovery run={run}/></div>)}
+        </details>
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{unfinished.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
           {draftCovers[run.id+':'+index] && <div className="itemCardImage" style={{height:190}}><img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /></div>}
           <div className="itemCardBody" style={{padding:16}}>
