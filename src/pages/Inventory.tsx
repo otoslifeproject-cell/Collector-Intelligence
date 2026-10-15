@@ -8,6 +8,7 @@ import ItemCard from '../components/ItemCard'
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
   const [draftRuns,setDraftRuns] = useState<any[]>([])
+  const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
   const [covers,setCovers] = useState<Record<string,string>>({})
   const [query,setQuery] = useState('')
   const [status,setStatus] = useState('ALL')
@@ -17,7 +18,26 @@ export default function Inventory() {
   const changeView=(next:'tiles'|'list'|'compact')=>{setView(next);try{window.localStorage.setItem('ci-inventory-view',next)}catch{ /* Storage optional */ }}
 
   useEffect(()=>{
-    supabase.from('ai_analysis_runs').select('id,mode,status,created_at,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(({data,error})=>{if(!error)setDraftRuns((data||[]).filter((run:any)=>Array.isArray(run.result?.objects)))})
+    supabase.from('ai_analysis_runs').select('id,mode,status,created_at,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
+      if(error)return
+      const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects))
+      setDraftRuns(runs)
+      const photoRequests:{key:string,path:string}[]=[]
+      for(const run of runs){
+        const manifest=Array.isArray(run.result?.image_manifest)?run.result.image_manifest:[]
+        for(let index=0;index<run.result.objects.length;index++){
+          const obj=run.result.objects[index]
+          const indices=Array.isArray(obj.image_indices)?obj.image_indices:[]
+          const chosen=manifest.find((p:any)=>indices.includes(p.index)&&typeof p.storage_path==='string')
+          if(chosen)photoRequests.push({key:run.id+':'+index,path:chosen.storage_path})
+        }
+      }
+      const results=await Promise.all(photoRequests.map(async ({key,path})=>{
+        const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,1800)
+        return [key,url?.signedUrl||''] as const
+      }))
+      setDraftCovers(Object.fromEntries(results))
+    })
     let cancelled=false
     supabase.from('items').select('*').order('item_code').then(async ({data})=>{
       const rows=(data||[]) as Item[]
@@ -69,6 +89,7 @@ export default function Inventory() {
       {showDrafts&&unfinished.length>0&&<section className="section">
         <h2 style={{fontSize:18}}>Unfinished AI reports · {unfinished.length}</h2>
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{unfinished.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
+          {draftCovers[run.id+':'+index] && <div className="itemCardImage" style={{height:190}}><img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /></div>}
           <div className="itemCardBody" style={{padding:16}}>
             <div className="itemMeta"><span>Draft {String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
             <h3>{object.working_title||object.object_type||'Untitled object'}</h3>
