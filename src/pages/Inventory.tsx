@@ -105,14 +105,14 @@ export default function Inventory() {
               <p>{object.condition_summary}</p>
               <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. Original image access and full draft resumption still require restoration.</p>
             </details>
-            <p style={{fontSize:12,color:'var(--muted)',marginTop:10}}>Saved report · photo linking pending. No new AI analysis needed.</p>
+            <Link className="primaryButton" style={{display:'inline-flex',marginTop:10}} to={'/draft/'+run.id}>View saved report →</Link>
           </div>
         </div>)}</div>
       </section>}
       {showDrafts&&earlierDrafts.length>0&&<details className="panel" style={{marginBottom:14}}><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
         <div className={`cardGrid ci-object-grid ci-view-${view}`} style={{marginTop:12}}>{earlierDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
-          <div className="itemCardBody"><strong>{object.working_title||object.object_type||'Untitled draft'}</strong><p>Saved AI report · Unapproved</p><details><summary>View saved findings</summary><p>{object.current_attribution||'Attribution not confirmed'}</p><p>{object.condition_summary||'Condition not recorded'}</p></details></div>
+          <div className="itemCardBody"><strong>{object.working_title||object.object_type||'Untitled draft'}</strong><p>Saved AI report · Unapproved</p><Link className="secondaryButton inlineButton" to={'/draft/'+run.id}>View saved report →</Link></div>
         </div>)}</div>
       </details>}
       {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
