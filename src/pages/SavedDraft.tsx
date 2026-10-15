@@ -1,5 +1,6 @@
 import {useEffect,useState} from 'react'
 import {Link,useParams} from 'react-router-dom'
+import {Search,SlidersHorizontal,LayoutGrid,List,Grid2X2} from 'lucide-react'
 import {supabase} from '../lib/supabase'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
@@ -12,6 +13,10 @@ export default function SavedDraft(){
  const [edits,setEdits]=useState<Record<number,{working_title:string;condition_summary:string}>>({})
  const [saving,setSaving]=useState(false)
  const [saveStatus,setSaveStatus]=useState('')
+ const [query,setQuery]=useState('')
+ const [filter,setFilter]=useState('ALL')
+ const [view,setView]=useState<'tiles'|'list'|'compact'>(()=>{try{const v=window.localStorage.getItem('ci-inventory-view');return v==='list'||v==='compact'?v:'tiles'}catch{return 'tiles'}})
+ const changeView=(v:'tiles'|'list'|'compact')=>{setView(v);try{window.localStorage.setItem('ci-inventory-view',v)}catch{}}
  useEffect(()=>{
   let alive=true
   async function load(){
@@ -60,26 +65,52 @@ export default function SavedDraft(){
    {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
    {run.status==='DRAFT'&&<div className="ci-page-actions"><button className="primaryButton" disabled={saving} onClick={save}>{saving?'Saving…':'Save review changes'}</button></div>}
    {saveStatus&&<p role="status" className="note">{saveStatus}</p>}
-   <div className="ci-record-grid">
-    {(run.result?.objects||[]).map((o:any,i:number)=>{
-     const keys=Array.isArray(o.image_indices)?o.image_indices:[]
-     const photos=keys.filter((n:number)=>!!images[n])
-     return <article className="ci-review-card" key={i}>
-      {photos.length>0?<img src={images[photos[0]]} alt={o.working_title||'Object'} className="ci-review-photo"/>:<div className="ci-review-photo ci-review-no-photo">Original photo not linked</div>}
-      <h2 className="ci-review-title">{edits[i]?.working_title||o.working_title||o.object_type||'Unidentified object'}</h2>
-      {run.status==='DRAFT'&&<div className="ci-review-fields"><label>Working title<input value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label><label>Condition notes<textarea rows={2} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label></div>}
-      <p className="ci-review-caption">Object {i+1} of {run.result.objects.length} · Working hypothesis, not confirmed authentication</p>
-      <p>{o.current_attribution||'Maker and attribution not confirmed'}</p>
-      <p><strong>Original AI condition observation:</strong> {o.condition_summary||'Not recorded'}</p>
-      {photos.length>1&&<details><summary>Original object photos · {photos.length}</summary><div className="intakeThumbGrid">{photos.map((n:number)=><img key={n} src={images[n]} alt={'Original photo '+(n+1)} style={{width:115,height:115,objectFit:'contain'}}/>)}</div></details>}
-      <details><summary>Evidence and next checks</summary>
-       {(o.evidence||[]).map((e:any,j:number)=><p key={j}><strong>{e.certainty_class||'Unverified'}:</strong> {e.claim}</p>)}
-       {(o.next_evidence||[]).map((t:any,j:number)=><p key={'t'+j}>Next: {t.title}</p>)}
-      </details>
-      <p className="ci-review-caption">Catalogue approval and duplicate-safe resumption are still being developed. This view does not create a permanent item.</p>
-     </article>
-    })}
+   <div className="ci-inventory-controls">
+    <div className="ci-search-control searchBox"><Search size={18}/><input aria-label="Search report objects" placeholder="Find an object…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+    <div className="ci-toolbar-actions">
+     <div className="ci-status-control selectWrap"><SlidersHorizontal size={18}/><select aria-label="Filter review objects" value={filter} onChange={e=>setFilter(e.target.value)}><option value="ALL">All objects</option><option value="NEEDS_PHOTO">Photos missing</option><option value="HAS_PHOTO">With photos</option></select></div>
+     <div className="ci-view-switch" role="group" aria-label="Object display">
+      <button type="button" className={view==='tiles'?'active':''} aria-label="Tiles" aria-pressed={view==='tiles'} onClick={()=>changeView('tiles')}><LayoutGrid size={18}/><span>Tiles</span></button>
+      <button type="button" className={view==='list'?'active':''} aria-label="List" aria-pressed={view==='list'} onClick={()=>changeView('list')}><List size={18}/><span>List</span></button>
+      <button type="button" className={view==='compact'?'active':''} aria-label="Icons" aria-pressed={view==='compact'} onClick={()=>changeView('compact')}><Grid2X2 size={18}/><span>Icons</span></button>
+     </div>
+    </div>
    </div>
+   <div className="inventorySummary">{(run.result?.objects||[]).length} objects in this report · Select an object to review</div>
+   <div className={`cardGrid ci-object-grid ci-view-${view}`}>
+   {(run.result?.objects||[]).map((o:any,i:number)=>{
+    const keys=Array.isArray(o.image_indices)?o.image_indices:[]
+    const photos=keys.filter((n:number)=>!!images[n])
+    const title=edits[i]?.working_title||o.working_title||o.object_type||'Unidentified object'
+    if(![title,o.object_type,o.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
+    if(filter==='HAS_PHOTO'&&!photos.length)return null
+    if(filter==='NEEDS_PHOTO'&&photos.length)return null
+    return <article className="itemCard ci-record-card" key={i}>
+     <div className="itemCardImage placeholderGlass">{photos.length?<img src={images[photos[0]]} alt={title}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
+     <div className="itemCardBody">
+      <div className="itemMeta"><span>Object {i+1}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
+      <h3 className="ci-record-title">{title}</h3>
+      <p className="ci-record-stage">{o.maker||'Maker not confirmed'} · Provisional identification</p>
+      <details className="ci-object-review">
+       <summary>Review object & evidence</summary>
+       <div className="ci-object-review-content">
+        {run.status==='DRAFT'&&<div className="ci-review-fields">
+         <label>Working title<input value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
+         <label>Condition notes<textarea rows={3} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label>
+        </div>}
+        <p><strong>Attribution:</strong> {o.current_attribution||'Unconfirmed'}</p>
+        <p><strong>Original AI condition:</strong> {o.condition_summary||'Not recorded'}</p>
+        {photos.length>1&&<details><summary>Original photos · {photos.length}</summary><div className="intakeThumbGrid">{photos.map((n:number)=><img key={n} src={images[n]} alt={'Photo '+(n+1)} style={{width:115,height:115,objectFit:'contain'}}/>)}</div></details>}
+        <details><summary>Evidence and next checks</summary>
+         {(o.evidence||[]).map((e:any,j:number)=><p key={j}><strong>{e.certainty_class||'Unverified'}:</strong> {e.claim}</p>)}
+         {(o.next_evidence||[]).map((t:any,j:number)=><p key={'t'+j}>Next: {t.title}</p>)}
+        </details>
+        <p className="ci-review-caption">Owner review is saved separately from the original AI analysis. Catalogue approval is not yet enabled here.</p>
+       </div>
+      </details>
+     </div>
+    </article>
+   })}</div>
   </>}
  </div>
 }
