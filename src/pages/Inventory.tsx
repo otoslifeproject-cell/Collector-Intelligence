@@ -90,30 +90,29 @@ export default function Inventory() {
       </div>
       <div className="inventorySummary">{(status==='DRAFT'?0:filtered.length)+(showDrafts?unfinished.length:0)} objects · {unfinished.length} unfinished drafts</div>
       {showDrafts&&unfinished.length>0&&<section className="section">
-        <h2 style={{fontSize:18}}>Latest mixed batch · {currentDrafts.length} objects</h2> 
-        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
-          {draftCovers[run.id+':'+index] && <div className="itemCardImage" style={{height:190}}><img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /></div>}
-          <div className="itemCardBody" style={{padding:16}}>
+        <h2 className="ci-section-title">Latest mixed batch <span>{currentDrafts.length} objects</span></h2> 
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index] ? <img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /> : <span className="ci-missing-photo">Photo not linked</span>}</div>
+          <div className="itemCardBody">
             <div className="itemMeta"><span>Draft {String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
-            <h3>{object.working_title||object.object_type||'Untitled object'}</h3>
+            <h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled object'}</h3>
             <p>AI report saved · Maker {object.maker||'not confirmed'}</p>
-            <div role="progressbar" aria-valuenow={25} aria-valuemin={0} aria-valuemax={100} aria-label="Workflow completion" style={{background:'var(--line)',height:8,borderRadius:9,overflow:'hidden'}}><div style={{background:'var(--accent)',width:'25%',height:'100%'}}/></div>
-            <p style={{fontSize:12}}>25% · Initial report complete; catalogue approval pending</p>
+            <p className="ci-record-stage">Initial AI report saved · Review outstanding</p>
             <details><summary style={{cursor:'pointer',fontWeight:700}}>View original analysis</summary>
               <p>{object.current_attribution||'Attribution unresolved'}</p>
               <p>Identification confidence {object.identification_confidence??'Unknown'}% — separate from workflow progress</p>
               <p>{object.condition_summary}</p>
               <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. Original image access and full draft resumption still require restoration.</p>
             </details>
-            <Link className="primaryButton" style={{display:'inline-flex',marginTop:10}} to={'/draft/'+run.id}>View saved report →</Link>
+            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link>
           </div>
-        </div>)}</div>
+        </article>)}</div>
       </section>}
-      {showDrafts&&earlierDrafts.length>0&&<details className="panel" style={{marginBottom:14}}><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
+      {showDrafts&&earlierDrafts.length>0&&<details className="ci-archive-section"><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
-        <div className={`cardGrid ci-object-grid ci-view-${view}`} style={{marginTop:12}}>{earlierDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
-          <div className="itemCardBody"><strong>{object.working_title||object.object_type||'Untitled draft'}</strong><p>Saved AI report · Unapproved</p><Link className="secondaryButton inlineButton" to={'/draft/'+run.id}>View saved report →</Link></div>
-        </div>)}</div>
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
+          <div className="itemCardImage placeholderGlass"><span className="ci-missing-photo">Photo not linked</span></div><div className="itemCardBody"><div className="itemMeta"><span>Earlier report</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
+        </article>)}</div>
       </details>}
       {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
     </div>
