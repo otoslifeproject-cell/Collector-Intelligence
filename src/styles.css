@@ -56,22 +56,46 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .loginBrand{width:76px;height:76px;background:var(--bg);border-color:rgba(201,169,107,.35);overflow:hidden}
 .loginBrand img{max-width:100%;max-height:100%;object-fit:contain}
 
-/* Owner-selectable low-noise Inventory layouts */
-.ci-view-switch{display:flex;gap:4px;margin:12px 0 4px;align-items:center;justify-content:flex-end}
-.ci-view-switch button{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font-weight:700;cursor:pointer}
-.ci-view-switch button.active{background:rgba(201,169,107,.12);border-color:var(--accent);color:var(--text)}
-.ci-view-switch button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ci-object-grid.ci-view-list{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
-.ci-object-grid.ci-view-list .itemCard{display:flex;flex-direction:row;align-items:stretch;min-width:0}
-.ci-object-grid.ci-view-list .itemCardImage{flex:0 0 110px;min-height:116px}
-.ci-object-grid.ci-view-list .itemCardBody{flex:1;min-width:0}
-.ci-object-grid.ci-view-list .itemCardBody h3{font-size:14px;line-height:1.3}
-.ci-object-grid.ci-view-compact{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}
-.ci-object-grid.ci-view-compact .itemCard{min-width:0}
-.ci-object-grid.ci-view-compact .itemCardImage{height:130px}
-.ci-object-grid.ci-view-compact .itemCardBody{padding:10px!important}
-.ci-object-grid.ci-view-compact .itemCardBody h3{font-size:12px;line-height:1.3;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-.ci-object-grid.ci-view-compact .itemCardBody>p,.ci-object-grid.ci-view-compact .itemCardBody>details,.ci-object-grid.ci-view-compact .itemCardBody>.itemPriceRow,.ci-object-grid.ci-view-compact .itemCardBody>[role="progressbar"]{display:none}
-.ci-object-grid.ci-view-compact .itemCardBody .primaryButton{font-size:11px;padding:7px!important}
+/* Inventory design system v2 — a single visual contract for saved drafts and catalogue items. */
+:root{--ci-space-1:6px;--ci-space-2:10px;--ci-space-3:16px;--ci-space-4:24px;--ci-radius:12px;--ci-photo:#0e1419;--ci-card-min:220px}
+.ci-view-switch{display:flex;justify-content:flex-end;gap:5px;margin:8px 0 12px}
+.ci-view-switch button{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:8px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:#aeb9c2;cursor:pointer;font-weight:700}
+.ci-view-switch button.active{border-color:var(--accent);background:rgba(201,169,107,.12);color:var(--text)}
+.ci-view-switch button:focus-visible,.ci-object-grid a:focus-visible,.ci-archive-section summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.ci-section-title{font-size:18px;margin:0 0 16px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.ci-section-title span{color:var(--muted);font-size:13px;font-weight:500}
+.ci-object-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--ci-card-min)),1fr));gap:var(--ci-space-3);align-items:stretch;margin:0 0 24px}
+.ci-object-grid .itemCard{display:flex;flex-direction:column;min-width:0;height:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--ci-radius);overflow:hidden}
+.ci-object-grid .itemCardImage{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:auto;aspect-ratio:4/3;min-height:0;padding:10px;background:var(--ci-photo)}
+.ci-object-grid .itemCardImage img{display:block;width:100%;height:100%;object-fit:contain}
+.ci-object-grid .itemCardImage span:not(.ci-missing-photo){position:absolute;left:10px;bottom:10px;font-size:10px;z-index:1}
+.ci-missing-photo{font-size:12px;color:#c1ccd3;border:1px dashed #58636c;border-radius:9px;padding:10px;text-align:center;max-width:90%;line-height:1.35}
+.ci-object-grid .itemCardBody{padding:14px;display:flex;flex:1;flex-direction:column;gap:7px;min-width:0}
+.ci-object-grid .itemCardBody h3,.ci-object-grid .ci-record-title{font-size:15px;line-height:1.35;letter-spacing:0;margin:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.ci-object-grid .itemCardBody p{font-size:12px;line-height:1.45;margin:0;min-height:0}
+.ci-object-grid .itemMeta{font-size:10px;letter-spacing:.04em;gap:8px;flex-wrap:wrap;color:#b2bac2}
+.ci-object-grid .ci-record-stage{color:var(--muted);font-size:11px}
+.ci-object-grid .ci-card-action{display:inline-flex;justify-content:center;align-items:center;margin-top:auto;align-self:stretch;font-size:12px;padding:10px;min-height:38px;text-align:center}
+.ci-object-grid .itemCardBody>details{margin:4px 0;overflow-wrap:anywhere;font-size:12px}
+.ci-object-grid .itemPriceRow{margin-top:auto;padding-top:9px}
+.ci-archive-section{border:1px solid var(--line);border-radius:var(--ci-radius);padding:14px 16px;margin:8px 0 24px;background:var(--panel)}
+.ci-archive-section>summary{cursor:pointer;font-size:14px;list-style:revert}
+.ci-archive-section>.ci-object-grid{margin-top:16px;margin-bottom:0}
+.ci-archive-section>p{font-size:12px;color:var(--muted)}
+.ci-object-grid.ci-view-list{grid-template-columns:minmax(0,1fr);gap:9px}
+.ci-object-grid.ci-view-list .itemCard{display:grid;grid-template-columns:112px minmax(0,1fr);min-height:122px}
+.ci-object-grid.ci-view-list .itemCardImage{height:100%;aspect-ratio:auto;min-height:120px}
+.ci-object-grid.ci-view-list .itemCardBody{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 14px;align-content:center}
+.ci-object-grid.ci-view-list .itemMeta,.ci-object-grid.ci-view-list .itemCardBody h3,.ci-object-grid.ci-view-list .itemCardBody>p{grid-column:1}
+.ci-object-grid.ci-view-list .itemCardBody h3{-webkit-line-clamp:1}
+.ci-object-grid.ci-view-list .ci-card-action{grid-column:2;grid-row:1/5;align-self:center;min-width:115px}
+.ci-object-grid.ci-view-list .itemCardBody>details,.ci-object-grid.ci-view-list .itemPriceRow{display:none}
+.ci-object-grid.ci-view-compact{--ci-card-min:170px;gap:12px}
+.ci-object-grid.ci-view-compact .itemCardImage{aspect-ratio:1/1}
+.ci-object-grid.ci-view-compact .itemCardBody{padding:10px;gap:5px}
+.ci-object-grid.ci-view-compact .itemCardBody h3{font-size:12px;line-height:1.3}
+.ci-object-grid.ci-view-compact .itemCardBody>p,.ci-object-grid.ci-view-compact .itemCardBody>details,.ci-object-grid.ci-view-compact .itemPriceRow{display:none}
 .ci-object-grid.ci-view-compact .itemMeta{font-size:9px}
-@media(max-width:630px){.ci-view-switch button span{display:none}.ci-object-grid.ci-view-list .itemCardImage{flex-basis:88px;min-height:100px}.ci-object-grid.ci-view-compact{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ci-object-grid.ci-view-compact .ci-card-action{font-size:11px;min-height:34px;padding:7px}
+@media(max-width:700px){.ci-view-switch button span{display:none}.ci-object-grid{--ci-card-min:170px;gap:10px}.ci-object-grid.ci-view-compact{--ci-card-min:140px}.ci-object-grid.ci-view-list .itemCard{grid-template-columns:88px minmax(0,1fr)}.ci-object-grid.ci-view-list .itemCardImage{min-height:116px}.ci-object-grid.ci-view-list .itemCardBody{display:flex;flex-direction:column}.ci-object-grid.ci-view-list .ci-card-action{min-width:0;align-self:flex-start;margin-top:4px}}
+@media(prefers-reduced-motion:reduce){.ci-object-grid .itemCard{transition:none}.ci-object-grid .itemCard:hover{transform:none}}
