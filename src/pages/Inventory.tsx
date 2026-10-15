@@ -4,7 +4,6 @@ import { Search, SlidersHorizontal, LayoutGrid, List, Grid2X2 } from 'lucide-rea
 import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
-import DraftPhotoRecovery from '../components/DraftPhotoRecovery'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
@@ -68,6 +67,9 @@ export default function Inventory() {
 
   const unfinished=draftRuns.flatMap((run:any)=>run.result.objects.map((object:any,index:number)=>({run,object,index}))).filter(({object}:any)=>[object.working_title,object.object_type,object.maker].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
   const showDrafts=status==='ALL'||status==='DRAFT'
+  const currentBatchId=draftRuns.find((r:any)=>r.mode==='batch')?.id
+  const currentDrafts=unfinished.filter(({run}:any)=>run.id===currentBatchId)
+  const earlierDrafts=unfinished.filter(({run}:any)=>run.id!==currentBatchId)
   return (
     <div>
       <div className="pageHeader rowHeader">
@@ -88,12 +90,8 @@ export default function Inventory() {
       </div>
       <div className="inventorySummary">{(status==='DRAFT'?0:filtered.length)+(showDrafts?unfinished.length:0)} objects · {unfinished.length} unfinished drafts</div>
       {showDrafts&&unfinished.length>0&&<section className="section">
-        <h2 style={{fontSize:18}}>Unfinished AI reports · {unfinished.length}</h2> 
-        <details style={{margin:'10px 0 15px'}}><summary style={{cursor:'pointer',fontSize:13,fontWeight:700}}>Recover older photographs</summary>
-          <p style={{fontSize:12,color:'var(--muted)'}}>Safe previews only. AI reports remain saved; no objects are created or photo associations assumed.</p>
-          {draftRuns.filter((run:any)=>!Array.isArray(run.result?.image_manifest)).map((run:any)=><div key={run.id} style={{borderTop:'1px solid var(--line)',padding:'8px 0'}}><strong style={{fontSize:12}}>{run.mode==='batch'?'Mixed batch':'Single object'} · {new Date(run.created_at).toLocaleDateString()} · {run.input_photo_count} originals</strong><DraftPhotoRecovery run={run}/></div>)}
-        </details>
-        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{unfinished.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
+        <h2 style={{fontSize:18}}>Latest mixed batch · {currentDrafts.length} objects</h2> 
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
           {draftCovers[run.id+':'+index] && <div className="itemCardImage" style={{height:190}}><img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /></div>}
           <div className="itemCardBody" style={{padding:16}}>
             <div className="itemMeta"><span>Draft {String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
@@ -107,10 +105,16 @@ export default function Inventory() {
               <p>{object.condition_summary}</p>
               <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. Original image access and full draft resumption still require restoration.</p>
             </details>
-            <Link className="primaryButton" style={{display:'inline-flex',marginTop:12}} to="/intake">Open intake</Link>
+            <p style={{fontSize:12,color:'var(--muted)',marginTop:10}}>Saved report · photo linking pending. No new AI analysis needed.</p>
           </div>
         </div>)}</div>
       </section>}
+      {showDrafts&&earlierDrafts.length>0&&<details className="panel" style={{marginBottom:14}}><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
+        <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
+        <div className={`cardGrid ci-object-grid ci-view-${view}`} style={{marginTop:12}}>{earlierDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
+          <div className="itemCardBody"><strong>{object.working_title||object.object_type||'Untitled draft'}</strong><p>Saved AI report · Unapproved</p><details><summary>View saved findings</summary><p>{object.current_attribution||'Attribution not confirmed'}</p><p>{object.condition_summary||'Condition not recorded'}</p></details></div>
+        </div>)}</div>
+      </details>}
       {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
     </div>
   )
