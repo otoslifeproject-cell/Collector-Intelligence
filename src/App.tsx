@@ -13,6 +13,7 @@ import Contacts from './pages/Contacts'
 import Reports from './pages/Reports'
 import Login from './pages/Login'
 import AIIntake from './pages/AIIntake'
+import SavedDraft from './pages/SavedDraft'
 
 export default function App() {
   const [session,setSession] = useState<Session|null>(null)
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/inventory" element={<Inventory/>}/>
           <Route path="/new" element={<NewItem/>}/>
           <Route path="/intake" element={<AIIntake/>}/>
+          <Route path="/draft/:id" element={<SavedDraft/>}/>
           <Route path="/item/:id" element={<ItemDetail/>}/>
           <Route path="/research" element={<Research/>}/>
           <Route path="/sales" element={<Sales/>}/>
