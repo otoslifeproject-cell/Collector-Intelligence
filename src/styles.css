@@ -151,3 +151,16 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-page .primaryButton,.ci-page .secondaryButton{min-height:var(--ci-control-height)}
 :where(.pageHeader,.ci-page-header,.ci-review-card,.panel) :is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:760px){.mainContent{padding:18px 16px 56px}.pageHeader,.ci-page-header{display:flex;align-items:flex-start;flex-wrap:wrap;gap:12px}.ci-page-header h1,.pageHeader h1{font-size:29px!important}.ci-record-grid{grid-template-columns:minmax(0,1fr)}.ci-review-photo{height:170px}}
+
+/* Shared object review disclosure is usable in Tiles, List and Icons. */
+.ci-object-grid .ci-object-review{margin-top:auto;border-top:1px solid var(--line);padding-top:8px}
+.ci-object-grid .ci-object-review>summary{display:flex;align-items:center;min-height:38px;cursor:pointer;color:var(--accent);font-size:12px;font-weight:800;list-style:revert}
+.ci-object-grid .ci-object-review-content{display:grid;gap:12px;padding-top:10px;min-width:0}
+.ci-object-grid .ci-object-review-content p{font-size:12px;line-height:1.55;margin:0}
+.ci-object-grid .ci-object-review-content details{border-top:1px solid var(--line);padding:8px 0 0}
+.ci-object-grid .ci-object-review-content summary{cursor:pointer;font-weight:700}
+.ci-object-grid.ci-view-list .itemCardBody>.ci-object-review{display:block;grid-column:1/-1;grid-row:auto;min-width:0}
+.ci-object-grid.ci-view-compact .itemCardBody>.ci-object-review{display:block}
+.ci-object-grid.ci-view-compact .ci-object-review>summary{font-size:11px}
+.ci-object-grid .ci-object-review[open]{margin-top:10px}
+.ci-object-grid.ci-view-list .ci-object-review[open],.ci-object-grid.ci-view-compact .ci-object-review[open]{overflow-wrap:anywhere}
