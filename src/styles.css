@@ -99,3 +99,26 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-object-grid.ci-view-compact .ci-card-action{font-size:11px;min-height:34px;padding:7px}
 @media(max-width:700px){.ci-view-switch button span{display:none}.ci-object-grid{--ci-card-min:170px;gap:10px}.ci-object-grid.ci-view-compact{--ci-card-min:140px}.ci-object-grid.ci-view-list .itemCard{grid-template-columns:88px minmax(0,1fr)}.ci-object-grid.ci-view-list .itemCardImage{min-height:116px}.ci-object-grid.ci-view-list .itemCardBody{display:flex;flex-direction:column}.ci-object-grid.ci-view-list .ci-card-action{min-width:0;align-self:flex-start;margin-top:4px}}
 @media(prefers-reduced-motion:reduce){.ci-object-grid .itemCard{transition:none}.ci-object-grid .itemCard:hover{transform:none}}
+
+/* Inventory toolbar: title action stays in header, search / filters / view share one aligned control row. */
+.ci-inventory-controls{display:grid;grid-template-columns:minmax(260px,1fr) auto;align-items:center;gap:12px;margin:0 0 12px}
+.ci-inventory-controls .ci-search-control{min-width:0;width:100%;height:42px}
+.ci-inventory-controls .ci-search-control input{min-width:0}
+.ci-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.ci-inventory-controls .ci-status-control{min-width:170px;height:42px}
+.ci-inventory-controls .ci-status-control select{min-width:125px}
+.ci-inventory-controls .ci-view-switch{margin:0;flex:0 0 auto}
+.ci-inventory-controls .ci-view-switch button{height:42px;min-height:42px}
+.inventorySummary{margin:0 0 18px}
+@media(max-width:1100px){
+ .ci-inventory-controls{grid-template-columns:minmax(0,1fr)}
+ .ci-toolbar-actions{justify-content:flex-end}
+}
+@media(max-width:650px){
+ .ci-inventory-controls{gap:8px}
+ .ci-toolbar-actions{justify-content:space-between;gap:8px}
+ .ci-inventory-controls .ci-status-control{min-width:0;flex:1}
+ .ci-inventory-controls .ci-status-control select{min-width:0}
+ .ci-inventory-controls .ci-view-switch{flex:0 0 auto;gap:3px}
+ .ci-inventory-controls .ci-view-switch button{padding:8px}
+}
