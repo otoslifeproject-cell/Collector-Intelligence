@@ -110,7 +110,7 @@ export default function Inventory() {
       </section>}
       {showDrafts&&earlierDrafts.length>0&&<details className="ci-archive-section"><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
-        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index}:any)=><div className="itemCard" key={run.id+':'+index}>
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
           <div className="itemCardImage placeholderGlass"><span className="ci-missing-photo">Photo not linked</span></div><div className="itemCardBody"><div className="itemMeta"><span>Earlier report</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
         </article>)}</div>
       </details>}
