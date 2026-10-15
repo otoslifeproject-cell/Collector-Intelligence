@@ -5,9 +5,9 @@ import { money } from '../lib/format'
 export default function ItemCard({item,imageUrl}: {item:Item,imageUrl?:string}) {
   const label = item.title || item.object_type || item.current_attribution || 'Unidentified object'
   return (
-    <Link to={`/item/${item.id}`} className="itemCard">
+    <Link to={`/item/${item.id}`} className="itemCard ci-record-card">
       <div className="itemCardImage placeholderGlass">
-        {imageUrl && <img src={imageUrl} alt={item.title||item.object_type||"Collection object"} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+        {imageUrl ? <img src={imageUrl} alt={item.title||item.object_type||"Collection object"} style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/> : <span className="ci-missing-photo">Photo not linked</span>}
         <span>{item.item_code}</span>
       </div>
       <div className="itemCardBody">
