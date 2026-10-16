@@ -383,7 +383,8 @@ export default function AIIntake() {
             if(![d.working_title,d.object_type,d.maker,d.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
             if(filter==='SELECTED'&&d.include===false)return null
             if(filter==='EXCLUDED'&&d.include!==false)return null
-            const hero=photos.find(p=>d.image_indices.includes(p.index))
+            const photoIndices=paired?[...new Set([...d.image_indices,...(drafts[1]?.image_indices||[])])]:d.image_indices
+            const hero=photos.find(p=>photoIndices.includes(p.index))
             return <article className={`itemCard ci-record-card ci-intake-record ${d.include===false?'excluded':''}`}
               key={idx} id={'ci-intake-object-'+idx} tabIndex={view==='compact'?0:undefined}
               role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Review '+d.working_title:undefined}
@@ -395,7 +396,7 @@ export default function AIIntake() {
               <div className="itemCardBody">
                 <div className="itemMeta"><span>{paired?'Matched pair · 2 pieces':'Object '+(idx+1)}</span><span>Provisional</span></div>
                 <h3 className="ci-record-title">{paired&&pairProposal?pairProposal.title:d.working_title||'Unidentified object'}</h3>
-                <p className="ci-record-stage">{d.maker||'Maker not confirmed'} · {d.preliminary_value?.quick_sale==null?'Value needs research':d.preliminary_value.currency+' '+d.preliminary_value.quick_sale+' estimated fast cash'}</p>
+                <p className="ci-record-stage">{paired?'Pair valuation not yet researched':(d.maker||'Maker not confirmed')+' · '+(d.preliminary_value?.quick_sale==null?'Value needs research':d.preliminary_value.currency+' '+d.preliminary_value.quick_sale+' estimated fast cash')}</p>
                 <label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
                   <input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/>
                   <span>Include in catalogue</span>
@@ -416,9 +417,9 @@ export default function AIIntake() {
                      </div>
                     </section>
                     <details className="ci-review-section ci-review-source">
-                      <summary><span className="ci-review-section-number">02</span><span>Original photographs</span><span className="ci-review-section-hint">{d.image_indices.length} linked</span></summary>
+                      <summary><span className="ci-review-section-number">02</span><span>Original photographs</span><span className="ci-review-section-hint">{photoIndices.length} linked</span></summary>
                       <div className="draftImages ci-intake-photo-details">
-                       {photos.filter(p=>d.image_indices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index}>
+                       {photos.filter(p=>photoIndices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index}>
                          <img src={p.preview} alt={'Photograph '+(p.index+1)}/><small>Photo {p.index+1}</small>
                        </a>)}
                       </div>
