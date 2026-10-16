@@ -68,6 +68,7 @@ export default function SavedDraft(){
   })
  }
  const selectedIndices=(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
+ const hasReviewObjects=!!run && Array.isArray(run.result?.objects) && run.result.objects.length>0
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
     run.result?.analysis_stage==='COMPLETE'
@@ -100,10 +101,11 @@ export default function SavedDraft(){
   {error&&<p role="alert">{error}</p>}
   {run&&<>
    <p className="ci-page-meta">Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single item'} · {run.input_photo_count} original photographs reported · {run.status}</p>
+   {!hasReviewObjects&&run.status==='DRAFT'&&<div className="note ci-inline-note">Original upload session saved. The paid AI report did not reach a saved first-pass result, so there are no objects to review or catalogue here. Your uploaded source photographs remain in private storage.</div>}
    {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
      <div className="note ci-inline-note">A source report exists but its second-stage checks have not been saved. Review the preserved original findings; catalogue approval remains disabled until the analysis is complete.</div>}
    {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
-   {run.status==='DRAFT'&&<div className="ci-page-actions">
+   {run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
     <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length} onClick={approveSaved}>
      {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
@@ -155,6 +157,10 @@ export default function SavedDraft(){
          <div className="ci-review-source-content">
           <div><small>Suggested attribution</small><p>{o.current_attribution||'Unconfirmed'}</p></div>
           <div><small>Original condition observation</small><p>{o.condition_summary||'Not recorded'}</p></div>
+          {run.result?.initial_ai_result?.objects?.[i]&&<div>
+            <small>Archived initial model interpretation (before extra checks)</small>
+            <p>{run.result.initial_ai_result.objects[i].current_attribution||run.result.initial_ai_result.objects[i].working_title||'Not identified'}</p>
+          </div>}
          </div>
         </details>
         {photos.length>1&&<details className="ci-review-section ci-review-source"><summary><span className="ci-review-section-number">03</span><span>Original photographs</span><span className="ci-review-section-hint">{photos.length} linked</span></summary><div className="intakeThumbGrid">{photos.map((n:number)=><img key={n} src={images[n]} alt={'Photo '+(n+1)} style={{width:115,height:115,objectFit:'contain'}}/>)}</div></details>}
