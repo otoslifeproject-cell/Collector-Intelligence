@@ -191,3 +191,17 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-object-grid .ci-review-source-content p{color:var(--ci-review-body);font-size:13px;line-height:1.65;font-weight:400;max-width:85ch}
 .ci-object-grid.ci-view-list .ci-object-review[open]{grid-column:1/-1}
 @media(max-width:700px){.ci-object-grid .ci-review-section{padding:12px}.ci-object-grid .ci-object-review[open]{margin-left:0;margin-right:0}.ci-review-section-hint{width:auto}.ci-review-source-content{padding:0 12px 12px}}
+
+/* Icon view is a true object browser: ONLY image and title. Other modes carry the actions. */
+.ci-object-grid.ci-view-compact{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.ci-object-grid.ci-view-compact .itemCard{position:relative;cursor:pointer;gap:0;border-color:transparent;background:transparent;border-radius:12px;box-shadow:none;overflow:visible}
+.ci-object-grid.ci-view-compact .itemCard:hover{transform:none;border-color:transparent}
+.ci-object-grid.ci-view-compact .itemCardImage{height:auto;aspect-ratio:1/1;border:1px solid var(--line);border-radius:11px;padding:8px;background:#131d24;overflow:hidden}
+.ci-object-grid.ci-view-compact .itemCardImage img{object-fit:contain}
+.ci-object-grid.ci-view-compact .itemCardImage span:not(.ci-missing-photo){display:none}
+.ci-object-grid.ci-view-compact .itemCardBody{display:block;flex:initial;padding:8px 5px 0;text-align:center}
+.ci-object-grid.ci-view-compact .itemCardBody>:not(h3):not(.ci-record-title){display:none!important}
+.ci-object-grid.ci-view-compact .itemCardBody h3,.ci-object-grid.ci-view-compact .itemCardBody .ci-record-title{display:-webkit-box!important;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-align:center;font-size:12px;font-weight:650;line-height:1.35;min-height:2.7em;color:var(--text)}
+.ci-object-grid.ci-view-compact .ci-missing-photo{font-size:11px;max-width:100%;padding:8px}
+.ci-object-grid.ci-view-compact .itemCard:focus-visible,.ci-object-grid.ci-view-compact .itemCard:focus-within{outline:2px solid var(--accent);outline-offset:4px}
+@media(max-width:650px){.ci-object-grid.ci-view-compact{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px}}
