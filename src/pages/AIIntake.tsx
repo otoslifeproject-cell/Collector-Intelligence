@@ -1,6 +1,6 @@
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Camera, Check, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Camera, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 
@@ -427,7 +427,7 @@ export default function AIIntake() {
            .map((item:any)=>{
             const d=drafts[item.source_object_index]
             const hero=photos.find(p=>d?.image_indices.includes(p.index))
-            return <a href={'#/item/'+item.id+'?tab=market'} className="itemCard ci-record-card" key={item.id}>
+            return <Link to={'/item/'+item.id+'?tab=market'} className="itemCard ci-record-card" key={item.id}>
              <div className="itemCardImage placeholderGlass">{hero?<img src={hero.preview} alt={item.title||'Collection object'}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
              <div className="itemCardBody">
               <div className="itemMeta"><span>{item.item_code}</span><span>Catalogued</span></div>
