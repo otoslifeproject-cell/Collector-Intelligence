@@ -58,6 +58,15 @@ export default function SavedDraft(){
   }catch(e:any){setSaveStatus(e?.message||'Save failed')}
   finally{setSaving(false)}
  }
+ const openSavedObject=(i:number)=>{
+  changeView('tiles')
+  requestAnimationFrame(()=>{
+   const card=document.getElementById('ci-object-'+i)
+   card?.scrollIntoView({block:'center',behavior:'auto'})
+   const review=card?.querySelector('details.ci-object-review') as HTMLDetailsElement|null
+   if(review)review.open=true
+  })
+ }
  const selectedIndices=(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0
@@ -118,7 +127,7 @@ export default function SavedDraft(){
     if(![title,o.object_type,o.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
     if(filter==='HAS_PHOTO'&&!photos.length)return null
     if(filter==='NEEDS_PHOTO'&&photos.length)return null
-    return <article className="itemCard ci-record-card" key={i} tabIndex={view==='compact'?0:undefined} role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Open '+title:undefined} onClick={view==='compact'?()=>{setView('tiles');document.getElementById('ci-object-'+i)?.scrollIntoView({block:'center'})}:undefined} onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setView('tiles')}}:undefined} id={'ci-object-'+i}>
+    return <article className="itemCard ci-record-card" key={i} tabIndex={view==='compact'?0:undefined} role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Open '+title:undefined} onClick={view==='compact'?()=>openSavedObject(i):undefined} onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSavedObject(i)}}:undefined} id={'ci-object-'+i}>
      <div className="itemCardImage placeholderGlass">{photos.length?<img src={images[photos[0]]} alt={title}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
      <div className="itemCardBody">
       <div className="itemMeta"><span>Object {i+1}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
