@@ -69,7 +69,8 @@ export default function SavedDraft(){
  }
  const selectedIndices=(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
-    run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0
+    run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
+    run.result?.analysis_stage==='COMPLETE'
  const approveSaved=async()=>{
   if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approving||saving)return
   if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
@@ -99,6 +100,8 @@ export default function SavedDraft(){
   {error&&<p role="alert">{error}</p>}
   {run&&<>
    <p className="ci-page-meta">Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single item'} · {run.input_photo_count} original photographs reported · {run.status}</p>
+   {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
+     <div className="note ci-inline-note">A source report exists but its second-stage checks have not been saved. Review the preserved original findings; catalogue approval remains disabled until the analysis is complete.</div>}
    {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
    {run.status==='DRAFT'&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
