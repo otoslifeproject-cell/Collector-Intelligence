@@ -28,6 +28,7 @@ export default function SavedDraft(){
  const [researchResult,setResearchResult]=useState<any|null>(null)
  const [researchAudit,setResearchAudit]=useState<any|null>(null)
  const [researchHistory,setResearchHistory]=useState<any[]>([])
+ const [lastResearchScope,setLastResearchScope]=useState('')
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState('ALL')
  const [view,setView]=useState<'tiles'|'list'|'compact'>(()=>{try{const v=window.localStorage.getItem('ci-inventory-view');return v==='list'||v==='compact'?v:'tiles'}catch{return 'tiles'}})
@@ -93,6 +94,13 @@ export default function SavedDraft(){
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
     run.result?.analysis_stage==='COMPLETE'
+ const scopeIndex=paired?0:researchIndex
+ const scopeKey=String(scopeIndex)+':'+(paired?'pair':'single')
+ const matchedResearchRun=researchHistory.find((x:any)=>
+   x.user_context?.source_object_index===scopeIndex &&
+   (Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2)===paired)
+ const visibleResearch=matchedResearchRun?.result || (lastResearchScope===scopeKey?researchResult:null)
+ const visibleAudit=matchedResearchRun?.result?.source_audit || (lastResearchScope===scopeKey?researchAudit:null)
  const runDraftResearch=async()=>{
    if(!run||!isPhotoManifestReady||researching)return
    setResearching(true);setSaveStatus('Researching attribution, genuine sale evidence and selling routes online…')
@@ -110,6 +118,7 @@ export default function SavedDraft(){
      const payload=await response.json()
      if(!response.ok)throw Error(payload.error||'Live research could not be completed.')
      if(!payload?.result?.valuation)throw Error('Research service returned an incomplete result.')
+     setLastResearchScope(scopeKey)
      setResearchResult(payload.result);setResearchAudit(payload.source_audit||null)
      const {data:created,error:e}=await supabase.from('ai_analysis_runs').insert({
        mode:'research',model:payload.model||'unknown',status:'DRAFT',input_photo_count:urls.length,
@@ -205,18 +214,18 @@ export default function SavedDraft(){
      </div>
      {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
     </div>
-    {researchResult&&<div className="panel researchDraftPanel">
+    {visibleResearch&&<div className="panel researchDraftPanel">
      <div className="panelHeader"><h2>Research decision</h2><span>Source verification remains required</span></div>
      <div className="researchMetricGrid">
-      <div><small>Attribution</small><strong>{researchResult.identification_update?.attribution||researchResult.identification_update?.maker||'Unconfirmed'}</strong><span>{researchResult.identification_update?.identification_confidence??'—'}% identification confidence</span></div>
-      <div><small>Balanced value</small><strong>{money(researchResult.valuation?.balanced_low??null,researchResult.valuation?.currency||'GBP')} – {money(researchResult.valuation?.balanced_high??null,researchResult.valuation?.currency||'GBP')}</strong><span>{researchResult.valuation?.valuation_confidence??'—'}% valuation confidence</span></div>
-      <div><small>Suggested route</small><strong>{researchResult.routing?.best_venue||'Research first'}</strong><span>{researchResult.routing?.sale_readiness?.replaceAll('_',' ')||'Provisional'}</span></div>
+      <div><small>Attribution</small><strong>{visibleResearch.identification_update?.attribution||visibleResearch.identification_update?.maker||'Unconfirmed'}</strong><span>{visibleResearch.identification_update?.identification_confidence??'—'}% identification confidence</span></div>
+      <div><small>Balanced value</small><strong>{money(visibleResearch.valuation?.balanced_low??null,visibleResearch.valuation?.currency||'GBP')} – {money(visibleResearch.valuation?.balanced_high??null,visibleResearch.valuation?.currency||'GBP')}</strong><span>{visibleResearch.valuation?.valuation_confidence??'—'}% valuation confidence</span></div>
+      <div><small>Suggested route</small><strong>{visibleResearch.routing?.best_venue||'Research first'}</strong><span>{visibleResearch.routing?.sale_readiness?.replaceAll('_',' ')||'Provisional'}</span></div>
      </div>
-     <p>{researchResult.research_summary}</p>
-     {researchAudit&&<p className="note">{researchAudit.warning||'Original sale receipts have not been independently verified in this workflow.'}</p>}
+     <p>{visibleResearch.research_summary}</p>
+     {visibleAudit&&<p className="note">{visibleAudit.warning||'Original sale receipts have not been independently verified in this workflow.'}</p>}
      <details className="ci-review-section ci-review-source"><summary>Source leads, prices and verification status</summary>
       <div className="tableWrap"><table><thead><tr><th>Source</th><th>Price basis</th><th>Amount</th><th>Verification</th></tr></thead>
-      <tbody>{(researchResult.comparables||[]).map((c:any,j:number)=><tr key={j}>
+      <tbody>{(visibleResearch.comparables||[]).map((c:any,j:number)=><tr key={j}>
        <td>{c.source_url?<a href={c.source_url} target="_blank" rel="noreferrer">{c.venue||'Source'}</a>:c.venue}</td>
        <td>{String(c.price_type||'UNVERIFIED').replaceAll('_',' ')}</td>
        <td>{money(c.price??null,c.currency||'GBP')}</td>
@@ -235,8 +244,8 @@ export default function SavedDraft(){
      </details>)}
    </div>}
    {activeTab==='sales'&&<div className="panel"><div className="panelHeader"><h2>Sales planning</h2><span>No publication without approval</span></div>
-     <p>{researchResult?.routing?.best_venue?'Suggested venue: '+researchResult.routing.best_venue:'Run online market research to identify likely buyers, selling routes and expected net return.'}</p>
-     <p>{researchResult?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness requires evidence review.'}</p>
+     <p>{visibleResearch?.routing?.best_venue?'Suggested venue: '+visibleResearch.routing.best_venue:'Run online market research to identify likely buyers, selling routes and expected net return.'}</p>
+     <p>{visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness requires evidence review.'}</p>
      <button className="primaryButton inlineButton" onClick={()=>setActiveTab('market')}>Review market evidence →</button>
    </div>}
    {(activeTab==='overview'||activeTab==='catalogue')&&<>
