@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
-import {Search,SlidersHorizontal,LayoutGrid,List,Grid2X2} from 'lucide-react'
+import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {supabase} from '../lib/supabase'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
@@ -103,17 +103,12 @@ export default function SavedDraft(){
     <div className="ci-catalogued-links">{catalogued.map(item=><Link key={item.item_id} to={'/item/'+item.item_id} className="secondaryButton inlineButton">{item.item_code} · {item.title||'Object'}</Link>)}</div>
    </div>}
    {saveStatus&&<p role="status" className="note">{saveStatus}</p>}
-   <div className="ci-inventory-controls">
-    <div className="ci-search-control searchBox"><Search size={18}/><input aria-label="Search report objects" placeholder="Find an object…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
-    <div className="ci-toolbar-actions">
-     <div className="ci-status-control selectWrap"><SlidersHorizontal size={18}/><select aria-label="Filter review objects" value={filter} onChange={e=>setFilter(e.target.value)}><option value="ALL">All objects</option><option value="NEEDS_PHOTO">Photos missing</option><option value="HAS_PHOTO">With photos</option></select></div>
-     <div className="ci-view-switch" role="group" aria-label="Object display">
-      <button type="button" className={view==='tiles'?'active':''} aria-label="Tiles" aria-pressed={view==='tiles'} onClick={()=>changeView('tiles')}><LayoutGrid size={18}/><span>Tiles</span></button>
-      <button type="button" className={view==='list'?'active':''} aria-label="List" aria-pressed={view==='list'} onClick={()=>changeView('list')}><List size={18}/><span>List</span></button>
-      <button type="button" className={view==='compact'?'active':''} aria-label="Icons" aria-pressed={view==='compact'} onClick={()=>changeView('compact')}><Grid2X2 size={18}/><span>Icons</span></button>
-     </div>
-    </div>
-   </div>
+   <ObjectCollectionToolbar
+     query={query} onQueryChange={setQuery} view={view} onViewChange={changeView}
+     searchLabel="Search report objects" filterLabel="Filter reviewed objects"
+     filter={filter} onFilterChange={setFilter}
+     filters={[{value:'ALL',label:'All objects'},{value:'NEEDS_PHOTO',label:'Photos missing'},{value:'HAS_PHOTO',label:'With photos'}]}
+   />
    <div className="inventorySummary">{(run.result?.objects||[]).length} objects in this report · Select an object to review</div>
    <div className={`cardGrid ci-object-grid ci-view-${view}`}>
    {(run.result?.objects||[]).map((o:any,i:number)=>{
