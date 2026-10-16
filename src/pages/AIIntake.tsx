@@ -449,8 +449,12 @@ export default function AIIntake() {
         {message && <div role="status" className="note">{message}</div>}
         <div className="intakeActions">
           <button className="secondaryButton" disabled={stage==='saving'} onClick={()=>setStage('upload')}>Back to photographs</button>
-          <button className="primaryButton intakeBigButton" disabled={stage==='saving'||!selectedCount} onClick={approve}>
+          <button className="secondaryButton" disabled={stage==='saving'||!selectedCount} onClick={approve}>
            {stage==='saving'?'Saving catalogue…':paired?'Catalogue pair as one item':'Catalogue '+selectedCount+' selected'}
+          </button>
+          <button className="primaryButton intakeBigButton" disabled={!analysisRunId||stage==='saving'}
+            onClick={()=>nav('/draft/'+analysisRunId+'?tab=market')}>
+            Research & value →
           </button>
         </div>
       </>}
