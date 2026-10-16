@@ -3,6 +3,7 @@ import {Link,useNavigate,useParams} from 'react-router-dom'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {supabase} from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
+import {money} from '../lib/format'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
 export default function SavedDraft(){
@@ -19,6 +20,14 @@ export default function SavedDraft(){
  const [groupPair,setGroupPair]=useState(true)
  const [catalogued,setCatalogued]=useState<Array<{item_id:string;item_code:string;title:string;object_index:number}>>([])
  const [saveStatus,setSaveStatus]=useState('')
+ const [activeTab,setActiveTab]=useState(()=>{
+   try{return new URLSearchParams(window.location.hash.split('?')[1]||'').get('tab')||'overview'}catch{return 'overview'}
+ })
+ const [researching,setResearching]=useState(false)
+ const [researchIndex,setResearchIndex]=useState(0)
+ const [researchResult,setResearchResult]=useState<any|null>(null)
+ const [researchAudit,setResearchAudit]=useState<any|null>(null)
+ const [researchHistory,setResearchHistory]=useState<any[]>([])
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState('ALL')
  const [view,setView]=useState<'tiles'|'list'|'compact'>(()=>{try{const v=window.localStorage.getItem('ci-inventory-view');return v==='list'||v==='compact'?v:'tiles'}catch{return 'tiles'}})
@@ -34,6 +43,13 @@ export default function SavedDraft(){
    setRun(report)
    setGroupPair(!!suggestSingleIntakePair(report.result?.objects||[],report.mode))
    setSelected(Object.fromEntries((report.result?.objects||[]).map((_:any,i:number)=>[i,true])))
+   const {data:prior}=await supabase.from('ai_analysis_runs')
+    .select('id,result,created_at,user_context').eq('mode','research').order('created_at',{ascending:false}).limit(100)
+   if(alive){
+     const past=(prior||[]).filter((x:any)=>x.user_context?.source_analysis_run_id===report.id)
+     setResearchHistory(past)
+     if(past.length){setResearchResult(past[0].result);setResearchAudit(past[0].result?.source_audit||null)}
+   }
    const overrides=report.result?.owner_review?.objects || {}
    setEdits(Object.fromEntries((report.result?.objects||[]).map((o:any,i:number)=>[i,{working_title:overrides[i]?.working_title??o.working_title??'',condition_summary:overrides[i]?.condition_summary??o.condition_summary??''}])))
    const manifest=Array.isArray(report.result?.image_manifest)?report.result.image_manifest:[]
@@ -77,6 +93,34 @@ export default function SavedDraft(){
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
     run.result?.analysis_stage==='COMPLETE'
+ const runDraftResearch=async()=>{
+   if(!run||!isPhotoManifestReady||researching)return
+   setResearching(true);setSaveStatus('Researching attribution, genuine sale evidence and selling routes online…')
+   try{
+     const {data:{session}}=await supabase.auth.getSession()
+     if(!session)throw Error('Sign in again to use web research.')
+     const i=paired?0:researchIndex
+     const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
+     const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
+     const response=await fetch('/api/research-item',{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+      body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:paired?[0,1]:[],
+       images:urls})
+     })
+     const payload=await response.json()
+     if(!response.ok)throw Error(payload.error||'Live research could not be completed.')
+     if(!payload?.result?.valuation)throw Error('Research service returned an incomplete result.')
+     setResearchResult(payload.result);setResearchAudit(payload.source_audit||null)
+     const {data:created,error:e}=await supabase.from('ai_analysis_runs').insert({
+       mode:'research',model:payload.model||'unknown',status:'DRAFT',input_photo_count:urls.length,
+       user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:paired?[0,1]:[]},
+       result:{...payload.result,source_audit:payload.source_audit||null,canonical_policy_hashes:payload.canonical_policy_hashes||null}
+     }).select('id,result,created_at,user_context').single()
+     if(e||!created)throw Error('Research completed but could not be archived. Keep this page open; do not pay for another search to recover it.')
+     setResearchHistory(v=>[created,...v]);setSaveStatus('Online research saved as provisional evidence. Your original AI report is unchanged.')
+   }catch(err:any){setSaveStatus(err?.message||'Research failed')}
+   finally{setResearching(false)}
+ }
  const approveSaved=async()=>{
   if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approving||saving)return
   if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
@@ -95,6 +139,7 @@ export default function SavedDraft(){
    setCatalogued(data)
    setRun(r=>r?{...r,status:'APPROVED'}:r)
    setSaveStatus(data.length+' catalogue records safely saved with original photo links. No AI rerun.')
+   if(data.length===1)navigate('/item/'+data[0].item_id+'?tab=market')
   }catch(e:any){
    setSaveStatus('Approval not confirmed: '+(e?.message||'Unknown failure')+'. The saved report remains available.')
   }finally{setApproving(false)}
@@ -107,28 +152,94 @@ export default function SavedDraft(){
   {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
+   <div className="ci-page-actions">
+    <button className="primaryButton" onClick={()=>setActiveTab('market')}>Research & value →</button>
+    <button className="secondaryButton" onClick={()=>setActiveTab('catalogue')}>Catalogue / continue →</button>
+   </div>
+   <div className="tabBar" role="tablist" aria-label="Object workspace">
+    {['overview','photos','identification','market','sales','catalogue'].map(t=>
+      <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
+   </div>
    <p className="ci-page-meta">Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single item'} · {run.input_photo_count} original photographs reported · {run.status}</p>
    {!hasReviewObjects&&run.status==='DRAFT'&&<div className="note ci-inline-note">Original upload session saved. The paid AI report did not reach a saved first-pass result, so there are no objects to review or catalogue here. Your uploaded source photographs remain in private storage.</div>}
    {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
      <div className="note ci-inline-note">A source report exists but its second-stage checks have not been saved. Review the preserved original findings; catalogue approval remains disabled until the analysis is complete.</div>}
    {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
-   {pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
+   {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
       <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>setGroupPair(e.target.checked)}/> One catalogue record for the pair (recommended)</label>
     </div>}
-   {run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
+   {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
     <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length} onClick={approveSaved}>
      {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
     </button>
    </div>}
-   {run.status==='DRAFT'&&isPhotoManifestReady&&<p className="ci-page-meta">Select objects below before approval. Original AI findings and photographs will remain preserved.</p>}
+   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&<p className="ci-page-meta">Select objects below before approval. Original AI findings and photographs will remain preserved.</p>}
    {catalogued.length>0&&<div className="panel ci-catalogued-result" role="status">
     <h2>Objects safely catalogued</h2>
     <div className="ci-catalogued-links">{catalogued.map(item=><Link key={item.item_id} to={'/item/'+item.item_id} className="secondaryButton inlineButton">{item.item_code} · {item.title||'Object'}</Link>)}</div>
    </div>}
    {saveStatus&&<p role="status" className="note">{saveStatus}</p>}
+   {activeTab==='market'&&<div className="marketStack">
+    <div className="panel researchLauncher">
+      <div><div className="eyebrow">ONLINE IDENTIFICATION & MARKET RESEARCH</div>
+       <h2>Research what we already know</h2>
+       <p>Search maker references, comparable sale leads, valuations and realistic selling routes before asking you for more photographs. This is an optional paid AI web-research request.</p>
+      </div>
+      {!paired&&(run.result?.objects||[]).length>1&&<label>Object to research
+       <select value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
+        {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
+       </select></label>}
+      <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={runDraftResearch}>
+       {researching?'Researching online…':'Research & value online'}
+      </button>
+      {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research investigation(s). Previous results load automatically; no rerun required to view them.</p>}
+    </div>
+    <div className="panel">
+     <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
+     <div className="valueSummary">
+      <div><small>Fast cash indication</small><strong>{money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.quick_sale??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')}</strong></div>
+      <div><small>Balanced range · provisional</small><strong>{money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_low??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')} – {money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_high??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')}</strong></div>
+     </div>
+     {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
+    </div>
+    {researchResult&&<div className="panel researchDraftPanel">
+     <div className="panelHeader"><h2>Research decision</h2><span>Source verification remains required</span></div>
+     <div className="researchMetricGrid">
+      <div><small>Attribution</small><strong>{researchResult.identification_update?.attribution||researchResult.identification_update?.maker||'Unconfirmed'}</strong><span>{researchResult.identification_update?.identification_confidence??'—'}% identification confidence</span></div>
+      <div><small>Balanced value</small><strong>{money(researchResult.valuation?.balanced_low??null,researchResult.valuation?.currency||'GBP')} – {money(researchResult.valuation?.balanced_high??null,researchResult.valuation?.currency||'GBP')}</strong><span>{researchResult.valuation?.valuation_confidence??'—'}% valuation confidence</span></div>
+      <div><small>Suggested route</small><strong>{researchResult.routing?.best_venue||'Research first'}</strong><span>{researchResult.routing?.sale_readiness?.replaceAll('_',' ')||'Provisional'}</span></div>
+     </div>
+     <p>{researchResult.research_summary}</p>
+     {researchAudit&&<p className="note">{researchAudit.warning||'Original sale receipts have not been independently verified in this workflow.'}</p>}
+     <details className="ci-review-section ci-review-source"><summary>Source leads, prices and verification status</summary>
+      <div className="tableWrap"><table><thead><tr><th>Source</th><th>Price basis</th><th>Amount</th><th>Verification</th></tr></thead>
+      <tbody>{(researchResult.comparables||[]).map((c:any,j:number)=><tr key={j}>
+       <td>{c.source_url?<a href={c.source_url} target="_blank" rel="noreferrer">{c.venue||'Source'}</a>:c.venue}</td>
+       <td>{String(c.price_type||'UNVERIFIED').replaceAll('_',' ')}</td>
+       <td>{money(c.price??null,c.currency||'GBP')}</td>
+       <td>{c.verification_status||'UNVERIFIED'}</td>
+      </tr>)}</tbody></table></div>
+     </details>
+    </div>}
+   </div>}
+   {activeTab==='photos'&&<div className="panel"><div className="panelHeader"><h2>Original photographs</h2><span>{Object.values(images).filter(Boolean).length} accessible</span></div>
+     <div className="photoGrid">{Object.entries(images).map(([index,url])=>url?<div className="photoTile" key={index}><img src={url} alt={'Original photograph '+(Number(index)+1)}/><span>Photo {Number(index)+1}</span></div>:null)}</div>
+   </div>}
+   {activeTab==='identification'&&<div className="panel"><div className="panelHeader"><h2>Identification & original evidence</h2><span>Provisional, not authenticated</span></div>
+     {(run.result.objects||[]).map((o:any,i:number)=><details key={i} className="ci-review-section ci-review-source"><summary>{o.working_title||'Object '+(i+1)} · {o.identification_confidence??'—'}% ID</summary>
+      <p>{o.current_attribution||'Unconfirmed'}</p><p>{o.condition_summary}</p>
+      {(o.evidence||[]).map((e:any,j:number)=><p key={j}><strong>{e.certainty_class||'UNKNOWN'}: </strong>{e.claim}</p>)}
+     </details>)}
+   </div>}
+   {activeTab==='sales'&&<div className="panel"><div className="panelHeader"><h2>Sales planning</h2><span>No publication without approval</span></div>
+     <p>{researchResult?.routing?.best_venue?'Suggested venue: '+researchResult.routing.best_venue:'Run online market research to identify likely buyers, selling routes and expected net return.'}</p>
+     <p>{researchResult?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness requires evidence review.'}</p>
+     <button className="primaryButton inlineButton" onClick={()=>setActiveTab('market')}>Review market evidence →</button>
+   </div>}
+   {(activeTab==='overview'||activeTab==='catalogue')&&<>
    <ObjectCollectionToolbar
      query={query} onQueryChange={setQuery} view={view} onViewChange={changeView}
      searchLabel="Search report objects" filterLabel="Filter reviewed objects"
@@ -190,6 +301,7 @@ export default function SavedDraft(){
      </div>
     </article>
    })}</div>
+   </>
   </>}
  </div>
 }
