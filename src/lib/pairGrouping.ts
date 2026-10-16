@@ -17,5 +17,5 @@ export function suggestSingleIntakePair(objects:any[],mode:string):PairProposal|
  const bw=new Set(other.split(/\W+/).filter(w=>w.length>3))
  if([...aw].filter(w=>bw.has(w)).length<2)return null
  const label=common.length<=90?common:'matching collectible objects'
- return {indices:[0,1],title:'Matched pair of '+label}
+ return {indices:[0,1],title:'Matched pair — '+label}
 }
