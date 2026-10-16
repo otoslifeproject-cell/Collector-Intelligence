@@ -94,18 +94,28 @@ export default function SavedDraft(){
       <details className="ci-object-review">
        <summary>Review object & evidence</summary>
        <div className="ci-object-review-content">
-        {run.status==='DRAFT'&&<div className="ci-review-fields">
-         <label>Working title<input value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
-         <label>Condition notes<textarea rows={3} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label>
-        </div>}
-        <p><strong>Attribution:</strong> {o.current_attribution||'Unconfirmed'}</p>
-        <p><strong>Original AI condition:</strong> {o.condition_summary||'Not recorded'}</p>
-        {photos.length>1&&<details><summary>Original photos · {photos.length}</summary><div className="intakeThumbGrid">{photos.map((n:number)=><img key={n} src={images[n]} alt={'Photo '+(n+1)} style={{width:115,height:115,objectFit:'contain'}}/>)}</div></details>}
-        <details><summary>Evidence and next checks</summary>
-         {(o.evidence||[]).map((e:any,j:number)=><p key={j}><strong>{e.certainty_class||'Unverified'}:</strong> {e.claim}</p>)}
-         {(o.next_evidence||[]).map((t:any,j:number)=><p key={'t'+j}>Next: {t.title}</p>)}
+        <div className="ci-review-section ci-review-section-primary">
+         <div className="ci-review-section-heading"><span className="ci-review-section-number">01</span><h4>Your review</h4><span className="ci-review-section-hint">Editable information</span></div>
+         {run.status==='DRAFT'?<div className="ci-review-fields">
+          <label>Object title<input value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
+          <label>Your condition notes<textarea rows={3} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label>
+         </div>:<p>Previously saved review</p>}
+        </div>
+        <details className="ci-review-section ci-review-source">
+         <summary><span className="ci-review-section-number">02</span><span>AI identification & observations</span><span className="ci-review-section-hint">Unverified source notes</span></summary>
+         <div className="ci-review-source-content">
+          <div><small>Suggested attribution</small><p>{o.current_attribution||'Unconfirmed'}</p></div>
+          <div><small>Original condition observation</small><p>{o.condition_summary||'Not recorded'}</p></div>
+         </div>
         </details>
-        <p className="ci-review-caption">Owner review is saved separately from the original AI analysis. Catalogue approval is not yet enabled here.</p>
+        {photos.length>1&&<details className="ci-review-section ci-review-source"><summary><span className="ci-review-section-number">03</span><span>Original photographs</span><span className="ci-review-section-hint">{photos.length} linked</span></summary><div className="intakeThumbGrid">{photos.map((n:number)=><img key={n} src={images[n]} alt={'Photo '+(n+1)} style={{width:115,height:115,objectFit:'contain'}}/>)}</div></details>}
+        <details className="ci-review-section ci-review-source">
+         <summary><span className="ci-review-section-number">{photos.length>1?'04':'03'}</span><span>Evidence & next checks</span><span className="ci-review-section-hint">Advanced</span></summary>
+         <div className="ci-review-source-content">
+          {(o.evidence||[]).map((e:any,j:number)=><div key={j}><small>{e.certainty_class||'Unverified'}</small><p>{e.claim}</p></div>)}
+          {(o.next_evidence||[]).map((t:any,j:number)=><div key={'t'+j}><small>Next check</small><p>{t.title}</p></div>)}
+         </div>
+        </details>
        </div>
       </details>
      </div>
