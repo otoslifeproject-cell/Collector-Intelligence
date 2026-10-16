@@ -195,132 +195,47 @@ export default function AIIntake() {
   }
 
   const approve = async () => {
-    if(approvalLock.current)return
-    if(!analysisRunId){setMessage('Save the AI analysis report before catalogue approval. No objects have been created.');return}
-    const selected = drafts.filter(d=>d.include!==false)
-    if (!selected.length) return setMessage('Select at least one object.')
-    approvalLock.current=true
-    setStage('saving'); setMessage('Creating permanent Collector Intelligence records…')
-    const {data:{user}} = await supabase.auth.getUser()
-    if (!user) { approvalLock.current=false; setStage('review'); return setMessage('Session expired.') }
-
+    if (approvalLock.current) return
+    if (!analysisRunId) {
+      setMessage('Save the AI report before catalogue approval. No objects have been created.')
+      return
+    }
+    const selectedIndices = drafts.flatMap((d,i) => d.include===false ? [] : [i])
+    if (!selectedIndices.length) return setMessage('Select at least one object.')
+    approvalLock.current = true
+    setStage('saving')
+    setMessage('Saving selected objects and their original photo links as one safe transaction…')
     try {
-      // A partial prior approval must not be retried blindly: photo copies and evidence writes are non-atomic.
-      const {data:existing,error:duplicateCheckError}=await supabase.from('items').select('id,item_code').eq('source_analysis_run_id',analysisRunId).limit(1)
-      if(duplicateCheckError)throw new Error('Cannot verify prior catalogue approvals; no records were created. '+duplicateCheckError.message)
-      if(existing?.length)throw new Error('This analysis already has a catalogue record. Approval is blocked to prevent duplicates; inspect Inventory before continuing.')
-      const created:any[] = []
-      for (let draftIndex=0; draftIndex<selected.length; draftIndex++) {
-        const d = selected[draftIndex]
-        const values = d.preliminary_value || {currency:'GBP',quick_sale:null,balanced_low:null,balanced_high:null,floor:null,basis:''}
-        const {data:item,error:itemError} = await supabase.from('items').insert({
-          title:d.working_title || null,
-          category:d.category || null,
-          object_type:d.object_type || null,
-          maker:d.maker || null,
-          current_attribution:d.current_attribution || null,
-          period_wording:d.period_wording || null,
-          region_country:d.region_country || null,
-          material:d.material || null,
-          colour:d.colour || null,
-          identification_confidence:d.identification_confidence,
-          dating_confidence:d.dating_confidence,
-          valuation_confidence:d.valuation_confidence,
-          rarity_desirability:d.rarity_desirability || null,
-          condition_summary:d.condition_summary || null,
-          marks_signatures_labels:d.marks_signatures_labels || null,
-          acquisition_price: context.purchase_price && selected.length===1 ? Number(context.purchase_price) : null,
-          acquisition_currency: context.currency || 'GBP',
-          storage_location: context.storage_location || null,
-          status:d.specialist_review ? 'SPECIALIST_REVIEW' : d.status,
-          sale_readiness:d.specialist_review ? 'SPECIALIST_REVIEW' : d.sale_readiness,
-          currency:values.currency || 'GBP',
-          quick_sale_value:values.quick_sale,
-          balanced_value_low:values.balanced_low,
-          balanced_value_high:values.balanced_high,
-          floor_price:values.floor,
-          catalogue_note:d.catalogue_note || null,
-          notes:[
-            context.user_notes ? `User intake notes: ${context.user_notes}` : '',
-            values.basis ? `AI intake valuation basis: ${values.basis}` : ''
-          ].filter(Boolean).join('\n') || null,
-          source_analysis_run_id: analysisRunId,
-          catalogue_review_status:'OWNER_REVIEWED'
-        }).select().single()
-        if (itemError) throw itemError
-
-        const assigned = photos.filter(p=>d.image_indices.includes(p.index) && p.storagePath)
-        for (const p of assigned) {
-          const ext = p.file.name.includes('.') ? p.file.name.split('.').pop() : 'jpg'
-          const dest = `${user.id}/${item.item_code}/intake-${String(p.index).padStart(2,'0')}.${ext}`
-          const {error:copyError} = await supabase.storage.from('item-images').copy(p.storagePath!,dest)
-          if (copyError) throw copyError
-          const {error:photoError} = await supabase.from('item_photos').insert({
-            item_id:item.id,
-            storage_path:dest,
-            file_name:p.file.name,
-            caption:`AI intake image ${p.index+1}`,
-            photo_role:'AI intake photo',
-            position:p.index,
-            is_hero:false
-          })
-          if (photoError) throw photoError
+      const {data:{user}} = await supabase.auth.getUser()
+      if (!user) throw new Error('Your session has expired; sign in again.')
+      const reviews:Record<string,object> = {}
+      for (const i of selectedIndices) {
+        const d = drafts[i]
+        reviews[String(i)] = {
+          working_title:d.working_title,
+          object_type:d.object_type,
+          maker:d.maker,
+          current_attribution:d.current_attribution,
+          period_wording:d.period_wording,
+          region_country:d.region_country,
+          condition_summary:d.condition_summary
         }
-
-        if (d.evidence?.length) {
-          const evidenceRows = d.evidence.map(ev=>({
-            item_id:item.id,
-            claim:ev.claim,
-            provenance:ev.provenance,
-            certainty_class:ev.certainty_class,
-            stance:ev.stance,
-            source_reference:'AI visual intake',
-            verification_status:ev.provenance==='PHOTO' && ev.certainty_class==='FACT' ? 'VERIFIED_DIRECT' : 'UNVERIFIED',
-            notes:ev.notes
-          }))
-          const {error} = await supabase.from('item_evidence').insert(evidenceRows)
-          if (error) throw error
-        }
-
-        if (d.current_attribution || d.maker) {
-          const {error} = await supabase.from('attribution_history').insert({
-            item_id:item.id,
-            attribution_text:d.current_attribution || d.maker || d.working_title,
-            maker:d.maker,
-            region_country:d.region_country,
-            period_wording:d.period_wording,
-            confidence:d.identification_confidence,
-            attribution_status:'CURRENT',
-            evidence_summary:'Initial AI-assisted visual intake; preserve uncertainty and verify before strong market claims.'
-          })
-          if (error) throw error
-        }
-
-        if (d.next_evidence?.length) {
-          const tasks = d.next_evidence.map(n=>({
-            item_id:item.id,
-            task_type:'EVIDENCE',
-            title:n.title,
-            information_value:n.information_value,
-            notes:n.why
-          }))
-          const {error} = await supabase.from('research_tasks').insert(tasks)
-          if (error) throw error
-        }
-
-        created.push(item)
       }
-
-      // Preserve the original intake photo files for forensic / source-evidence audit.
-      // Approved item photos are separate copies; deletion here would break historical manifests.
-      if (analysisRunId) await supabase.from('ai_analysis_runs').update({status:'APPROVED',approved_at:new Date().toISOString()}).eq('id',analysisRunId)
-
-      setSavedItems(created)
+      const {data,error} = await supabase.rpc('ci_approve_saved_intake_v1',{
+        p_run_id:analysisRunId,
+        p_object_indices:selectedIndices,
+        p_reviews:reviews
+      })
+      if (error) throw new Error(error.message)
+      if (!Array.isArray(data) || data.length!==selectedIndices.length)
+        throw new Error('Approval response is incomplete. Check Inventory before trying again.')
+      const records = data.map((x:any)=>({id:x.item_id,item_code:x.item_code,title:x.title,source_object_index:x.object_index}))
+      setSavedItems(records)
       setStage('complete')
-      setMessage(`${created.length} records saved. Choose an object to continue.`)
+      setMessage(records.length+' objects safely catalogued. Source photos and original AI report remain preserved.')
     } catch (err:any) {
       setStage('review')
-      setMessage(err?.message || 'Could not create records')
+      setMessage('Catalogue approval not confirmed: '+(err?.message||'unknown error')+'. Original saved report and photos remain available.')
     } finally {
       approvalLock.current=false
     }
@@ -458,7 +373,7 @@ export default function AIIntake() {
         </div>
         <div className="draftGrid">
           {savedItems.map((item:any,i:number)=>{
-            const d=drafts.filter(x=>x.include!==false)[i]
+            const d=drafts[item.source_object_index]
             const hero=photos.find(p=>d?.image_indices.includes(p.index))
             return <div className="draftCard" key={item.id}>
               {hero&&<img src={hero.preview} alt={item.title||'Saved object'} style={{width:'100%',height:150,objectFit:'cover',borderRadius:9,marginBottom:12}}/>}
