@@ -418,12 +418,15 @@ export default async function handler(req: any, res: any) {
 
   try {
     let result = JSON.parse(text);
+    // Immutable JSON snapshot of the initial AI interpretation before any further review.
+    const initialAiResult = JSON.parse(JSON.stringify(result));
     // Save the first paid model answer BEFORE enrichment, second-pass AI or client response.
     // If any later step fails, the user still has the original provisional report.
     const originalManifest=staged.result.image_manifest;
     try {
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,{
         ...staged.result,...result,image_manifest:originalManifest,
+        initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
         image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
         canonical_policy_hashes:canonical.hashes,
         knowledge_lookup:{status:'PENDING',matches:[]}
@@ -493,6 +496,7 @@ export default async function handler(req: any, res: any) {
     result = reconcileKnowledge(result, knowledge_lookup);
     const savedResult={
       ...staged.result,...result,image_manifest:originalManifest,
+      initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
       image_manifest_version:1,analysis_stage:'COMPLETE',
       inscription_review,inscription_review_status,knowledge_lookup,
       canonical_policy_hashes:canonical.hashes
