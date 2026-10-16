@@ -13,6 +13,9 @@ export default function SavedDraft(){
  const [busy,setBusy]=useState(true)
  const [edits,setEdits]=useState<Record<number,{working_title:string;condition_summary:string}>>({})
  const [saving,setSaving]=useState(false)
+ const [approving,setApproving]=useState(false)
+ const [selected,setSelected]=useState<Record<number,boolean>>({})
+ const [catalogued,setCatalogued]=useState<Array<{item_id:string;item_code:string;title:string;object_index:number}>>([])
  const [saveStatus,setSaveStatus]=useState('')
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState('ALL')
@@ -27,6 +30,7 @@ export default function SavedDraft(){
    if(e||!data){setError('Saved report unavailable or access denied.');setBusy(false);return}
    const report=data as SavedRun
    setRun(report)
+   setSelected(Object.fromEntries((report.result?.objects||[]).map((_:any,i:number)=>[i,true])))
    const overrides=report.result?.owner_review?.objects || {}
    setEdits(Object.fromEntries((report.result?.objects||[]).map((o:any,i:number)=>[i,{working_title:overrides[i]?.working_title??o.working_title??'',condition_summary:overrides[i]?.condition_summary??o.condition_summary??''}])))
    const manifest=Array.isArray(report.result?.image_manifest)?report.result.image_manifest:[]
@@ -54,6 +58,29 @@ export default function SavedDraft(){
   }catch(e:any){setSaveStatus(e?.message||'Save failed')}
   finally{setSaving(false)}
  }
+ const selectedIndices=(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
+ const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
+    run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0
+ const approveSaved=async()=>{
+  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approving||saving)return
+  if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
+  setApproving(true);setSaveStatus('Saving catalogue and linking original photographs…')
+  try{
+   const reviews:Record<string,object>={}
+   for(const i of selectedIndices)reviews[String(i)]={...edits[i]}
+   const {data,error:e}=await supabase.rpc('ci_approve_saved_intake_v1',{
+    p_run_id:run.id,p_object_indices:selectedIndices,p_reviews:reviews
+   })
+   if(e)throw Error(e.message)
+   if(!Array.isArray(data)||data.length!==selectedIndices.length)
+    throw Error('Approval response incomplete. Check Inventory before retrying.')
+   setCatalogued(data)
+   setRun(r=>r?{...r,status:'APPROVED'}:r)
+   setSaveStatus(data.length+' catalogue records safely saved with original photo links. No AI rerun.')
+  }catch(e:any){
+   setSaveStatus('Approval not confirmed: '+(e?.message||'Unknown failure')+'. The saved report remains available.')
+  }finally{setApproving(false)}
+ }
  return <div className="ci-page ci-saved-draft">
   <header className="ci-page-header">
     <div><div className="eyebrow">SAVED ANALYSIS</div><h1>Original AI report</h1><p>Preserved provisional findings · No additional AI usage</p></div>
@@ -64,7 +91,17 @@ export default function SavedDraft(){
   {run&&<>
    <p className="ci-page-meta">Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single item'} · {run.input_photo_count} original photographs reported · {run.status}</p>
    {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
-   {run.status==='DRAFT'&&<div className="ci-page-actions"><button className="primaryButton" disabled={saving} onClick={save}>{saving?'Saving…':'Save review changes'}</button></div>}
+   {run.status==='DRAFT'&&<div className="ci-page-actions">
+    <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
+    <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length} onClick={approveSaved}>
+     {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
+    </button>
+   </div>}
+   {run.status==='DRAFT'&&isPhotoManifestReady&&<p className="ci-page-meta">Select objects below before approval. Original AI findings and photographs will remain preserved.</p>}
+   {catalogued.length>0&&<div className="panel ci-catalogued-result" role="status">
+    <h2>Objects safely catalogued</h2>
+    <div className="ci-catalogued-links">{catalogued.map(item=><Link key={item.item_id} to={'/item/'+item.item_id} className="secondaryButton inlineButton">{item.item_code} · {item.title||'Object'}</Link>)}</div>
+   </div>}
    {saveStatus&&<p role="status" className="note">{saveStatus}</p>}
    <div className="ci-inventory-controls">
     <div className="ci-search-control searchBox"><Search size={18}/><input aria-label="Search report objects" placeholder="Find an object…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
@@ -90,6 +127,10 @@ export default function SavedDraft(){
      <div className="itemCardImage placeholderGlass">{photos.length?<img src={images[photos[0]]} alt={title}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
      <div className="itemCardBody">
       <div className="itemMeta"><span>Object {i+1}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
+      {run.status==='DRAFT'&&isPhotoManifestReady&&<label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
+       <input type="checkbox" checked={selected[i]!==false} onChange={e=>setSelected(v=>({...v,[i]:e.target.checked}))}/>
+       <span>Include in catalogue</span>
+      </label>}
       <h3 className="ci-record-title">{title}</h3>
       <p className="ci-record-stage">{o.maker||'Maker not confirmed'} · Provisional identification</p>
       <details className="ci-object-review">
