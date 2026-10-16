@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Camera, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
+import {suggestSingleIntakePair} from '../lib/pairGrouping'
 
 type UploadPhoto = {
   index: number
@@ -55,6 +56,7 @@ export default function AIIntake() {
   const [photos,setPhotos] = useState<UploadPhoto[]>([])
   const [context,setContext] = useState(emptyContext)
   const [drafts,setDrafts] = useState<DraftObject[]>([])
+  const [groupPair,setGroupPair] = useState(true)
   const [batchSummary,setBatchSummary] = useState('')
   const [savedItems,setSavedItems] = useState<any[]>([])
   const [inscriptionReview,setInscriptionReview] = useState<any>(null)
@@ -88,7 +90,9 @@ export default function AIIntake() {
     })
   }
 
-  const selectedCount = useMemo(()=>drafts.filter(d=>d.include!==false).length,[drafts])
+  const pairProposal=useMemo(()=>suggestSingleIntakePair(drafts,mode),[drafts,mode])
+  const paired=!!pairProposal&&groupPair
+  const selectedCount = useMemo(()=>paired?(drafts[0]?.include===false?0:1):drafts.filter(d=>d.include!==false).length,[drafts,paired])
 
   const addIncomingFiles = (files: File[]) => {
     const supported = files.filter(file =>
@@ -241,7 +245,7 @@ export default function AIIntake() {
       setMessage('Save the AI report before catalogue approval. No objects have been created.')
       return
     }
-    const selectedIndices = drafts.flatMap((d,i) => d.include===false ? [] : [i])
+    const selectedIndices = paired?(drafts[0]?.include===false?[]:[0]):drafts.flatMap((d,i) => d.include===false ? [] : [i])
     if (!selectedIndices.length) return setMessage('Select at least one object.')
     approvalLock.current = true
     setStage('saving')
@@ -259,7 +263,8 @@ export default function AIIntake() {
           current_attribution:d.current_attribution,
           period_wording:d.period_wording,
           region_country:d.region_country,
-          condition_summary:d.condition_summary
+          condition_summary:d.condition_summary,
+          ...(paired&&i===0?{working_title:pairProposal?.title,pair_source_indices:[0,1]}:{})
         }
       }
       const {data,error} = await supabase.rpc('ci_approve_saved_intake_v1',{
@@ -362,6 +367,11 @@ export default function AIIntake() {
            <p>Mark recheck: {inscriptionReviewStatus}. Existing knowledge: {knowledgeLookup.status}. Neither confirms a maker.</p>
           </details>
         </div>
+        {pairProposal&&<div className="panel ci-pair-choice">
+         <strong>Matching pair identified — two physical items, normally one sale lot</strong>
+         <p>Both pieces and their individual photos remain documented. Keep one catalogue record for the pair, or turn this off if you plan to sell the pieces separately.</p>
+         <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>setGroupPair(e.target.checked)}/> One catalogue record for this pair (recommended)</label>
+        </div>}
         <ObjectCollectionToolbar query={query} onQueryChange={setQuery}
          view={view} onViewChange={changeView} filter={filter} onFilterChange={setFilter}
          searchLabel="Search intake objects" filterLabel="Filter intake objects"
@@ -369,6 +379,7 @@ export default function AIIntake() {
         />
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>
           {drafts.map((d,idx)=>{
+            if(paired&&idx===1)return null
             if(![d.working_title,d.object_type,d.maker,d.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
             if(filter==='SELECTED'&&d.include===false)return null
             if(filter==='EXCLUDED'&&d.include!==false)return null
@@ -382,8 +393,8 @@ export default function AIIntake() {
                 {hero?<img src={hero.preview} alt={d.working_title||'Provisional object'}/>:<span className="ci-missing-photo">Photo needs linking</span>}
               </div>
               <div className="itemCardBody">
-                <div className="itemMeta"><span>Object {idx+1}</span><span>Provisional</span></div>
-                <h3 className="ci-record-title">{d.working_title||'Unidentified object'}</h3>
+                <div className="itemMeta"><span>{paired?'Matched pair · 2 pieces':'Object '+(idx+1)}</span><span>Provisional</span></div>
+                <h3 className="ci-record-title">{paired&&pairProposal?pairProposal.title:d.working_title||'Unidentified object'}</h3>
                 <p className="ci-record-stage">{d.maker||'Maker not confirmed'} · {d.preliminary_value?.quick_sale==null?'Value needs research':d.preliminary_value.currency+' '+d.preliminary_value.quick_sale+' estimated fast cash'}</p>
                 <label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
                   <input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/>
@@ -395,7 +406,8 @@ export default function AIIntake() {
                     <section className="ci-review-section ci-review-section-primary">
                      <div className="ci-review-section-heading"><span className="ci-review-section-number">01</span><h4>Your review</h4><span className="ci-review-section-hint">Editable</span></div>
                      <div className="ci-review-fields">
-                      <label>Working title<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
+                      <label>{paired?'Original first-piece title':'Working title'}<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
+                      {paired&&<p className="ci-page-meta">Second piece: {drafts[1]?.working_title||'Unidentified'} — {drafts[1]?.condition_summary||'Condition not recorded'}</p>}
                       <label>Object type<input value={d.object_type} onChange={e=>patchDraft(idx,'object_type',e.target.value)}/></label>
                       <label>Maker — unverified until researched<input value={d.maker||''} onChange={e=>patchDraft(idx,'maker',e.target.value||null)}/></label>
                       <label>Attribution<input value={d.current_attribution||''} onChange={e=>patchDraft(idx,'current_attribution',e.target.value||null)}/></label>
@@ -438,7 +450,7 @@ export default function AIIntake() {
         <div className="intakeActions">
           <button className="secondaryButton" disabled={stage==='saving'} onClick={()=>setStage('upload')}>Back to photographs</button>
           <button className="primaryButton intakeBigButton" disabled={stage==='saving'||!selectedCount} onClick={approve}>
-           {stage==='saving'?'Saving catalogue…':'Catalogue '+selectedCount+' selected'}
+           {stage==='saving'?'Saving catalogue…':paired?'Catalogue pair as one item':'Catalogue '+selectedCount+' selected'}
           </button>
         </div>
       </>}
