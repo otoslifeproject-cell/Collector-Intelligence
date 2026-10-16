@@ -105,6 +105,9 @@ Hard rules:
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Inspect silhouette/proportions, colour/clarity, base, pontil, polished/ground areas, mould seams, bubbles/striae/inclusions, tooling, cut decoration, rim, handle joins/applied decoration, wear, labels, marks/signatures and visible chips/cracks/bruises/repairs.
 - For mixed batches, assign each image index to the object it depicts. Do not transfer evidence between objects.
+- In single-object intake, multiple camera angles of one physical piece must NOT become multiple object records.
+- A matched PAIR is two physical pieces but can be one catalogue and selling lot. If a genuine matching pair is visible, describe the left and right pieces separately and retain their original photo indices so the owner can group them as one lot.
+- Never use shared images or similar colour alone as evidence that two objects are the same piece or a matched pair; flag ambiguity without inventing duplicates.
 - The user may later research the market. This intake pass has no verified sold-comparable search. Therefore any value is VISUAL-ONLY PROVISIONAL; use null when evidence is inadequate and keep valuation confidence appropriately low.
 - If an attribution could materially change value, set specialist_review true and sale_readiness SPECIALIST_REVIEW or RESEARCH_FIRST.
 - Treat a visible mark or inscription as attribution-critical evidence. Examine ALL supplied detail and underside photographs, especially later indices, before describing it as unreadable or asking for another photograph.
