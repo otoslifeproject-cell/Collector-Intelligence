@@ -283,6 +283,29 @@ async function verifyUser(token: string, supabaseUrl: string, supabaseKey: strin
   return response.ok;
 }
 
+async function readStagedRun(url:string,key:string,token:string,runId:string) {
+  const query=new URLSearchParams({select:'id,mode,status,input_photo_count,result',id:'eq.'+runId,limit:'1'});
+  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
+    headers:{apikey:key,Authorization:'Bearer '+token}
+  });
+  if(!response.ok)throw Error('Cannot read the owner-scoped saved photo session ('+response.status+')');
+  const rows=await response.json();
+  if(!Array.isArray(rows)||rows.length!==1)throw Error('Saved photo session not found or access denied');
+  return rows[0];
+}
+async function saveStagedAnalysis(url:string,key:string,token:string,runId:string,model:string,result:any) {
+  const query=new URLSearchParams({id:'eq.'+runId,status:'eq.DRAFT',select:'id,result'});
+  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
+    method:'PATCH',
+    headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'return=representation'},
+    body:JSON.stringify({model,result})
+  });
+  const rows=await response.json();
+  if(!response.ok||!Array.isArray(rows)||rows.length!==1)
+    throw Error('Completed AI analysis could not be written into the saved report ('+response.status+')');
+  return rows[0];
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -316,9 +339,25 @@ export default async function handler(req: any, res: any) {
     return res.status(503).json({error:"Trusted Knowledge Brain inaccessible; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_NETWORK"});
   }
 
-  const { mode = "single", images = [], context = {} } = req.body || {};
+  const { mode = "single", images = [], context = {}, run_id } = req.body || {};
   if (!Array.isArray(images) || images.length < 1) return res.status(400).json({ error: "At least one image is required" });
   if (images.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
+  if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
+    return res.status(400).json({error:'Save the source photograph session before starting paid AI analysis.'});
+  let staged:any;
+  try {
+    staged=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
+    const manifest=staged.result?.image_manifest;
+    if(staged.status!=='DRAFT'||staged.mode!==mode||staged.input_photo_count!==images.length||
+       !Array.isArray(manifest)||manifest.length!==images.length||
+       !images.every((img:any)=>manifest.some((m:any)=>m.index===img.index&&m.file_name===img.fileName&&
+           typeof m.storage_path==='string')))
+      return res.status(409).json({error:'Source photo manifest does not match the owner-saved draft; no paid AI request made.'});
+    if(Array.isArray(staged.result?.objects)&&staged.result.objects.length)
+      return res.status(409).json({error:'This analysis is already saved. Open the original saved report; do not pay again.'});
+  }catch(e:any){
+    return res.status(503).json({error:e?.message||'Cannot verify saved intake manifest before AI request.'});
+  }
 
   const contextText = [
     `Intake mode: ${mode}. ${mode === "single" ? "Treat these as one object unless the photographs clearly prove otherwise." : "This may contain up to five physical objects; separate them by visual evidence."}`,
@@ -379,6 +418,19 @@ export default async function handler(req: any, res: any) {
 
   try {
     let result = JSON.parse(text);
+    // Save the first paid model answer BEFORE enrichment, second-pass AI or client response.
+    // If any later step fails, the user still has the original provisional report.
+    const originalManifest=staged.result.image_manifest;
+    try {
+      await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,{
+        ...staged.result,...result,image_manifest:originalManifest,
+        image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
+        canonical_policy_hashes:canonical.hashes,
+        knowledge_lookup:{status:'PENDING',matches:[]}
+      });
+    }catch(e:any){
+      return res.status(503).json({error:e?.message||'Paid analysis was returned but could not be persisted.',code:'FIRST_PASS_SAVE_FAILED',run_id});
+    }
     let knowledge_lookup: any = {status:'NOT_ATTEMPTED',matches:[]};
     try { knowledge_lookup = await lookupKnowledge(supabaseUrl,supabaseKey,token,result); }
     catch { return res.status(503).json({error:'Trusted knowledge retrieval failed after model analysis; result not approved.',code:'LOOKUP_ERROR'}); }
@@ -439,7 +491,19 @@ export default async function handler(req: any, res: any) {
       }
     }
     result = reconcileKnowledge(result, knowledge_lookup);
+    const savedResult={
+      ...staged.result,...result,image_manifest:originalManifest,
+      image_manifest_version:1,analysis_stage:'COMPLETE',
+      inscription_review,inscription_review_status,knowledge_lookup,
+      canonical_policy_hashes:canonical.hashes
+    };
+    try{
+      await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,savedResult);
+    }catch(e:any){
+      return res.status(503).json({error:'First AI report saved, but final enrichment could not be saved. Open your original saved report.',code:'FINAL_SAVE_FAILED',run_id});
+    }
     return res.status(200).json({
+      saved_run_id:run_id,
       model: payload.model || body.model,
       response_id: payload.id || null,
       result,
