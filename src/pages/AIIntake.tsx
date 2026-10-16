@@ -452,7 +452,7 @@ export default function AIIntake() {
               <p className="ci-record-stage">Continue identification, research and sales planning</p>
               <span className="primaryButton ci-card-action">Open object →</span>
              </div>
-            </a>
+            </Link>
           })}
         </div>
         <div className="intakeActions"><button className="secondaryButton" onClick={()=>nav('/inventory')}>All objects</button></div>
