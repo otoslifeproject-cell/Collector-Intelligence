@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { Camera, Check, ExternalLink, LoaderCircle, Save, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Comparable, Item, ItemPhoto } from '../types'
@@ -8,12 +8,20 @@ import Confidence from '../components/Confidence'
 
 export default function ItemDetail() {
   const {id} = useParams()
+  const location = useLocation()
   const [item,setItem] = useState<Item|null>(null)
   const [photos,setPhotos] = useState<ItemPhoto[]>([])
   const [comps,setComps] = useState<Comparable[]>([])
   const [evidenceRecords,setEvidenceRecords] = useState<any[]>([])
   const [attributionVersions,setAttributionVersions] = useState<any[]>([])
-  const [tab,setTab] = useState(()=>new URLSearchParams(window.location.search).get('tab')==='market'?'market':'overview')
+  const [tab,setTab] = useState(()=>{
+    const query=new URLSearchParams(location.search).get('tab')
+    return ['overview','photos','identification','market','sales','catalogue'].includes(query||'')?query!:'overview'
+  })
+  useEffect(()=>{
+    const requested=new URLSearchParams(location.search).get('tab')
+    if(requested&&['overview','photos','identification','market','sales','catalogue'].includes(requested))setTab(requested)
+  },[location.search,id])
   const [message,setMessage] = useState('')
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
