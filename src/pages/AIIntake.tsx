@@ -202,7 +202,7 @@ export default function AIIntake() {
     approvalLock.current=true
     setStage('saving'); setMessage('Creating permanent Collector Intelligence records…')
     const {data:{user}} = await supabase.auth.getUser()
-    if (!user) { setStage('review'); return setMessage('Session expired.') }
+    if (!user) { approvalLock.current=false; setStage('review'); return setMessage('Session expired.') }
 
     try {
       // A partial prior approval must not be retried blindly: photo copies and evidence writes are non-atomic.
