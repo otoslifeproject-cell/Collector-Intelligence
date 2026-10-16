@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, useMemo, useState } from 'react'
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, Check, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -49,6 +49,7 @@ const emptyContext = {
 
 export default function AIIntake() {
   const nav = useNavigate()
+  const approvalLock = useRef(false)
   const [mode,setMode] = useState<'single'|'batch'>('single')
   const [photos,setPhotos] = useState<UploadPhoto[]>([])
   const [context,setContext] = useState(emptyContext)
@@ -194,13 +195,20 @@ export default function AIIntake() {
   }
 
   const approve = async () => {
+    if(approvalLock.current)return
+    if(!analysisRunId){setMessage('Save the AI analysis report before catalogue approval. No objects have been created.');return}
     const selected = drafts.filter(d=>d.include!==false)
     if (!selected.length) return setMessage('Select at least one object.')
+    approvalLock.current=true
     setStage('saving'); setMessage('Creating permanent Collector Intelligence records…')
     const {data:{user}} = await supabase.auth.getUser()
     if (!user) { setStage('review'); return setMessage('Session expired.') }
 
     try {
+      // A partial prior approval must not be retried blindly: photo copies and evidence writes are non-atomic.
+      const {data:existing,error:duplicateCheckError}=await supabase.from('items').select('id,item_code').eq('source_analysis_run_id',analysisRunId).limit(1)
+      if(duplicateCheckError)throw new Error('Cannot verify prior catalogue approvals; no records were created. '+duplicateCheckError.message)
+      if(existing?.length)throw new Error('This analysis already has a catalogue record. Approval is blocked to prevent duplicates; inspect Inventory before continuing.')
       const created:any[] = []
       for (let draftIndex=0; draftIndex<selected.length; draftIndex++) {
         const d = selected[draftIndex]
@@ -313,6 +321,8 @@ export default function AIIntake() {
     } catch (err:any) {
       setStage('review')
       setMessage(err?.message || 'Could not create records')
+    } finally {
+      approvalLock.current=false
     }
   }
 
