@@ -147,6 +147,7 @@ export default function AIIntake() {
     if (!session || !user) { setStage('upload'); return setMessage('Your session has expired. Sign in again.') }
 
     const sessionId = crypto.randomUUID()
+    let stagedRunId:string|null=null
     const uploaded: UploadPhoto[] = []
 
     try {
@@ -160,13 +161,24 @@ export default function AIIntake() {
         uploaded.push({...p,storagePath:path,signedUrl:signed.signedUrl})
       }
       setPhotos(uploaded)
-      setMessage('Collector Intelligence is separating and examining the object evidence…')
+      // Preserve the complete source manifest in the owner's private database BEFORE paid AI.
+      const sourceManifest=uploaded.map(p=>({index:p.index,storage_path:p.storagePath,file_name:p.file.name}))
+      const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
+        mode,model:'PENDING',status:'DRAFT',input_photo_count:uploaded.length,
+        user_context:context,
+        result:{image_manifest_version:1,image_manifest:sourceManifest,analysis_stage:'UPLOADED'}
+      }).select('id').single()
+      if(stageError||!staged?.id)throw Error('Your photographs uploaded, but the saved report could not be created. No AI was charged; please check your session before retrying.')
+      stagedRunId=staged.id
+      setAnalysisRunId(staged.id)
+      setMessage('Photographs saved. Collector Intelligence is now examining the evidence…')
 
       const response = await fetch('/api/analyse-intake',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
         body:JSON.stringify({
           mode,
+          run_id:staged.id,
           images:uploaded.map(p=>({index:p.index,fileName:p.file.name,url:p.signedUrl})),
           context:{
             ...context,
@@ -184,23 +196,28 @@ export default function AIIntake() {
       setInscriptionReview(payload.inscription_review || null)
       setInscriptionReviewStatus(payload.inscription_review_status || 'UNKNOWN_VERSION')
       setKnowledgeLookup(payload.knowledge_lookup || {status:'UNAVAILABLE',matches:[]})
-      setMessage('Saving your analysis and original photo references…')
-
-      const {data:run,error:runError} = await supabase.from('ai_analysis_runs').insert({
-        mode,
-        model: payload.model || 'unknown',
-        status:'DRAFT',
-        input_photo_count: uploaded.length,
-        user_context: context,
-        result: { ...payload.result, image_manifest_version:1, image_manifest:uploaded.map(p=>({index:p.index,storage_path:p.storagePath,file_name:p.file.name})), inscription_review: payload.inscription_review || null, inscription_review_status:payload.inscription_review_status || null, knowledge_lookup:payload.knowledge_lookup || null, canonical_policy_hashes:payload.canonical_policy_hashes || null }
-      }).select('id').single()
-      if (runError || !run?.id) throw new Error('The AI analysis finished but your report could not be saved. Please keep this page open and contact support; do not run paid analysis again.')
-      setAnalysisRunId(run.id)
+      setMessage('Checking that the full paid analysis was safely saved…')
+      if(payload.saved_run_id!==staged.id)throw Error('Analysis run mismatch. The saved report must be checked before approval.')
+      const {data:verified,error:verifyError}=await supabase.from('ai_analysis_runs')
+        .select('id,result,status').eq('id',staged.id).single()
+      if(verifyError||!verified||verified.status!=='DRAFT'||
+         !Array.isArray(verified.result?.objects)||verified.result.objects.length!==objects.length)
+        throw Error('The AI response is not yet confirmed in private storage. Do not repeat the paid run; open the saved report.')
       setMessage('AI report saved with original photo references. Review and catalogue when ready.')
       setStage('review')
     } catch (err:any) {
+      // A later enrichment failure must NOT trigger another paid AI call if the first-pass result survived.
+      if(stagedRunId){
+        const {data:retained}=await supabase.from('ai_analysis_runs').select('result')
+          .eq('id',stagedRunId).single()
+        if(Array.isArray(retained?.result?.objects)&&retained.result.objects.length){
+          nav('/draft/'+stagedRunId)
+          return
+        }
+      }
       setStage('upload')
-      setMessage(err?.message || 'Analysis failed')
+      setMessage((err?.message||'Analysis failed')+
+        (stagedRunId?' Your private photo session was preserved; do not pay for another analysis until the saved run is checked.':''))
     }
   }
 
