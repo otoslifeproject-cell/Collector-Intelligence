@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, Check, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 
 type UploadPhoto = {
   index: number
@@ -63,6 +64,19 @@ export default function AIIntake() {
   const [stage,setStage] = useState<'upload'|'analysing'|'review'|'saving'|'complete'>('upload')
   const [message,setMessage] = useState('')
   const [dragActive,setDragActive] = useState(false)
+  const [query,setQuery] = useState('')
+  const [filter,setFilter] = useState('ALL')
+  const [view,setView] = useState<'tiles'|'list'|'compact'>(() => {
+    try {
+      const saved=window.localStorage.getItem('ci-inventory-view')
+      return saved==='list'||saved==='compact'?saved:'tiles'
+    }catch{return 'tiles'}
+  })
+  const changeView=(v:'tiles'|'list'|'compact')=>{
+    setView(v)
+    try{window.localStorage.setItem('ci-inventory-view',v)}catch{ /* optional preference */ }
+  }
+
 
   const selectedCount = useMemo(()=>drafts.filter(d=>d.include!==false).length,[drafts])
 
@@ -310,80 +324,118 @@ export default function AIIntake() {
       </div>}
 
       {(stage==='review' || stage==='saving') && <>
-        <div className="reviewTop panel" style={{padding:16}}>
-          <div><div className="eyebrow">REVIEW BEFORE SAVING</div><h2>{selectedCount} objects ready</h2></div>
-          <details><summary style={{cursor:'pointer',fontSize:12,color:'var(--muted)'}}>Batch notes and analysis status</summary>
-            <p>{batchSummary}</p>
-            <p>Inscription recheck: {inscriptionReviewStatus}. Existing knowledge: {knowledgeLookup.status}. Neither confirms a maker.</p>
+        <div className="ci-intake-review-heading">
+          <div><div className="eyebrow">REVIEW YOUR OBJECTS</div>
+           <h2>{drafts.length} draft objects</h2>
+           <p className="ci-page-meta">Select the objects you want to catalogue. Original source images and AI findings remain unchanged.</p>
+          </div>
+          <details className="ci-archive-section">
+           <summary>Batch analysis and model status</summary>
+           <p>{batchSummary}</p>
+           <p>Mark recheck: {inscriptionReviewStatus}. Existing knowledge: {knowledgeLookup.status}. Neither confirms a maker.</p>
           </details>
         </div>
-        <div className="draftGrid">
+        <ObjectCollectionToolbar query={query} onQueryChange={setQuery}
+         view={view} onViewChange={changeView} filter={filter} onFilterChange={setFilter}
+         searchLabel="Search intake objects" filterLabel="Filter intake objects"
+         filters={[{value:'ALL',label:'All objects'},{value:'SELECTED',label:'Selected to save'},{value:'EXCLUDED',label:'Excluded'}]}
+        />
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>
           {drafts.map((d,idx)=>{
+            if(![d.working_title,d.object_type,d.maker,d.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
+            if(filter==='SELECTED'&&d.include===false)return null
+            if(filter==='EXCLUDED'&&d.include!==false)return null
             const hero=photos.find(p=>d.image_indices.includes(p.index))
-            return <div className={d.include===false?'draftCard excluded':'draftCard'} key={idx}>
-              <div className="draftHead">
-                <label className="draftInclude"><input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/><span>Save this object</span></label>
-                <span className="draftNumber">OBJECT {String.fromCharCode(65+idx)}</span>
+            return <article className={`itemCard ci-record-card ci-intake-record ${d.include===false?'excluded':''}`}
+              key={idx} id={'ci-intake-object-'+idx} tabIndex={view==='compact'?0:undefined}
+              role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Review '+d.working_title:undefined}
+              onClick={view==='compact'?()=>changeView('tiles'):undefined}
+              onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();changeView('tiles')}}:undefined}>
+              <div className="itemCardImage placeholderGlass">
+                {hero?<img src={hero.preview} alt={d.working_title||'Provisional object'}/>:<span className="ci-missing-photo">Photo needs linking</span>}
               </div>
-              <div style={{display:'flex',gap:12,alignItems:'center',marginBottom:12}}>
-                {hero && <img src={hero.preview} alt={d.working_title} style={{width:104,height:104,objectFit:'cover',borderRadius:9}}/>}
-                <div style={{flex:1,minWidth:0}}>
-                  <strong style={{fontSize:16,display:'block',lineHeight:1.3}}>{d.working_title}</strong>
-                  <div style={{fontSize:12,color:'var(--muted)',marginTop:6}}>Maker {d.maker||'not confirmed'} · ID {d.identification_confidence}%</div>
-                  <div style={{fontSize:13,marginTop:7,color:'var(--accent)'}}>{d.preliminary_value.quick_sale===null?'Value needs research':d.preliminary_value.currency+' '+d.preliminary_value.quick_sale+' provisional quick-sale'}</div>
-                </div>
-              </div>
-              <details style={{borderTop:'1px solid var(--line)',paddingTop:12}}>
-                <summary style={{cursor:'pointer',fontWeight:750}}>Edit details and inspect evidence</summary>
-                <div style={{marginTop:14}}>
-                  <div className="draftImages">{photos.filter(p=>d.image_indices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index}><img src={p.preview} alt={'Photograph '+(p.index+1)}/><small>Photo {p.index+1}</small></a>)}</div>
-                  <label>Working title<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
-                  <div className="formGrid">
-                    <label>Type<input value={d.object_type} onChange={e=>patchDraft(idx,'object_type',e.target.value)}/></label>
-                    <label>Maker<input value={d.maker||''} onChange={e=>patchDraft(idx,'maker',e.target.value||null)}/></label>
-                    <label>Attribution<input value={d.current_attribution||''} onChange={e=>patchDraft(idx,'current_attribution',e.target.value||null)}/></label>
-                    <label>Period<input value={d.period_wording||''} onChange={e=>patchDraft(idx,'period_wording',e.target.value||null)}/></label>
+              <div className="itemCardBody">
+                <div className="itemMeta"><span>Object {idx+1}</span><span>Provisional</span></div>
+                <h3 className="ci-record-title">{d.working_title||'Unidentified object'}</h3>
+                <p className="ci-record-stage">{d.maker||'Maker not confirmed'} · {d.preliminary_value?.quick_sale==null?'Value needs research':d.preliminary_value.currency+' '+d.preliminary_value.quick_sale+' estimated fast cash'}</p>
+                <label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
+                  <input type="checkbox" checked={d.include!==false} onChange={e=>patchDraft(idx,'include',e.target.checked)}/>
+                  <span>Include in catalogue</span>
+                </label>
+                <details className="ci-object-review">
+                  <summary>Review details and evidence</summary>
+                  <div className="ci-object-review-content">
+                    <section className="ci-review-section ci-review-section-primary">
+                     <div className="ci-review-section-heading"><span className="ci-review-section-number">01</span><h4>Your review</h4><span className="ci-review-section-hint">Editable</span></div>
+                     <div className="ci-review-fields">
+                      <label>Working title<input value={d.working_title} onChange={e=>patchDraft(idx,'working_title',e.target.value)}/></label>
+                      <label>Object type<input value={d.object_type} onChange={e=>patchDraft(idx,'object_type',e.target.value)}/></label>
+                      <label>Maker — unverified until researched<input value={d.maker||''} onChange={e=>patchDraft(idx,'maker',e.target.value||null)}/></label>
+                      <label>Attribution<input value={d.current_attribution||''} onChange={e=>patchDraft(idx,'current_attribution',e.target.value||null)}/></label>
+                      <label>Period<input value={d.period_wording||''} onChange={e=>patchDraft(idx,'period_wording',e.target.value||null)}/></label>
+                      <label>Condition notes<textarea rows={3} value={d.condition_summary} onChange={e=>patchDraft(idx,'condition_summary',e.target.value)}/></label>
+                     </div>
+                    </section>
+                    <details className="ci-review-section ci-review-source">
+                      <summary><span className="ci-review-section-number">02</span><span>Original photographs</span><span className="ci-review-section-hint">{d.image_indices.length} linked</span></summary>
+                      <div className="draftImages ci-intake-photo-details">
+                       {photos.filter(p=>d.image_indices.includes(p.index)).map(p=><a href={p.preview} target="_blank" rel="noreferrer" key={p.index}>
+                         <img src={p.preview} alt={'Photograph '+(p.index+1)}/><small>Photo {p.index+1}</small>
+                       </a>)}
+                      </div>
+                    </details>
+                    <details className="ci-review-section ci-review-source">
+                      <summary><span className="ci-review-section-number">03</span><span>AI observations and evidence</span><span className="ci-review-section-hint">Provisional</span></summary>
+                      <div className="ci-review-source-content">
+                       <div><small>Identification confidence</small><p>{d.identification_confidence}% · Dating {d.dating_confidence}% · Valuation {d.valuation_confidence}%</p></div>
+                       {d.marks_signatures_labels&&<div><small>Possible mark</small><p>{d.marks_signatures_labels}</p></div>}
+                       {inscriptionReview?.mark_visible&&d.image_indices.some(i=>(inscriptionReview.evidence_image_indices||[]).includes(i))&&
+                        <div><small>Unverified inscription reading</small><p>{inscriptionReview.candidate_transcription||'Unclear'}</p></div>}
+                       {d.evidence.map((ev,i)=><div key={i}><small>{ev.certainty_class}</small><p>{ev.claim}</p></div>)}
+                       <div><small>Estimated valuation basis (not verified sold data)</small><p>{d.preliminary_value?.basis||'Not supplied'}</p></div>
+                      </div>
+                    </details>
+                    <details className="ci-review-section ci-review-source">
+                      <summary><span className="ci-review-section-number">04</span><span>Suggested next checks</span><span className="ci-review-section-hint">{d.next_evidence.length}</span></summary>
+                      <div className="ci-review-source-content">
+                       {d.next_evidence.map((n,i)=><div key={i}><small>Evidence request</small><p>{n.title}</p></div>)}
+                      </div>
+                    </details>
                   </div>
-                  <div className="confidenceMiniRow"><span>ID {d.identification_confidence}%</span><span>Date {d.dating_confidence}%</span><span>Value {d.valuation_confidence}%</span></div>
-                  <label>Condition<textarea rows={3} value={d.condition_summary} onChange={e=>patchDraft(idx,'condition_summary',e.target.value)}/></label>
-                  {d.marks_signatures_labels && <p><strong>Marks:</strong> {d.marks_signatures_labels}</p>}
-                  {inscriptionReview?.mark_visible && d.image_indices.some((i:number)=>(inscriptionReview.evidence_image_indices||[]).includes(i)) && <p>Possible inscription: {inscriptionReview.candidate_transcription||'Unclear'} · Unverified visual lead.</p>}
-                  <details><summary style={{cursor:'pointer'}}>Evidence ({d.evidence.length})</summary>
-                    {d.evidence.map((ev,i)=><p key={i}><strong>{ev.certainty_class}</strong> {ev.claim}</p>)}
-                  </details>
-                  <details><summary style={{cursor:'pointer'}}>Next checks ({d.next_evidence.length})</summary>
-                    {d.next_evidence.map((n,i)=><p key={i}>{n.title}</p>)}
-                  </details>
-                  <p style={{fontSize:12,color:'var(--muted)'}}>Provisional value only. {d.preliminary_value.basis}</p>
-                </div>
-              </details>
-            </div>
+                </details>
+              </div>
+            </article>
           })}
         </div>
-        {message && <div className="note">{message}</div>}
-        <div className="intakeActions stickyActions">
-          <button className="secondaryButton" disabled={stage==='saving'} onClick={()=>setStage('upload')}>Back to photos</button>
-          <button className="primaryButton intakeBigButton" disabled={stage==='saving'||!selectedCount} onClick={approve}>{stage==='saving'?'Saving…':'Save '+selectedCount+' objects →'}</button>
+        {message && <div role="status" className="note">{message}</div>}
+        <div className="intakeActions">
+          <button className="secondaryButton" disabled={stage==='saving'} onClick={()=>setStage('upload')}>Back to photographs</button>
+          <button className="primaryButton intakeBigButton" disabled={stage==='saving'||!selectedCount} onClick={approve}>
+           {stage==='saving'?'Saving catalogue…':'Catalogue '+selectedCount+' selected'}
+          </button>
         </div>
       </>}
       {stage==='complete' && <div>
-        <div className="panel" style={{padding:16,marginBottom:14}}>
-          <h2>{savedItems.length} objects saved</h2>
-          <p style={{color:'var(--muted)',margin:0}}>Choose an object to research, or view your collection.</p>
+        <div className="panel ci-catalogued-result">
+          <h2>{savedItems.length} catalogue objects saved</h2>
+          <p className="ci-page-meta">Your original report and images are retained. Open an object to continue researching or selling.</p>
         </div>
-        <div className="draftGrid">
-          {savedItems.map((item:any,i:number)=>{
+        <ObjectCollectionToolbar query={query} onQueryChange={setQuery} view={view} onViewChange={changeView}
+         searchLabel="Search newly catalogued objects"/>
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>
+          {savedItems.filter((item:any)=>[item.title,item.item_code].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
+           .map((item:any)=>{
             const d=drafts[item.source_object_index]
             const hero=photos.find(p=>d?.image_indices.includes(p.index))
-            return <div className="draftCard" key={item.id}>
-              {hero&&<img src={hero.preview} alt={item.title||'Saved object'} style={{width:'100%',height:150,objectFit:'cover',borderRadius:9,marginBottom:12}}/>}
-              <strong>{item.item_code} · {item.title||'Untitled'}</strong>
-              <p style={{fontSize:12,color:'var(--muted)'}}>Provisional identification · original photographs preserved</p>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                <button className="primaryButton" onClick={()=>nav('/item/'+item.id+'?tab=market')}>Research & value →</button>
-                <button className="secondaryButton" onClick={()=>nav('/research?item='+item.id)}>Museum search</button>
-              </div>
-            </div>
+            return <a href={'#/item/'+item.id+'?tab=market'} className="itemCard ci-record-card" key={item.id}>
+             <div className="itemCardImage placeholderGlass">{hero?<img src={hero.preview} alt={item.title||'Collection object'}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
+             <div className="itemCardBody">
+              <div className="itemMeta"><span>{item.item_code}</span><span>Catalogued</span></div>
+              <h3 className="ci-record-title">{item.title||'Unidentified object'}</h3>
+              <p className="ci-record-stage">Continue identification, research and sales planning</p>
+              <span className="primaryButton ci-card-action">Open object →</span>
+             </div>
+            </a>
           })}
         </div>
         <div className="intakeActions"><button className="secondaryButton" onClick={()=>nav('/inventory')}>All objects</button></div>
