@@ -206,42 +206,82 @@ export default async function handler(req: any, res: any) {
   try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
-  const { item, images = [] } = req.body || {};
-  if (!item?.id) return res.status(400).json({ error: "Item record required" });
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(item.id))) return res.status(400).json({error:"Invalid item identifier"});
-  // An authenticated session does not itself authorise analysis of an arbitrary item ID.
-  // The items table uses owner-only RLS; do not incur paid research cost for inaccessible IDs.
-  const ownerQuery=new URLSearchParams({select:"id",id:"eq."+String(item.id),limit:"1"});
-  let authorisedItem:any[];
-  try {
-    const ownerResponse=await fetch(`${supabaseUrl}/rest/v1/items?${ownerQuery}`,{
-      headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
-    });
-    if(!ownerResponse.ok) return res.status(503).json({error:"Item ownership could not be checked; research stopped.",code:"ITEM_RLS_"+ownerResponse.status});
-    authorisedItem=await ownerResponse.json();
-  } catch {
-    return res.status(503).json({error:"Item ownership check unavailable; research stopped.",code:"ITEM_RLS_NETWORK"});
+  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [] } = req.body || {};
+  const draftMode=typeof draft_run_id==='string';
+  const isUuid=(value:any)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
+  let itemForResearch:any=item;
+  let trustedComparableRows:any[]=[];
+  if(draftMode){
+    if(!isUuid(draft_run_id)||!Number.isInteger(draft_index)||draft_index<0)
+      return res.status(400).json({error:'Invalid saved draft reference; no paid research run.'});
+    try{
+      const query=new URLSearchParams({select:'id,mode,status,input_photo_count,result',id:'eq.'+draft_run_id,limit:'1'});
+      const response=await fetch(`${supabaseUrl}/rest/v1/ai_analysis_runs?${query}`,{
+        headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
+      });
+      if(!response.ok)return res.status(503).json({error:'Cannot check saved draft ownership; no paid research run.'});
+      const rows=await response.json();
+      if(!Array.isArray(rows)||rows.length!==1||rows[0].status!=='DRAFT'
+         ||rows[0].result?.analysis_stage!=='COMPLETE'||!['single','batch'].includes(rows[0].mode))
+        return res.status(403).json({error:'Only an accessible, completed saved draft can be researched.'});
+      const o=rows[0].result?.objects?.[draft_index];
+      if(!o)return res.status(400).json({error:'Saved draft object index is invalid.'});
+      const isPair=Array.isArray(pair_source_indices)&&pair_source_indices.length===2&&
+        pair_source_indices[0]===0&&pair_source_indices[1]===1&&
+        rows[0].mode==='single'&&rows[0].result.objects.length===2&&draft_index===0;
+      if(pair_source_indices?.length&&!isPair)return res.status(400).json({error:'Unsupported pair grouping for paid research.'});
+      const companion=isPair?rows[0].result.objects[1]:null;
+      itemForResearch={
+        source_analysis_run_id:draft_run_id,
+        source_object_index:draft_index,
+        working_title:isPair?'Matched pair: '+o.working_title:o.working_title,
+        material:o.material,colour:o.colour,object_type:o.object_type,
+        maker:o.maker,current_attribution:o.current_attribution,period_wording:o.period_wording,
+        identification_confidence:o.identification_confidence,
+        condition_summary:o.condition_summary,
+        marks_signatures_labels:o.marks_signatures_labels,
+        original_visual_evidence:o.evidence,
+        catalogue_note:o.catalogue_note,
+        preliminary_value:o.preliminary_value,
+        pair_physical_count:isPair?2:1,
+        pair_companion:companion?{
+          working_title:companion.working_title,condition_summary:companion.condition_summary,
+          image_indices:companion.image_indices,evidence:companion.evidence
+        }:null,
+        evidence_status:'ORIGINAL AI INTAKE — UNVERIFIED; NOT YET CATALOGUED'
+      };
+    }catch{
+      return res.status(503).json({error:'Cannot load private saved draft for research; no model invoked.'});
+    }
+  }else{
+    if(!isUuid(item?.id))return res.status(400).json({error:'Valid catalogue item record required.'});
+    const ownerQuery=new URLSearchParams({select:'id',id:'eq.'+String(item.id),limit:'1'});
+    let authorisedItem:any[];
+    try{
+      const ownerResponse=await fetch(`${supabaseUrl}/rest/v1/items?${ownerQuery}`,{
+        headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
+      });
+      if(!ownerResponse.ok)return res.status(503).json({error:'Cannot check ownership before paid research.'});
+      authorisedItem=await ownerResponse.json();
+    }catch{return res.status(503).json({error:'Item ownership check unavailable.'});}
+    if(!Array.isArray(authorisedItem)||authorisedItem.length!==1)
+      return res.status(403).json({error:'Catalogue item not found or not authorised.'});
+    try{
+      const compQuery=new URLSearchParams({select:'id,venue,source_reference,source_url,lot_item_id,sale_date,price_type,price,currency,description,maker_attribution,dimensions,condition_summary,comparability_grade,verification_status',item_id:'eq.'+String(item.id),limit:'50'});
+      const compResponse=await fetch(`${supabaseUrl}/rest/v1/trusted_comparables_v1?${compQuery}`,{
+        headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
+      });
+      if(!compResponse.ok)return res.status(503).json({error:'Trusted comparable evidence unavailable; no paid research.'});
+      trustedComparableRows=await compResponse.json();
+      if(!Array.isArray(trustedComparableRows))return res.status(503).json({error:'Trusted comparable evidence invalid.'});
+    }catch{return res.status(503).json({error:'Trusted comparable gate unavailable; no model invoked.'});}
   }
-  if(!Array.isArray(authorisedItem) || authorisedItem.length!==1) return res.status(403).json({error:"Item not found in your private collection or not authorised for research"});
-
-
-  // Owner-scoped, reviewed realised prices only. No fallback to raw comparable rows.
-  let trustedComparableRows:any[];
-  try {
-    const compQuery=new URLSearchParams({select:"id,venue,source_reference,source_url,lot_item_id,sale_date,price_type,price,currency,description,maker_attribution,dimensions,condition_summary,comparability_grade,verification_status",item_id:"eq."+String(item.id),limit:"50"});
-    const compResponse=await fetch(`${supabaseUrl}/rest/v1/trusted_comparables_v1?${compQuery}`,{
-      headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
-    });
-    if(!compResponse.ok) return res.status(503).json({error:"Verified comparable-sale gate unavailable; paid research stopped.",code:"TRUSTED_COMPS_"+compResponse.status});
-    trustedComparableRows=await compResponse.json();
-    if(!Array.isArray(trustedComparableRows)) return res.status(503).json({error:"Invalid verified-sale gate response",code:"TRUSTED_COMPS_INVALID"});
-  } catch {
-    return res.status(503).json({error:"Verified comparable-sale gate inaccessible; paid research stopped.",code:"TRUSTED_COMPS_NETWORK"});
-  }
+  if(!Array.isArray(images)||images.length>12||images.some((url:any)=>typeof url!=='string'||!url.startsWith(supabaseUrl+'/storage/v1/')))
+    return res.status(400).json({error:'Invalid private image links for research; no paid research.'});
 
   const content: any[] = [{
     type: "input_text",
-    text: `Research this permanent Collector Intelligence record. Current record is working evidence, not guaranteed fact:\n${JSON.stringify(item, null, 2)}\nUse live web search for attribution and market evidence. Preserve uncertainty.`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.`
   }];
   for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
 
