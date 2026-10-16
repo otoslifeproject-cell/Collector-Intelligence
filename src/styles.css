@@ -164,3 +164,30 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-object-grid.ci-view-compact .ci-object-review>summary{font-size:11px}
 .ci-object-grid .ci-object-review[open]{margin-top:10px}
 .ci-object-grid.ci-view-list .ci-object-review[open],.ci-object-grid.ci-view-compact .ci-object-review[open]{overflow-wrap:anywhere}
+
+/* Review workspace visual hierarchy — shared surface, readable content, lower cognitive load. */
+:root{--ci-review-surface:#1a242b;--ci-review-recess:#10171d;--ci-review-line:#40505b;--ci-review-body:#d3dce2}
+.ci-object-grid .ci-object-review[open]{background:var(--ci-review-surface);border:1px solid var(--ci-review-line);border-radius:11px;margin:12px -4px 0;padding:0;box-shadow:0 6px 18px rgba(0,0,0,.09)}
+.ci-object-grid .ci-object-review[open]>summary{padding:12px 16px;border-bottom:1px solid var(--ci-review-line);min-height:44px;color:#e8cc90}
+.ci-object-grid .ci-object-review-content{gap:0;padding:0}
+.ci-object-grid .ci-review-section{padding:16px;border-bottom:1px solid var(--ci-review-line);background:transparent}
+.ci-object-grid .ci-review-section:last-child{border-bottom:0}
+.ci-review-section-heading,.ci-object-grid .ci-review-source>summary{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ci-review-section-heading{margin:0 0 14px}
+.ci-review-section-heading h4{font-size:14px;color:var(--text);letter-spacing:0;margin:0;font-weight:750}
+.ci-review-section-number{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:#33434c;color:#f1d79e;font-weight:800;font-size:11px}
+.ci-review-section-hint{margin-left:auto;color:#b9c8cf;font-size:11px;font-weight:500}
+.ci-object-grid .ci-review-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:13px}
+.ci-object-grid .ci-review-fields label{color:#d2dbe1;font-size:12px;letter-spacing:.01em;font-weight:650}
+.ci-object-grid .ci-review-fields input,.ci-object-grid .ci-review-fields textarea{background:var(--ci-review-recess);color:#f3f4f2;font-weight:500;line-height:1.55;font-size:14px;padding:11px 12px;border-color:#4c5962;width:100%;min-height:43px}
+.ci-object-grid .ci-review-fields textarea{min-height:102px;resize:vertical}
+.ci-object-grid .ci-review-fields input:focus,.ci-object-grid .ci-review-fields textarea:focus{border-color:var(--accent);outline:2px solid rgba(201,169,107,.25)}
+.ci-object-grid .ci-review-source{margin:0;padding:0;border-top:0}
+.ci-object-grid .ci-review-source>summary{padding:14px 16px;min-height:52px;cursor:pointer;color:#e7edf0;font-size:13px;font-weight:650}
+.ci-object-grid .ci-review-source>summary:hover{background:#24303a}
+.ci-review-source-content{display:grid;gap:12px;padding:0 16px 16px}
+.ci-review-source-content>div{padding:12px 14px;border:1px solid var(--ci-review-line);background:var(--ci-review-recess);border-radius:9px}
+.ci-review-source-content small{display:block;color:#bac8d0;font-weight:700;font-size:11px;margin-bottom:7px}
+.ci-object-grid .ci-review-source-content p{color:var(--ci-review-body);font-size:13px;line-height:1.65;font-weight:400;max-width:85ch}
+.ci-object-grid.ci-view-list .ci-object-review[open]{grid-column:1/-1}
+@media(max-width:700px){.ci-object-grid .ci-review-section{padding:12px}.ci-object-grid .ci-object-review[open]{margin-left:0;margin-right:0}.ci-review-section-hint{width:auto}.ci-review-source-content{padding:0 12px 12px}}
