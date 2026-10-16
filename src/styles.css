@@ -205,3 +205,7 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-object-grid.ci-view-compact .ci-missing-photo{font-size:11px;max-width:100%;padding:8px}
 .ci-object-grid.ci-view-compact .itemCard:focus-visible,.ci-object-grid.ci-view-compact .itemCard:focus-within{outline:2px solid var(--accent);outline-offset:4px}
 @media(max-width:650px){.ci-object-grid.ci-view-compact{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px}}
+
+/* Preserve a full-cell link on draft icons without showing button chrome. */
+.ci-object-grid.ci-view-compact .ci-record-card:not(a) .itemCardBody>.ci-card-action{display:block!important;position:absolute;inset:0;margin:0;padding:0;min-height:0;opacity:0;z-index:3;border:0}
+.ci-object-grid.ci-view-compact .ci-record-card:not(a):has(.ci-card-action):focus-within{outline:2px solid var(--accent);outline-offset:3px}
