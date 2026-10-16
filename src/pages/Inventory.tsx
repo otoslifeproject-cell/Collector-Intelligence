@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, SlidersHorizontal, LayoutGrid, List, Grid2X2 } from 'lucide-react'
+import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
@@ -76,20 +76,16 @@ export default function Inventory() {
         <div><div className="eyebrow">YOUR OBJECTS</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Inventory</h1></div>
         <Link to="/new" className="primaryButton inlineButton">+ Add item</Link>
       </div>
-      <div className="ci-inventory-controls">
-        <div className="ci-search-control searchBox"><Search size={18}/><input aria-label="Search objects" placeholder="Find an object…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
-        <div className="ci-toolbar-actions">
-          <div className="ci-status-control selectWrap"><SlidersHorizontal size={18}/><select aria-label="Filter objects by status" value={status} onChange={e=>setStatus(e.target.value)}>
-            <option value="ALL">All statuses</option><option value="DRAFT">Unfinished drafts</option><option>CATALOGUED</option><option>RESEARCH</option><option>ONE_QUICK_CHECK</option>
-            <option>SPECIALIST_REVIEW</option><option>READY_TO_SELL</option><option>LISTED</option><option>CONSIGNED</option><option>SOLD</option><option>ARCHIVED</option>
-          </select></div>
-          <div className="ci-view-switch" role="group" aria-label="Inventory layout">
-            <button type="button" className={view==='tiles'?'active':''} aria-label="Tile view" aria-pressed={view==='tiles'} onClick={()=>changeView('tiles')} title="Tiles"><LayoutGrid size={18}/><span>Tiles</span></button>
-            <button type="button" className={view==='list'?'active':''} aria-label="List view" aria-pressed={view==='list'} onClick={()=>changeView('list')} title="List"><List size={18}/><span>List</span></button>
-            <button type="button" className={view==='compact'?'active':''} aria-label="Compact icon view" aria-pressed={view==='compact'} onClick={()=>changeView('compact')} title="Icons"><Grid2X2 size={18}/><span>Icons</span></button>
-          </div>
-        </div>
-      </div>
+      <ObjectCollectionToolbar
+        query={query} onQueryChange={setQuery} view={view} onViewChange={changeView}
+        searchLabel="Search inventory" filterLabel="Filter inventory by status"
+        filter={status} onFilterChange={setStatus}
+        filters={[
+         {value:'ALL',label:'All statuses'},
+         {value:'DRAFT',label:'Unfinished drafts'},
+         ...['CATALOGUED','RESEARCH','ONE_QUICK_CHECK','SPECIALIST_REVIEW','READY_TO_SELL','LISTED','CONSIGNED','SOLD','ARCHIVED'].map(value=>({value,label:value.replaceAll('_',' ')}))
+        ]}
+      />
       <div className="inventorySummary">{(status==='DRAFT'?0:filtered.length)+(showDrafts?unfinished.length:0)} objects · {unfinished.length} unfinished drafts</div>
       {showDrafts&&unfinished.length>0&&<section className="section">
         <h2 className="ci-section-title">Latest mixed batch <span>{currentDrafts.length} objects</span></h2> 
