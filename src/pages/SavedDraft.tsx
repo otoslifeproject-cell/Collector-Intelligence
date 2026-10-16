@@ -301,7 +301,7 @@ export default function SavedDraft(){
      </div>
     </article>
    })}</div>
-   </>
+   </>}
   </>}
  </div>
 }
