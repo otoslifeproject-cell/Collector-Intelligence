@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {supabase} from '../lib/supabase'
+import {suggestSingleIntakePair} from '../lib/pairGrouping'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
 export default function SavedDraft(){
@@ -15,6 +16,7 @@ export default function SavedDraft(){
  const [saving,setSaving]=useState(false)
  const [approving,setApproving]=useState(false)
  const [selected,setSelected]=useState<Record<number,boolean>>({})
+ const [groupPair,setGroupPair]=useState(true)
  const [catalogued,setCatalogued]=useState<Array<{item_id:string;item_code:string;title:string;object_index:number}>>([])
  const [saveStatus,setSaveStatus]=useState('')
  const [query,setQuery]=useState('')
@@ -30,6 +32,7 @@ export default function SavedDraft(){
    if(e||!data){setError('Saved report unavailable or access denied.');setBusy(false);return}
    const report=data as SavedRun
    setRun(report)
+   setGroupPair(!!suggestSingleIntakePair(report.result?.objects||[],report.mode))
    setSelected(Object.fromEntries((report.result?.objects||[]).map((_:any,i:number)=>[i,true])))
    const overrides=report.result?.owner_review?.objects || {}
    setEdits(Object.fromEntries((report.result?.objects||[]).map((o:any,i:number)=>[i,{working_title:overrides[i]?.working_title??o.working_title??'',condition_summary:overrides[i]?.condition_summary??o.condition_summary??''}])))
@@ -67,7 +70,9 @@ export default function SavedDraft(){
    if(review)review.open=true
   })
  }
- const selectedIndices=(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
+ const pairProposal=run?suggestSingleIntakePair(run.result?.objects||[],run.mode):null
+ const paired=!!pairProposal&&groupPair
+ const selectedIndices=paired?(selected[0]===false?[]:[0]):(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
  const hasReviewObjects=!!run && Array.isArray(run.result?.objects) && run.result.objects.length>0
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
@@ -78,7 +83,9 @@ export default function SavedDraft(){
   setApproving(true);setSaveStatus('Saving catalogue and linking original photographs…')
   try{
    const reviews:Record<string,object>={}
-   for(const i of selectedIndices)reviews[String(i)]={...edits[i]}
+   for(const i of selectedIndices)reviews[String(i)]=paired&&i===0
+     ? {...edits[i],working_title:pairProposal?.title,pair_source_indices:[0,1]}
+     : {...edits[i]}
    const {data,error:e}=await supabase.rpc('ci_approve_saved_intake_v1',{
     p_run_id:run.id,p_object_indices:selectedIndices,p_reviews:reviews
    })
@@ -105,6 +112,11 @@ export default function SavedDraft(){
    {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
      <div className="note ci-inline-note">A source report exists but its second-stage checks have not been saved. Review the preserved original findings; catalogue approval remains disabled until the analysis is complete.</div>}
    {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
+   {pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
+      <strong>Matched pair recognised — two physical pieces</strong>
+      <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
+      <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>setGroupPair(e.target.checked)}/> One catalogue record for the pair (recommended)</label>
+    </div>}
    {run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
     <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length} onClick={approveSaved}>
@@ -123,19 +135,20 @@ export default function SavedDraft(){
      filter={filter} onFilterChange={setFilter}
      filters={[{value:'ALL',label:'All objects'},{value:'NEEDS_PHOTO',label:'Photos missing'},{value:'HAS_PHOTO',label:'With photos'}]}
    />
-   <div className="inventorySummary">{(run.result?.objects||[]).length} objects in this report · Select an object to review</div>
+   <div className="inventorySummary">{paired?'1 matched-pair catalogue lot · 2 physical pieces':(run.result?.objects||[]).length+' separate objects'} · Select to review</div>
    <div className={`cardGrid ci-object-grid ci-view-${view}`}>
    {(run.result?.objects||[]).map((o:any,i:number)=>{
-    const keys=Array.isArray(o.image_indices)?o.image_indices:[]
+    if(paired&&i===1)return null
+    const keys=paired?[...new Set([...((o.image_indices||[]) as number[]),...((run.result.objects[1]?.image_indices||[]) as number[])])]:Array.isArray(o.image_indices)?o.image_indices:[]
     const photos=keys.filter((n:number)=>!!images[n])
-    const title=edits[i]?.working_title||o.working_title||o.object_type||'Unidentified object'
+    const title=paired&&pairProposal?pairProposal.title:edits[i]?.working_title||o.working_title||o.object_type||'Unidentified object'
     if(![title,o.object_type,o.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
     if(filter==='HAS_PHOTO'&&!photos.length)return null
     if(filter==='NEEDS_PHOTO'&&photos.length)return null
     return <article className="itemCard ci-record-card" key={i} tabIndex={view==='compact'?0:undefined} role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Open '+title:undefined} onClick={view==='compact'?()=>openSavedObject(i):undefined} onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSavedObject(i)}}:undefined} id={'ci-object-'+i}>
      <div className="itemCardImage placeholderGlass">{photos.length?<img src={images[photos[0]]} alt={title}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
      <div className="itemCardBody">
-      <div className="itemMeta"><span>Object {i+1}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
+      <div className="itemMeta"><span>{paired?'Pair · 2 pieces':'Object '+(i+1)}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
       {run.status==='DRAFT'&&isPhotoManifestReady&&<label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
        <input type="checkbox" checked={selected[i]!==false} onChange={e=>setSelected(v=>({...v,[i]:e.target.checked}))}/>
        <span>Include in catalogue</span>
@@ -148,7 +161,8 @@ export default function SavedDraft(){
         <div className="ci-review-section ci-review-section-primary">
          <div className="ci-review-section-heading"><span className="ci-review-section-number">01</span><h4>Your review</h4><span className="ci-review-section-hint">Editable information</span></div>
          {run.status==='DRAFT'?<div className="ci-review-fields">
-          <label>Object title<input value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
+          <label>{paired?'Original first-piece title':'Object title'}<input value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
+          {paired&&<p className="ci-page-meta">Second original member: {run.result.objects[1]?.working_title||'Unidentified'} · {run.result.objects[1]?.condition_summary||'Condition not recorded'}. Both observations will be retained.</p>
           <label>Your condition notes<textarea rows={3} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label>
          </div>:<p>Previously saved review</p>}
         </div>
