@@ -1,11 +1,12 @@
 import {useEffect,useState} from 'react'
-import {Link,useParams} from 'react-router-dom'
+import {Link,useNavigate,useParams} from 'react-router-dom'
 import {Search,SlidersHorizontal,LayoutGrid,List,Grid2X2} from 'lucide-react'
 import {supabase} from '../lib/supabase'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
 export default function SavedDraft(){
  const {id}=useParams()
+ const navigate=useNavigate()
  const [run,setRun]=useState<SavedRun|null>(null)
  const [images,setImages]=useState<Record<number,string>>({})
  const [error,setError]=useState('')
@@ -85,7 +86,7 @@ export default function SavedDraft(){
     if(![title,o.object_type,o.current_attribution].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))return null
     if(filter==='HAS_PHOTO'&&!photos.length)return null
     if(filter==='NEEDS_PHOTO'&&photos.length)return null
-    return <article className="itemCard ci-record-card" key={i}>
+    return <article className="itemCard ci-record-card" key={i} tabIndex={view==='compact'?0:undefined} role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Open '+title:undefined} onClick={view==='compact'?()=>{setView('tiles');document.getElementById('ci-object-'+i)?.scrollIntoView({block:'center'})}:undefined} onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setView('tiles')}}:undefined} id={'ci-object-'+i}>
      <div className="itemCardImage placeholderGlass">{photos.length?<img src={images[photos[0]]} alt={title}/>:<span className="ci-missing-photo">Photo not linked</span>}</div>
      <div className="itemCardBody">
       <div className="itemMeta"><span>Object {i+1}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
