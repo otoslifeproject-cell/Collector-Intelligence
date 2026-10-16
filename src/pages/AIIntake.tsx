@@ -78,6 +78,16 @@ export default function AIIntake() {
   }
 
 
+  const openDraftObject=(i:number)=>{
+    changeView('tiles')
+    requestAnimationFrame(()=>{
+      const card=document.getElementById('ci-intake-object-'+i)
+      card?.scrollIntoView({block:'center',behavior:'auto'})
+      const panel=card?.querySelector('details.ci-object-review') as HTMLDetailsElement|null
+      if(panel)panel.open=true
+    })
+  }
+
   const selectedCount = useMemo(()=>drafts.filter(d=>d.include!==false).length,[drafts])
 
   const addIncomingFiles = (files: File[]) => {
@@ -366,8 +376,8 @@ export default function AIIntake() {
             return <article className={`itemCard ci-record-card ci-intake-record ${d.include===false?'excluded':''}`}
               key={idx} id={'ci-intake-object-'+idx} tabIndex={view==='compact'?0:undefined}
               role={view==='compact'?'link':undefined} aria-label={view==='compact'?'Review '+d.working_title:undefined}
-              onClick={view==='compact'?()=>changeView('tiles'):undefined}
-              onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();changeView('tiles')}}:undefined}>
+              onClick={view==='compact'?()=>openDraftObject(idx):undefined}
+              onKeyDown={view==='compact'?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDraftObject(idx)}}:undefined}>
               <div className="itemCardImage placeholderGlass">
                 {hero?<img src={hero.preview} alt={d.working_title||'Provisional object'}/>:<span className="ci-missing-photo">Photo needs linking</span>}
               </div>
