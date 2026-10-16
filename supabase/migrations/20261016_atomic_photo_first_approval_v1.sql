@@ -79,7 +79,9 @@ begin
     end if;
     raise exception 'Saved report was approved previously with different records; inspect Inventory';
   end if;
-  if v_run.status <> 'DRAFT' then raise exception 'Only a saved DRAFT can be approved'; end if;
+  if v_run.status <> 'DRAFT' or v_run.mode not in ('single','batch') then
+    raise exception 'Only a saved object-intake DRAFT can be approved';
+  end if;
   if exists(select 1 from public.items i where i.source_analysis_run_id=p_run_id and i.owner_id=v_owner) then
     raise exception 'Legacy partial approval detected: resolve existing records before retrying';
   end if;
@@ -232,7 +234,8 @@ begin
 
   update public.ai_analysis_runs
    set status='APPROVED',approved_at=now(),
-       result=jsonb_set(v_run.result,'{owner_review,approved_snapshot}',v_snapshots,true)
+       result=jsonb_set(v_run.result,'{owner_review}',
+         coalesce(v_run.result->'owner_review','{}'::jsonb)||jsonb_build_object('approved_snapshot',v_snapshots),true)
    where id=p_run_id and owner_id=v_owner;
 
   return query
