@@ -4,6 +4,7 @@ import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
+import {suggestSingleIntakePair} from '../lib/pairGrouping'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
@@ -70,10 +71,18 @@ export default function Inventory() {
     return text.includes(query.toLowerCase()) && (status === 'ALL' || i.status === status)
   }),[items,query,status])
 
-  const unfinished=draftRuns.flatMap((run:any)=>Array.isArray(run.result?.objects)?run.result.objects.map((object:any,index:number)=>({run,object,index})):[]).filter(({object}:any)=>[object.working_title,object.object_type,object.maker].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
+  const unfinished=draftRuns.flatMap((run:any)=>{
+    const objects=Array.isArray(run.result?.objects)?run.result.objects:[]
+    const pair=suggestSingleIntakePair(objects,run.mode)
+    if(pair){
+      const union=[...new Set<number>(objects.flatMap((o:any)=>Array.isArray(o.image_indices)?o.image_indices:[]))]
+      return [{run,object:{...objects[0],working_title:pair.title,image_indices:union},index:0,pairPieces:2,searchText:objects.map((o:any)=>o.working_title).join(' ')}]
+    }
+    return objects.map((object:any,index:number)=>({run,object,index,pairPieces:0,searchText:object.working_title||''}))
+  }).filter(({object,searchText}:any)=>[searchText,object.working_title,object.object_type,object.maker].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
   const showDrafts=status==='ALL'||status==='DRAFT'
   const pendingSessions=draftRuns.filter((run:any)=>(!Array.isArray(run.result?.objects)||!run.result.objects.length)&&Array.isArray(run.result?.image_manifest)&&['saved','upload','intake',run.mode,run.id].join(' ').toLowerCase().includes(query.toLowerCase()))
-  const currentBatchId=draftRuns.find((r:any)=>r.mode==='batch'&&Array.isArray(r.result?.objects)&&r.result.objects.length>0)?.id
+  const currentBatchId=draftRuns.find((r:any)=>Array.isArray(r.result?.objects)&&r.result.objects.length>0)?.id
   const currentDrafts=unfinished.filter(({run}:any)=>run.id===currentBatchId)
   const earlierDrafts=unfinished.filter(({run}:any)=>run.id!==currentBatchId)
   return (
@@ -92,7 +101,7 @@ export default function Inventory() {
          ...['CATALOGUED','RESEARCH','ONE_QUICK_CHECK','SPECIALIST_REVIEW','READY_TO_SELL','LISTED','CONSIGNED','SOLD','ARCHIVED'].map(value=>({value,label:value.replaceAll('_',' ')}))
         ]}
       />
-      <div className="inventorySummary">{(status==='DRAFT'?0:filtered.length)+(showDrafts?unfinished.length:0)} objects · {unfinished.length} unfinished draft objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
+      <div className="inventorySummary">{filtered.length} permanent catalogue items · {unfinished.length} unfinished draft lots/objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
       {showDrafts&&pendingSessions.length>0&&<section className="section">
         <h2 className="ci-section-title">Uploaded photographs awaiting a completed AI report <span>{pendingSessions.length} sessions</span></h2>
         <p className="ci-page-meta">Your original uploads are retained. An incomplete AI response is not a confirmed catalogue object and cannot be approved.</p>
@@ -107,11 +116,11 @@ export default function Inventory() {
         </article>)}</div>
       </section>}
       {showDrafts&&currentDrafts.length>0&&<section className="section">
-        <h2 className="ci-section-title">Latest mixed batch <span>{currentDrafts.length} objects</span></h2> 
-        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
+        <h2 className="ci-section-title">Most recent AI report <span>{currentDrafts.length} lot(s) / object(s)</span></h2> 
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
           <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index] ? <img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /> : <span className="ci-missing-photo">Photo not linked</span>}</div>
           <div className="itemCardBody">
-            <div className="itemMeta"><span>Draft {String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
+            <div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Draft '+String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
             <h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled object'}</h3>
             <p>AI report saved · Maker {object.maker||'not confirmed'}</p>
             <p className="ci-record-stage">Initial AI report saved · Review outstanding</p>
@@ -119,7 +128,7 @@ export default function Inventory() {
               <p>{object.current_attribution||'Attribution unresolved'}</p>
               <p>Identification confidence {object.identification_confidence??'Unknown'}% — separate from workflow progress</p>
               <p>{object.condition_summary}</p>
-              <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. Original image access and full draft resumption still require restoration.</p>
+              <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. {Array.isArray(run.result?.image_manifest)?'Original source photos saved and accessible through this report.':'Legacy report awaits verified source-photo linking.'}</p>
             </details>
             <Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link>
           </div>
@@ -127,8 +136,8 @@ export default function Inventory() {
       </section>}
       {showDrafts&&earlierDrafts.length>0&&<details className="ci-archive-section"><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
-        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
-          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">Photo not linked</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>Earlier report</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
+        <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">Photo not linked</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
         </article>)}</div>
       </details>}
       {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
