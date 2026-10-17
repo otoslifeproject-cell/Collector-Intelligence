@@ -13,9 +13,9 @@ type Props={
  legacySourceRunId?:string|null;legacyObjectIndex?:number|null;legacyPaired?:boolean
  objectIndex?:number;paired?:boolean
  photos:Record<number,string>;photoIndices:number[]
- ownerMaterial:string|null;workingTitle:string
+ ownerMaterial:string|null;workingTitle:string;latestResearchAt?:string|null
 }
-export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhotoIdsByIndex={},legacySourceRunId=null,legacyObjectIndex=null,legacyPaired=false,objectIndex=0,paired=false,photos,photoIndices,ownerMaterial,workingTitle}:Props){
+export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhotoIdsByIndex={},legacySourceRunId=null,legacyObjectIndex=null,legacyPaired=false,objectIndex=0,paired=false,photos,photoIndices,ownerMaterial,workingTitle,latestResearchAt=null}:Props){
  const eligible=useMemo(()=>[...new Set(photoIndices)].filter(i=>Number.isInteger(i)&&!!photos[i]),[photoIndices,photos])
  const [photoIndex,setPhotoIndex]=useState<number|null>(eligible[0]??null)
  const initial=visualSearchTerm(ownerMaterial||'',workingTitle)
@@ -125,12 +125,14 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
   finally{setSaving(false)}
  }
  const latestReview=(systemNumber:string)=>reviews.find(x=>x.reference_system_number===systemNumber)
+ const newerVisualEvidence=!!latestResearchAt&&reviews.some(r=>Date.parse(r.created_at)>Date.parse(latestResearchAt))
  return <section className="panel ci-visual-workbench" aria-label="Illustrated source comparison">
    <div className="panelHeader">
     <div><div className="eyebrow">COMPARE ORIGINAL PHOTOS</div><h2>Find visual reference matches</h2></div>
     <span>No paid AI · museum illustration leads</span>
    </div>
    <p className="ci-page-meta">Use the corrected material and visible construction to search official museum photographs. Similarity is not attribution, proof of age, or a sold comparable. You decide what resembles the real object.</p>
+   {newerVisualEvidence&&<p className="note" role="status">Your visual comparison decisions are newer than the displayed AI research. A new Deep Dive will use them; the older maker and price conclusions have NOT been recalculated yet.</p>}
    <div className="ci-visual-search-controls">
     <label>Visual search terms<input value={query} onChange={e=>{setQuery(e.target.value);setItems([]);setActive(null)}} placeholder="e.g. metal gilded vase" maxLength={100} onKeyDown={e=>{if(e.key==='Enter')void search()}}/></label>
     <button className="secondaryButton" disabled={loading} onClick={()=>void search()}>{loading?'Searching images…':'Find illustrated references'}</button>
