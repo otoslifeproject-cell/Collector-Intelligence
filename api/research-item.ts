@@ -245,6 +245,7 @@ export default async function handler(req: any, res: any) {
   let itemForResearch:any=item;
   let trustedComparableRows:any[]=[];
   let ownerCorrections:any[]=[];
+  let visualReviews:any[]=[];
   if(draftMode){
     if(!isUuid(draft_run_id)||!Number.isInteger(draft_index)||draft_index<0)
       return res.status(400).json({error:'Invalid saved draft reference; no paid research run.'});
@@ -337,6 +338,32 @@ export default async function handler(req: any, res: any) {
       return res.status(503).json({error:'Cannot retrieve owner corrections before paid research. Nothing charged.'});
     }
   }
+  if(draftMode){
+    try{
+      const qp=new URLSearchParams({
+        select:'id,source_object_index,paired_lot,source_photo_index,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,review_decision,review_note,created_at',
+        source_analysis_run_id:'eq.'+draft_run_id,
+        source_object_index:'eq.'+String(draft_index),
+        paired_lot:'eq.'+(pair_source_indices.length===2?'true':'false'),
+        order:'created_at.desc',limit:'100'
+      });
+      const response=await fetch(supabaseUrl+'/rest/v1/ai_visual_reference_reviews?'+qp.toString(),{
+        headers:{apikey:supabaseKey,Authorization:'Bearer '+token}
+      });
+      if(!response.ok)throw Error('Owner visual reference evidence cannot be loaded');
+      const entries=await response.json();
+      if(!Array.isArray(entries))throw Error('Invalid private visual reference evidence');
+      const identifiers=new Set<string>();
+      visualReviews=entries.filter((x:any)=>{
+        if(!/^O[0-9]{1,12}$/.test(String(x.reference_system_number||'')))return false;
+        if(identifiers.has(x.reference_system_number))return false;
+        identifiers.add(x.reference_system_number);
+        return true;
+      }).slice(0,20);
+    }catch{
+      return res.status(503).json({error:'Cannot retrieve owner visual-match reviews before paid research. No AI charged.'});
+    }
+  }
   if(!Array.isArray(images)||images.length>12||images.some((url:any)=>typeof url!=='string'||!url.startsWith(supabaseUrl+'/storage/v1/')))
     return res.status(400).json({error:'Invalid private image links for research; no paid research.'});
   if(!isUuid(research_run_id))return res.status(400).json({error:'Research must first be saved as an owner-scoped session. No paid AI run was made.'});
@@ -366,6 +393,14 @@ export default async function handler(req: any, res: any) {
     if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
   }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
 
+  const ownerVisualGuidance=visualReviews.map((x:any)=>({
+    original_photo_index:x.source_photo_index,
+    museum:'Victoria and Albert Museum',museum_system_number:x.reference_system_number,
+    source_record:x.reference_url,catalogued_reference_title:String(x.reference_title||'').slice(0,250),
+    reference_maker:String(x.reference_maker||'').slice(0,160),
+    reference_material:String(x.reference_material||'').slice(0,120),
+    decision:x.review_decision,owner_observation:String(x.review_note||'').slice(0,600)
+  }));
   const deepInstructions=depth==='deep_dive'
    ? `DEEP DIVE INVESTIGATION (not a repeat generic description):
 1. FIRST challenge the earlier material and object-type classification. Treat the owner's physical material correction as decisive observational evidence; earlier AI-generated glass claims and glass auction leads are rejected for this hypothesis.
@@ -373,13 +408,25 @@ export default async function handler(req: any, res: any) {
 3. Find several specific visually plausible alternatives. In identification_update.rationale say what supports and weakens EACH candidate, how close the reference really looks, and any unresolved manufacture/period possibilities. A resemblance alone does not authenticate the item.
 4. Verify every price lead class (HAMMER / buyer-premium-inclusive REALISED / dealer ASKING / marketplace ASKING). Use precise source URLs and dates; distinguish a pair lot from one physical piece, and exclude glass-only lots from metal-object valuation.
 5. Produce a short actionable research_summary that answers likely type, current best attribution with honest confidence, strongest reference images/sources, realistic provisional WHOLE-LOT value, and best next physical discriminator. Provide competing hypotheses as explicit contradictions when unresolved.
-6. Reuse ONLY independently approved knowledge and source-backed owner corrections; don't fabricate reviewed Knowledge Brain records.`
+6. Reuse ONLY independently approved knowledge and source-backed owner corrections; don't fabricate reviewed Knowledge Brain records.
+7. Distinguish the user's original images from separately provided V&A reference images. Owner-marked NOT_A_MATCH is a documented negative comparator and must not be presented as a confirming maker/design match. POSSIBLE_LOOKALIKE is not authentication, even when a museum's own object is securely catalogued.`
    : '';
   const content: any[] = [{
     type: "input_text",
-    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
   }];
   for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
+  if(depth==='deep_dive'){
+    const referenceImages=visualReviews.filter((x:any)=>typeof x.reference_image_url==='string'&&
+      /^https:\/\/framemark\.vam\.ac\.uk\/collections\/[A-Za-z0-9_-]+\/full\/![0-9]+,[0-9]+\/0\/default\.jpg$/.test(x.reference_image_url)).slice(0,3);
+    for (const ref of referenceImages){
+      content.push({type:'input_text',text:
+        'SEPARATE PUBLIC MUSEUM COMPARISON, NOT A PHOTO OF THE OWNED OBJECT: V&A '+ref.reference_system_number+
+        '. Owner review: '+ref.review_decision+'. '+String(ref.review_note||'').slice(0,320)+
+        '. Do NOT transfer this museum record\'s maker/age to the user object without decisive matching evidence.'});
+      content.push({type:'input_image',image_url:ref.reference_image_url,detail:'low'});
+    }
+  }
 
   const configuredModel = process.env.OPENAI_RESEARCH_MODEL || "gpt-5.6-luna";
   const model = useGateway
@@ -414,7 +461,7 @@ export default async function handler(req: any, res: any) {
     source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
     const savedResult={
       ...result,source_audit,canonical_policy_hashes:canonical.hashes,
-      research_depth:depth,applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
+      research_depth:depth,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
       analysis_stage:'COMPLETE',response_id:payload.id||null
     };
     try{
