@@ -33,6 +33,11 @@ export default function SavedDraft(){
  const [researchHistory,setResearchHistory]=useState<any[]>([])
  const [unfinishedResearch,setUnfinishedResearch]=useState<any[]>([])
  const [lastResearchScope,setLastResearchScope]=useState('')
+ const [verdictFeedback,setVerdictFeedback]=useState<any[]>([])
+ const [disagreeOpen,setDisagreeOpen]=useState(false)
+ const [disagreementMaterial,setDisagreementMaterial]=useState('Metal')
+ const [disagreementNote,setDisagreementNote]=useState('')
+ const [savingDisagreement,setSavingDisagreement]=useState(false)
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState('ALL')
  const [view,setView]=useState<'tiles'|'list'|'compact'>(()=>{try{const v=window.localStorage.getItem('ci-inventory-view');return v==='list'||v==='compact'?v:'tiles'}catch{return 'tiles'}})
@@ -58,6 +63,12 @@ export default function SavedDraft(){
      setResearchHistory(past)
      if(past.length){setResearchResult(past[0].result);setResearchAudit(past[0].result?.source_audit||null)}
    }
+   const {data:feedbackRows,error:feedbackError}=await supabase.from('ai_verdict_feedback')
+    .select('id,source_object_index,feedback_type,corrected_material,owner_statement,created_at')
+    .eq('source_analysis_run_id',report.id).order('created_at',{ascending:false}).limit(100)
+   if(!alive)return
+   if(feedbackError){setError('Owner corrections unavailable; no paid research can safely use this report.');setBusy(false);return}
+   setVerdictFeedback(feedbackRows||[])
    const overrides=report.result?.owner_review?.objects || {}
    setEdits(Object.fromEntries((report.result?.objects||[]).map((o:any,i:number)=>[i,{working_title:overrides[i]?.working_title??o.working_title??'',condition_summary:overrides[i]?.condition_summary??o.condition_summary??''}])))
    const manifest=Array.isArray(report.result?.image_manifest)?report.result.image_manifest:[]
@@ -114,14 +125,38 @@ export default function SavedDraft(){
     run.result?.analysis_stage==='COMPLETE'
  const scopeIndex=paired?0:researchIndex
  const scopeKey=String(scopeIndex)+':'+(paired?'pair':'single')
+ const scopeFeedback=verdictFeedback.filter((x:any)=>x.source_object_index==null||
+   Number(x.source_object_index)===scopeIndex||(paired&&[0,1].includes(Number(x.source_object_index))))
+ const correctedMaterial=scopeFeedback.find((x:any)=>x.feedback_type==='MATERIAL_CORRECTION')?.corrected_material||null
  const matchedResearchRun=researchHistory.find((x:any)=>
    x.user_context?.source_object_index===scopeIndex &&
    (Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2)===paired)
  const visibleResearch=matchedResearchRun?.result || (lastResearchScope===scopeKey?researchResult:null)
  const visibleAudit=matchedResearchRun?.result?.source_audit || (lastResearchScope===scopeKey?researchAudit:null)
- const runDraftResearch=async()=>{
+ const correctionAfterResearch=!!matchedResearchRun&&scopeFeedback.some((x:any)=>Date.parse(x.created_at)>Date.parse(matchedResearchRun.created_at))
+ const originalMaterial=String(run?.result?.objects?.[scopeIndex]?.material||'').toLowerCase()
+ const materialContradictsModel=!!correctedMaterial&&
+   ((correctedMaterial.toLowerCase()==='metal'&&/glass|ceramic|pottery/.test(originalMaterial))||
+    (correctedMaterial.toLowerCase()==='glass'&&/metal|ceramic|pottery/.test(originalMaterial)))
+ const existingResearchObsolete=correctionAfterResearch||materialContradictsModel
+ const saveDisagreement=async()=>{
+   if(!run||savingDisagreement)return
+   const note=disagreementNote.trim()||'Owner rejects the model material. Reinvestigate using corrected material and original photographs.'
+   setSavingDisagreement(true);setSaveStatus('Preserving correction separately from original AI…')
+   try{
+     const {data,error:e}=await supabase.from('ai_verdict_feedback').insert({
+       source_analysis_run_id:run.id,source_object_index:paired?null:scopeIndex,
+       feedback_type:'MATERIAL_CORRECTION',corrected_material:disagreementMaterial,owner_statement:note
+     }).select('id,source_object_index,feedback_type,corrected_material,owner_statement,created_at').single()
+     if(e||!data)throw Error(e?.message||'Owner correction was not saved')
+     setVerdictFeedback(v=>[data,...v]);setDisagreeOpen(false);setDisagreementNote('')
+     setSaveStatus('Correction saved. Original AI error preserved; conflicting prior prices flagged.')
+   }catch(e:any){setSaveStatus(e?.message||'Feedback not saved')}
+   finally{setSavingDisagreement(false)}
+ }
+ const runDraftResearch=async(depth:'standard'|'deep_dive'='standard')=>{
    if(!run||!isPhotoManifestReady||researching)return
-   setResearching(true);setSaveStatus('Researching attribution, genuine sale evidence and selling routes online…')
+   setResearching(true);setSaveStatus(depth==='deep_dive'?'Deep visual and source research applying owner corrections…':'Researching attribution, genuine sale evidence and selling routes online…')
    try{
      const {data:{session}}=await supabase.auth.getSession()
      if(!session)throw Error('Sign in again to use web research.')
@@ -131,14 +166,14 @@ export default function SavedDraft(){
      // Pre-stage an owner-scoped source link BEFORE the paid model request.
      const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
        mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
-       user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:paired?[0,1]:[]},
+       user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:paired?[0,1]:[],research_depth:depth},
        result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
      }).select('id,created_at,user_context').single()
      if(stageError||!staged?.id)throw Error('Could not preserve the research session; no paid AI was requested.')
      const response=await fetch('/api/research-item',{
       method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
       body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:paired?[0,1]:[],
-       research_run_id:staged.id,images:urls})
+       research_run_id:staged.id,depth,images:urls})
      })
      const payload=await response.json()
      if(!response.ok){
@@ -157,7 +192,7 @@ export default function SavedDraft(){
      setLastResearchScope(scopeKey)
      setResearchResult(verified.result);setResearchAudit(verified.result.source_audit||null)
      setResearchHistory(v=>[verified,...v])
-     setSaveStatus('Online research safely saved and read back. Original photographs and AI report unchanged.')
+     setSaveStatus((depth==='deep_dive'?'Deep-dive':'Research')+' findings saved. Original evidence and corrections preserved.')
    }catch(err:any){setSaveStatus(err?.message||'Research failed')}
    finally{setResearching(false)}
  }
@@ -200,6 +235,7 @@ export default function SavedDraft(){
   {run&&<>
    <div className="ci-page-actions">
     <button className="primaryButton" onClick={()=>setActiveTab('market')}>Research & value →</button>
+    <button className="secondaryButton" onClick={()=>setDisagreeOpen(v=>!v)}>Disagree with verdict</button>
     <button className="secondaryButton" onClick={()=>setActiveTab('catalogue')}>Catalogue / continue →</button>
    </div>
    <div className="tabBar" role="tablist" aria-label="Object workspace">
