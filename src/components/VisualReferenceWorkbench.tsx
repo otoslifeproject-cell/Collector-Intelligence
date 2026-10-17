@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from 'react'
 import {supabase} from '../lib/supabase'
-import {visualSearchTerm} from '../lib/vamVisual'
+import {visualSearchTerm} from '../lib/openAccessVisual'
 
 type RecordLead={
  id:string;title:string;objectType:string;maker:string;date:string
