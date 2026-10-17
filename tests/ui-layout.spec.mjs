@@ -133,6 +133,15 @@ test('quiet default view keeps detailed notes out of sight, while help stays acc
  await expect(sourceHelp.locator('.ci-info-disclosure-body')).not.toBeVisible()
  const nav=page.locator('.tabBar')
  await expect(nav.getByText('Market')).toBeVisible()
+ await expect(nav.getByText('Sales')).toBeInViewport()
+ await expect(nav.getByText('Catalogue')).toBeInViewport()
+ const geometry=await nav.evaluate(el=>{
+  const a=el.querySelector('button:first-child').getBoundingClientRect()
+  const b=el.querySelector('button:last-child').getBoundingClientRect()
+  return {firstTop:a.top,lastTop:b.top,withinViewport:b.right<=innerWidth+1}
+ })
+ expect(geometry.lastTop).toBeGreaterThan(geometry.firstTop)
+ expect(geometry.withinViewport).toBe(true)
  const visualAction=page.locator('.ci-visual-workbench').getByRole('button',{name:'Find illustrated references'})
  await expect(visualAction).toBeVisible()
 })
