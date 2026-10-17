@@ -8,6 +8,7 @@ import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
+import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 
 export default function ItemDetail() {
   const {id} = useParams()
@@ -293,6 +294,16 @@ export default function ItemDetail() {
       </div>}
 
       {tab==='market' && <div className="marketStack">
+        {photos.some(p=>!!photoUrls[p.id])&&
+         <VisualReferenceWorkbench
+          itemId={item.id}
+          photos={Object.fromEntries(photos.map((p,i)=>[i,photoUrls[p.id]||'']))}
+          photoIndices={photos.map((_,i)=>i)}
+          itemPhotoIdsByIndex={Object.fromEntries(photos.map((p,i)=>[i,p.id]))}
+          ownerMaterial={item.material||null}
+          workingTitle={item.title||item.object_type||'Collection object'}
+         />}
+
         {pendingResearchRuns.length>0 && <div className="panel">
           <div className="panelHeader"><h2>Recovered research drafts</h2><span>{pendingResearchRuns.length} saved drafts</span></div>
           {pendingResearchRuns.map((run:any)=><div className="note" key={run.id}>
