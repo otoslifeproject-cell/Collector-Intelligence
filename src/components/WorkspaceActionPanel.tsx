@@ -1,8 +1,9 @@
+import InfoDisclosure from './InfoDisclosure'
 import type {ReactNode} from 'react'
 
 type Action={label:string;onClick:()=>void;disabled?:boolean;loading?:boolean}
 type Props={
- eyebrow?:string;title:string;description:string;primary:Action
+ eyebrow?:string;title:string;description?:string;primary:Action
  selector?:ReactNode;secondary?:ReactNode;note?:ReactNode;children?:ReactNode
 }
 export default function WorkspaceActionPanel({
@@ -12,7 +13,7 @@ export default function WorkspaceActionPanel({
   <div className="ci-workspace-action-copy">
    {eyebrow&&<div className="eyebrow">{eyebrow}</div>}
    <h2>{title}</h2>
-   <p>{description}</p>
+   {description&&<p>{description}</p>}
   </div>
   {selector&&<div className="ci-workspace-action-select">{selector}</div>}
   <div className="ci-workspace-action-controls">
@@ -20,7 +21,7 @@ export default function WorkspaceActionPanel({
     aria-busy={!!primary.loading} onClick={primary.onClick}>{primary.label}</button>
    {secondary}
   </div>
-  {note&&<p className="ci-workspace-action-note">{note}</p>}
+  {note&&<InfoDisclosure label="About this action">{note}</InfoDisclosure>}
   {children&&<div className="ci-workspace-action-extra">{children}</div>}
  </section>
 }
