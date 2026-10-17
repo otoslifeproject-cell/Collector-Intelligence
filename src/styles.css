@@ -301,3 +301,157 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
  .ci-visual-search-controls .secondaryButton{width:100%}
  .ci-visual-results{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
 }
+
+
+/* COLLECTOR FACET DESIGN SYSTEM v3 — one shared layout, semantic surfaces and persistent appearance.
+   These rules supersede earlier page-specific flex and hard-coded dark treatments. */
+:root{
+ --sidebar-bg:#0d1115;--input-bg:#0f1418;--nav-text:#c2ccd5;
+ --link:#c8d9e8;--button-on-accent:#17130c;--focus-color:#dcb76b;
+ --error-bg:#241719;--error-text:#f0b6b8;--error-border:#754b4b;
+ --note-bg:#11171b;--warn-bg:#251f13;--warn-text:#e2c987;--warn-border:#69582f;
+ --ci-control-height:44px;--ci-page-width:1200px;
+ color-scheme:dark;
+}
+html[data-theme="light"]{
+ color-scheme:light;
+ --bg:#f5f7fa;--panel:#fff;--panel2:#eef2f6;--line:#cfd8e1;
+ --muted:#526170;--text:#17232e;--accent:#855d21;--accent2:#175c87;
+ --good:#25693e;--warn:#8b611c;--risk:#a03737;
+ --sidebar-bg:#eaf0f5;--input-bg:#fff;--nav-text:#273a48;
+ --link:#175b89;--button-on-accent:#fff;--focus-color:#9e651c;
+ --error-bg:#fff4f4;--error-text:#912e2e;--error-border:#c98d8d;
+ --note-bg:#f1f5f8;--warn-bg:#fff8e8;--warn-text:#775116;--warn-border:#d7b874;
+ --ci-review-surface:#f0f4f8;--ci-review-recess:#fff;
+ --ci-review-line:#cbd6df;--ci-review-body:#263744;
+}
+body{background:var(--bg);color:var(--text)}
+.appShell{grid-template-columns:212px minmax(0,1fr)}
+.sidebar{background:var(--sidebar-bg);min-width:0}
+.navItem,.navItem.muted{color:var(--nav-text)}
+.navItem:hover,.navItem.active{background:var(--panel2);color:var(--text)}
+.navItem svg{flex:0 0 auto}
+.sidebarBottom{display:grid;gap:4px}
+.ci-appearance-toggle{min-height:44px;cursor:pointer}
+.ci-appearance-mobile{display:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.mainContent{min-width:0;padding:24px clamp(16px,3vw,42px) 72px}
+.mainContent>div,.mainContent>.ci-page{width:100%;max-width:var(--ci-page-width);margin-inline:auto}
+.panel,.formCard,.statCard{background:var(--panel);border-color:var(--line)}
+label{color:var(--muted)}
+input,select,textarea{background:var(--input-bg);color:var(--text);border-color:var(--line);max-width:100%;min-width:0}
+input:focus,select:focus,textarea:focus{border-color:var(--focus-color)}
+:where(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--focus-color);outline-offset:3px}
+.primaryButton,.secondaryButton{
+ display:inline-flex;align-items:center;justify-content:center;gap:8px;
+ flex:0 1 auto;min-height:var(--ci-control-height);max-width:100%;
+ padding:10px 17px;font-size:13px;font-weight:700;line-height:1.3;
+ border-radius:9px;text-align:center;white-space:normal;word-break:normal;
+ overflow-wrap:normal;text-decoration:none;vertical-align:middle;
+}
+.primaryButton{background:var(--accent);color:var(--button-on-accent)}
+.primaryButton:hover:not(:disabled){filter:brightness(1.08)}
+.secondaryButton{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.secondaryButton:hover:not(:disabled){border-color:var(--focus-color)}
+button:disabled,.primaryButton:disabled,.secondaryButton:disabled{cursor:not-allowed;opacity:.6}
+.ci-page-actions{display:flex;gap:10px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+.panelHeader{align-items:baseline;flex-wrap:wrap;gap:6px 16px}
+.panelHeader h2,.panel h2{line-height:1.3;letter-spacing:-.018em}
+.panelHeader span{line-height:1.5;max-width:55ch}
+.panel p{line-height:1.55}
+.ci-page-meta{line-height:1.55}
+.note{background:var(--note-bg);color:var(--muted);border-color:var(--line)}
+.warningCallout{background:var(--warn-bg);color:var(--warn-text);border-color:var(--warn-border)}
+.errorBox{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
+th{background:var(--panel2);color:var(--muted)}
+td{color:var(--text)}
+td a{color:var(--link)}
+a.ci-action-text-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 4px;
+ color:var(--link);text-decoration:underline;text-underline-offset:3px;font-size:13px;font-weight:650}
+a.ci-action-text-link:hover{text-decoration-thickness:2px}
+/* Formal action-panel layout. Never place paragraphs and paid CTAs as flex siblings. */
+.researchLauncher,.ci-workspace-action-panel{
+ display:grid;grid-template-columns:minmax(0,1fr);align-items:start;
+ justify-content:stretch;gap:12px;min-width:0;
+ background:var(--panel);padding:22px 24px;
+}
+.ci-workspace-action-copy{display:grid;gap:7px;max-width:74ch;min-width:0}
+.ci-workspace-action-copy .eyebrow{margin:0}
+.ci-workspace-action-copy h2{margin:0;font-size:19px;line-height:1.25}
+.ci-workspace-action-copy p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.ci-workspace-action-select{max-width:420px}
+.ci-workspace-action-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.ci-workspace-action-controls>.primaryButton{width:auto;min-width:168px;max-width:248px;
+ min-height:44px;flex:0 0 auto;white-space:nowrap}
+.ci-workspace-action-note{margin:0!important;font-size:12px;color:var(--muted);line-height:1.5;max-width:80ch}
+.ci-workspace-action-extra{display:grid;gap:8px;min-width:0;padding-top:8px;border-top:1px solid var(--line)}
+.ci-workspace-action-extra>.ci-page-meta{margin:0}
+.ci-workspace-action-extra>details{margin:0;padding:8px 0}
+.ci-action-minor-button{width:max-content;font-size:12px;min-height:38px;padding:8px 12px}
+/* Research hierarchy: summary is visible, detailed economics and source audit open on demand. */
+.ci-research-decision{gap:15px;min-width:0}
+.ci-research-decision .researchMetricGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:12px}
+.ci-research-decision .researchMetricGrid>div{min-width:0;padding:14px}
+.ci-research-decision .researchMetricGrid strong{display:-webkit-box;-webkit-box-orient:vertical;
+ -webkit-line-clamp:3;overflow:hidden;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.ci-research-decision .researchMetricGrid span{font-size:11px;line-height:1.45}
+.ci-research-brief-wrap{display:grid;gap:10px}
+.ci-research-brief{max-width:72ch;line-height:1.6;overflow-wrap:anywhere}
+.ci-research-full-summary{white-space:pre-wrap}
+.ci-research-decision .ci-review-source{overflow:hidden;min-width:0}
+.ci-research-decision .ci-review-source>summary{cursor:pointer}
+.ci-research-value-wrap p{max-width:74ch;line-height:1.65;overflow-wrap:anywhere}
+.ci-research-decision .valueSummary{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
+.ci-visual-workbench{padding:22px 24px}
+.ci-visual-search-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end}
+.ci-visual-search-controls .secondaryButton{width:auto;white-space:nowrap}
+.ci-visual-source{background:var(--panel2)}
+.ci-visual-result{background:var(--panel2);color:var(--text)}
+.ci-visual-caption a{color:var(--link)}
+.ci-object-grid .ci-review-fields label{color:var(--text)}
+.ci-object-grid .ci-review-fields input,.ci-object-grid .ci-review-fields textarea{
+ background:var(--ci-review-recess);color:var(--text);border-color:var(--ci-review-line)}
+.ci-object-grid .ci-review-source>summary{color:var(--text)}
+.ci-object-grid .ci-review-source>summary:hover{background:var(--panel2)}
+.ci-object-grid .ci-object-review[open]>summary{color:var(--accent)}
+.ci-review-section-hint,.ci-review-source-content small{color:var(--muted)}
+.ci-review-section-number{background:var(--panel2);color:var(--accent)}
+html[data-theme="light"] .researchMetricGrid>div,html[data-theme="light"] .researchPreviewTable{
+ background:var(--panel2);border-color:var(--line)}
+html[data-theme="light"] .researchSummary{color:var(--text)}
+html[data-theme="light"] .ci-review-source-content>div{background:var(--panel2)}
+html[data-theme="light"] .itemMeta{color:var(--muted)}
+html[data-theme="light"] .itemCardImage{background:var(--panel2)}
+html[data-theme="light"] .statSub{color:var(--muted)}
+html[data-theme="light"] .photoPending{background:var(--panel2);color:var(--muted)}
+html[data-theme="light"] .empty{border-color:var(--line)}
+html[data-theme="light"] .confidenceTrack{background:#e1e8ef}
+html[data-theme="light"] .tabBar button.active{color:var(--text)}
+@media(max-width:1050px){
+ .ci-research-decision .researchMetricGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ .appShell{grid-template-columns:minmax(0,1fr)}
+ .sidebar{height:auto;position:relative;padding:9px 12px}
+ .sidebar .brand{position:relative;display:flex;align-items:center;margin-bottom:8px;padding:4px 4px 10px}
+ .ci-appearance-mobile{display:inline-flex;align-items:center;justify-content:center;
+  margin-left:auto;width:44px;height:44px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--text);border-radius:9px}
+ .sidebar nav{display:flex;gap:4px;overflow-x:auto;padding-bottom:3px}
+ .sidebar nav .navItem{flex:0 0 auto;min-width:auto;font-size:12px;padding:8px 10px}
+ .mainContent{padding:18px 16px 55px}
+ .ci-workspace-action-panel,.ci-visual-workbench{padding:18px}
+ .ci-workspace-action-controls>.primaryButton{min-width:160px}
+ .ci-visual-search-controls{grid-template-columns:minmax(0,1fr)}
+ .ci-visual-search-controls .secondaryButton{width:100%}
+}
+@media(max-width:620px){
+ .ci-research-decision .researchMetricGrid{grid-template-columns:minmax(0,1fr)}
+ .ci-workspace-action-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+ .ci-workspace-action-controls>.primaryButton{min-width:0;max-width:100%;width:100%}
+ .ci-workspace-action-controls>.ci-action-text-link{justify-content:center}
+ .ci-workspace-action-panel{gap:12px}
+ .ci-research-decision{padding:16px}
+ .panelHeader{align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
