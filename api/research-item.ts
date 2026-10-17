@@ -393,8 +393,30 @@ export default async function handler(req: any, res: any) {
     if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
   }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
 
+  if(!draftMode){
+    try{
+      const qp=new URLSearchParams({
+        select:'id,item_photo_id,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,review_decision,review_note,created_at',
+        item_id:'eq.'+String(item.id),order:'created_at.desc',limit:'100'
+      });
+      const response=await fetch(supabaseUrl+'/rest/v1/ai_visual_reference_reviews?'+qp.toString(),{
+        headers:{apikey:supabaseKey,Authorization:'Bearer '+token}
+      });
+      if(!response.ok)throw Error('Item reference reviews cannot be loaded');
+      const entries=await response.json();
+      if(!Array.isArray(entries))throw Error('Item reference reviews malformed');
+      const known=new Set<string>();
+      visualReviews=entries.filter((x:any)=>{
+        if(!/^O[0-9]{1,12}$/.test(String(x.reference_system_number||'')))return false;
+        if(known.has(x.reference_system_number))return false;
+        known.add(x.reference_system_number);return true;
+      }).slice(0,20);
+    }catch{
+      return res.status(503).json({error:'Cannot read saved owner visual reviews; paid research was not started.'});
+    }
+  }
   const ownerVisualGuidance=visualReviews.map((x:any)=>({
-    original_photo_index:x.source_photo_index,
+    original_photo_index:x.source_photo_index??null,item_photo_id:x.item_photo_id??null,
     museum:'Victoria and Albert Museum',museum_system_number:x.reference_system_number,
     source_record:x.reference_url,catalogued_reference_title:String(x.reference_title||'').slice(0,250),
     reference_maker:String(x.reference_maker||'').slice(0,160),
