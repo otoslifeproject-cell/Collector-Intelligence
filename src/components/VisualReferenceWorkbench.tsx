@@ -132,7 +132,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
    </div>
    <p className="ci-page-meta">Use the corrected material and visible construction to search official museum photographs. Similarity is not attribution, proof of age, or a sold comparable. You decide what resembles the real object.</p>
    <div className="ci-visual-search-controls">
-    <label>Visual search terms<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="e.g. metal gilded vase" maxLength={100} onKeyDown={e=>{if(e.key==='Enter')void search()}}/></label>
+    <label>Visual search terms<input value={query} onChange={e=>{setQuery(e.target.value);setItems([]);setActive(null)}} placeholder="e.g. metal gilded vase" maxLength={100} onKeyDown={e=>{if(e.key==='Enter')void search()}}/></label>
     <button className="secondaryButton" disabled={loading} onClick={()=>void search()}>{loading?'Searching images…':'Find illustrated references'}</button>
    </div>
    <p className="ci-page-meta">Need a wider visual search? <a href={'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(query)} target="_blank" rel="noopener noreferrer">Open Google Images manually ↗</a>. Search images are only visual clues; check the original maker or sale record before relying on a label.</p>
