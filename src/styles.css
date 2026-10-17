@@ -237,3 +237,24 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-intake-record .ci-review-source-content p{overflow-wrap:anywhere}
 .ci-object-grid.ci-view-list .ci-intake-record .ci-object-review{grid-column:1/-1}
 @media(max-width:650px){.ci-intake-review-heading .ci-archive-section{flex:1 1 100%}}
+
+
+/* Shared evidence-led valuation cards across saved drafts and permanent objects. */
+.ci-research-decision{display:grid;gap:14px;min-width:0}
+.ci-research-decision .panelHeader{margin-bottom:0}
+.ci-research-decision .researchMetricGrid{margin:2px 0}
+.ci-research-decision .researchMetricGrid>div{min-width:0;overflow-wrap:anywhere}
+.ci-research-brief{max-width:78ch;line-height:1.6;margin:0;color:var(--text)}
+.ci-research-evidence-warning{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:var(--muted);margin:0}
+.ci-research-evidence-warning svg{flex:0 0 auto}
+.ci-research-value-wrap{padding:14px 16px;display:grid;gap:11px}
+.ci-research-value-wrap .valueSummary{margin:0;grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
+.ci-research-value-wrap p{margin:0;max-width:80ch;overflow-wrap:anywhere}
+.ci-research-decision table td{vertical-align:top;overflow-wrap:anywhere}
+.ci-research-decision .ci-review-source-content{padding:14px 16px}
+.ci-research-decision .ci-review-source-content p{margin:0 0 12px;overflow-wrap:anywhere}
+@media(max-width:600px){
+ .ci-research-decision{padding:14px}
+ .ci-research-decision .tableWrap{overflow-x:auto}
+ .ci-research-decision table{min-width:560px}
+}
