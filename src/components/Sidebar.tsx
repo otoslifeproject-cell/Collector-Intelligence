@@ -1,7 +1,8 @@
+import {useState} from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Boxes, ChartNoAxesCombined, CircleDollarSign, FlaskConical,
-  LayoutDashboard, LogOut, PlusCircle, Search, Sun, Moon, UsersRound, Sparkles
+  LayoutDashboard, LogOut, PlusCircle, Search, Sun, Moon, Menu, X, UsersRound, Sparkles
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type {Appearance} from '../lib/appearance'
@@ -18,6 +19,7 @@ const links = [
 ]
 
 export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appearance;onToggleAppearance:()=>void}) {
+  const [mobileMenuOpen,setMobileMenuOpen]=useState(false)
   const LightIcon=appearance==='dark'?Sun:Moon
   const actionLabel=appearance==='dark'?'Switch to light mode':'Switch to dark mode'
   return (
@@ -32,15 +34,23 @@ export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appe
           onClick={onToggleAppearance} aria-label={actionLabel} title={actionLabel}>
           <LightIcon size={19}/><span className="sr-only">{actionLabel}</span>
         </button>
+        <button type="button" className="ci-mobile-menu-toggle" aria-label={mobileMenuOpen?'Close navigation menu':'Open navigation menu'}
+         aria-controls="ci-primary-navigation" aria-expanded={mobileMenuOpen}
+         onClick={()=>setMobileMenuOpen(v=>!v)}>
+         {mobileMenuOpen?<X size={20}/>:<Menu size={20}/>}<span>Menu</span>
+        </button>
       </div>
 
-      <nav>
+      <nav id="ci-primary-navigation" className={mobileMenuOpen?'is-open':''}>
         {links.map(([to, label, Icon]: any) => (
-          <NavLink key={to} to={to} end={to === '/'} className={({isActive}) => isActive ? 'navItem active' : 'navItem'}>
+          <NavLink key={to} to={to} end={to === '/'} className={({isActive}) => isActive ? 'navItem active' : 'navItem'} onClick={()=>setMobileMenuOpen(false)}>
             <Icon size={18} />
             <span>{label}</span>
           </NavLink>
         ))}
+        <button type="button" className="navItem buttonNav ci-mobile-signout" onClick={()=>supabase.auth.signOut()}>
+         <LogOut size={18}/><span>Sign out</span>
+        </button>
       </nav>
 
       <div className="sidebarBottom">
