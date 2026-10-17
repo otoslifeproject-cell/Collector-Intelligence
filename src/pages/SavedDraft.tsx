@@ -238,6 +238,19 @@ export default function SavedDraft(){
     <button className="secondaryButton" onClick={()=>setDisagreeOpen(v=>!v)}>Disagree with verdict</button>
     <button className="secondaryButton" onClick={()=>setActiveTab('catalogue')}>Catalogue / continue →</button>
    </div>
+   {disagreeOpen&&<section className="panel ci-owner-disagreement">
+     <div className="panelHeader"><h2>Disagree with verdict</h2><span>Owner observation takes precedence</span></div>
+     <p className="ci-page-meta">Correct the material and explain. The old AI conclusion remains in the evidence trail, not as a verified identification.</p>
+     <div className="ci-review-fields">
+      <label>Correct material<select value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
+       {['Metal','Glass','Ceramic','Wood','Stone','Textile','Mixed materials','Unknown'].map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+      <label>What did it get wrong?<textarea rows={3} maxLength={2000} value={disagreementNote} onChange={e=>setDisagreementNote(e.target.value)} placeholder="Material, maker, shape, period, or incorrect comparable"/></label>
+     </div>
+     <div className="ci-page-actions"><button className="primaryButton" disabled={savingDisagreement} onClick={saveDisagreement}>{savingDisagreement?'Saving…':'Save correction'}</button>
+      <button className="secondaryButton" onClick={()=>setDisagreeOpen(false)}>Cancel</button></div>
+    </section>}
+   {scopeFeedback.length>0&&<div className="note ci-owner-evidence" role="status"><strong>Owner correction on record:</strong> {correctedMaterial?'Material: '+correctedMaterial+'. ':''}{scopeFeedback[0].owner_statement}
+     <p className="ci-page-meta">Original AI output retained. New research must use the correction.</p></div>}
    <div className="tabBar" role="tablist" aria-label="Object workspace">
     {['overview','photos','identification','market','sales','catalogue'].map(t=>
       <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
@@ -281,15 +294,21 @@ export default function SavedDraft(){
        <select value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
         {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
        </select></label>}
+      <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={()=>runDraftResearch('deep_dive')}>
+       {researching?'Investigating…':'Dive deeper · visual matches and sources'}
+      </button>
+      <p className="ci-page-meta">Paid deep dive searches visual reference leads and research sources using your corrected observations. This is not an automated Google Lens reverse-image search.</p>
+      <a href="https://lens.google.com/" className="ci-external-image-search" target="_blank" rel="noopener noreferrer">Open Google Lens for manual image comparison ↗</a>
+      {existingResearchObsolete&&<p className="note" role="alert"><strong>Old glass verdict contradicted.</strong> Previous glass attributions and glass-price leads are obsolete for this object.</p>}
       {visibleResearch
        ? <details className="ci-archive-section">
           <summary>Run another online research search · paid</summary>
           <p className="ci-page-meta">The saved result below is available without another model call. Only rerun when new evidence could change the decision.</p>
-          <button className="secondaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={runDraftResearch}>
+          <button className="secondaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={()=>runDraftResearch('standard')}>
            {researching?'Researching online…':'Start another paid investigation'}
           </button>
          </details>
-       : <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={runDraftResearch}>
+       : <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={()=>runDraftResearch('standard')}>
           {researching?'Researching online…':'Research & value online'}
          </button>}
       {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research investigation(s). Earlier results remain available without another charge.</p>}
