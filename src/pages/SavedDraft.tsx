@@ -29,6 +29,7 @@ export default function SavedDraft(){
  const [researchResult,setResearchResult]=useState<any|null>(null)
  const [researchAudit,setResearchAudit]=useState<any|null>(null)
  const [researchHistory,setResearchHistory]=useState<any[]>([])
+ const [unfinishedResearch,setUnfinishedResearch]=useState<any[]>([])
  const [lastResearchScope,setLastResearchScope]=useState('')
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState('ALL')
@@ -48,7 +49,9 @@ export default function SavedDraft(){
    const {data:prior}=await supabase.from('ai_analysis_runs')
     .select('id,result,created_at,user_context').eq('mode','research').order('created_at',{ascending:false}).limit(100)
    if(alive){
-     const past=(prior||[]).filter((x:any)=>x.user_context?.source_analysis_run_id===report.id&&x.result?.research_summary)
+     const related=(prior||[]).filter((x:any)=>x.user_context?.source_analysis_run_id===report.id)
+     const past=related.filter((x:any)=>x.result?.research_summary)
+     setUnfinishedResearch(related.filter((x:any)=>!x.result?.research_summary))
      setResearchHistory(past)
      if(past.length){setResearchResult(past[0].result);setResearchAudit(past[0].result?.source_audit||null)}
    }
@@ -215,10 +218,23 @@ export default function SavedDraft(){
        <select value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
         {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
        </select></label>}
-      <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={runDraftResearch}>
-       {researching?'Researching online…':'Research & value online'}
-      </button>
-      {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research investigation(s). Previous results load automatically; no rerun required to view them.</p>}
+      {visibleResearch
+       ? <details className="ci-archive-section">
+          <summary>Run another online research search · paid</summary>
+          <p className="ci-page-meta">The saved result below is available without another model call. Only rerun when new evidence could change the decision.</p>
+          <button className="secondaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={runDraftResearch}>
+           {researching?'Researching online…':'Start another paid investigation'}
+          </button>
+         </details>
+       : <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={runDraftResearch}>
+          {researching?'Researching online…':'Research & value online'}
+         </button>}
+      {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research investigation(s). Earlier results remain available without another charge.</p>}
+      {unfinishedResearch.length>0&&<details className="ci-archive-section">
+       <summary>{unfinishedResearch.length} interrupted or staged research request(s) · inspect before rerunning</summary>
+       <p className="ci-page-meta">These requests do not have a confirmed completed research report. A paid call may have been interrupted; do not automatically repeat it.</p>
+       {unfinishedResearch.map((x:any)=><p key={x.id} className="ci-page-meta">{new Date(x.created_at).toLocaleString()} · {x.result?.analysis_stage||'Unknown state'} · source object {x.user_context?.source_object_index??'Unknown'}</p>)}
+      </details>}
     </div>
     <div className="panel">
      <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
