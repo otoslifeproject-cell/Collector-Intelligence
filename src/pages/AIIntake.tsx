@@ -93,6 +93,10 @@ export default function AIIntake() {
   const pairProposal=useMemo(()=>suggestSingleIntakePair(drafts,mode),[drafts,mode])
   const paired=!!pairProposal&&groupPair
   const selectedCount = useMemo(()=>paired?(drafts[0]?.include===false?0:1):drafts.filter(d=>d.include!==false).length,[drafts,paired])
+  const actualPhotoIndices=new Set(photos.map(p=>p.index))
+  const invalidPhotoIndices=[...new Set(drafts.flatMap(d=>d.image_indices||[]))]
+    .filter(i=>!actualPhotoIndices.has(i))
+
 
   const addIncomingFiles = (files: File[]) => {
     const supported = files.filter(file =>
@@ -247,6 +251,11 @@ export default function AIIntake() {
     }
     const selectedIndices = paired?(drafts[0]?.include===false?[]:[0]):drafts.flatMap((d,i) => d.include===false ? [] : [i])
     if (!selectedIndices.length) return setMessage('Select at least one object.')
+    if(invalidPhotoIndices.length){
+      setMessage('AI referenced a photograph outside the uploaded set. Please review and confirm a corrected mapping in the saved report. No record has been catalogued.')
+      nav('/draft/'+analysisRunId+'?tab=catalogue')
+      return
+    }
     approvalLock.current = true
     setStage('saving')
     setMessage('Saving selected objects and their original photo links as one safe transaction…')
@@ -367,6 +376,9 @@ export default function AIIntake() {
            <p>Mark recheck: {inscriptionReviewStatus}. Existing knowledge: {knowledgeLookup.status}. Neither confirms a maker.</p>
           </details>
         </div>
+        {invalidPhotoIndices.length>0&&<div className="note ci-inline-note" role="alert">
+         <strong>AI photo-reference warning:</strong> it cited photo number(s) {invalidPhotoIndices.map(i=>i+1).join(', ')}, but only {photos.length} photographs were uploaded. The raw AI report is preserved; catalogue approval will require source review.
+        </div>}
         {pairProposal&&<div className="panel ci-pair-choice">
          <strong>Matching pair identified — two physical items, normally one sale lot</strong>
          <p>Both pieces and their individual photos remain documented. Keep one catalogue record for the pair, or turn this off if you plan to sell the pieces separately.</p>
