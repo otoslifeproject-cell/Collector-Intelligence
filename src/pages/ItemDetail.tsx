@@ -47,7 +47,7 @@ export default function ItemDetail() {
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
     const {data:runs}=await supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100)
-    const itemRuns=(runs||[]).filter((x:any)=>x.user_context?.item_id===id)
+    const itemRuns=(runs||[]).filter((x:any)=>x.user_context?.item_id===id&&x.result?.research_summary)
     setSavedResearchRuns(itemRuns.filter((x:any)=>x.status==='APPROVED'))
     setPendingResearchRuns(itemRuns.filter((x:any)=>x.status==='DRAFT'))
     const rows = (photoData || []) as ItemPhoto[]
@@ -94,28 +94,37 @@ export default function ItemDetail() {
     const {data:{session}} = await supabase.auth.getSession()
     if (!session) { setResearching(false); return setMessage('Session expired. Sign in again.') }
     try {
+      const images=Object.values(photoUrls).filter(Boolean).slice(0,12)
+      const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
+        mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:images.length,
+        user_context:{item_id:item.id,item_code:item.item_code},
+        result:{analysis_stage:'STAGED',source_item_id:item.id}
+      }).select('id').single()
+      if(stageError||!staged?.id)throw Error('Cannot stage owner-scoped research. No paid model request made.')
       const response = await fetch('/api/research-item',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({item,images:Object.values(photoUrls).filter(Boolean).slice(0,12)})
+        body:JSON.stringify({item,images,research_run_id:staged.id})
       })
-      const rawResponse = await response.text()
+      const rawResponse=await response.text()
       let payload:any
-      try { payload=JSON.parse(rawResponse) }
-      catch { throw new Error('Research service returned an unexpected response (HTTP '+response.status+'). Please retry after deployment; no research was saved.') }
-      if (!response.ok) throw new Error(payload.error || ('Research request failed (HTTP '+response.status+')'))
-      setResearchDraft(payload.result)
-      setResearchAudit(payload.source_audit || null)
-      const {data:run} = await supabase.from('ai_analysis_runs').insert({
-        mode:'research',
-        model:payload.model || 'unknown',
-        status:'DRAFT',
-        input_photo_count:Object.values(photoUrls).filter(Boolean).length,
-        user_context:{item_id:item.id,item_code:item.item_code},
-        result:{...payload.result, source_audit:payload.source_audit||null,canonical_policy_hashes:payload.canonical_policy_hashes||null}
-      }).select('id').single()
-      if (run?.id) setResearchRunId(run.id)
-      setMessage('Research draft ready. Review before writing it back.')
+      try {payload=JSON.parse(rawResponse)}
+      catch {throw Error('Research service response was not readable. Check saved analysis before trying again.')}
+      if(!response.ok){
+        if(payload?.result?.research_summary){
+          setResearchDraft(payload.result);setResearchAudit(payload.source_audit||null)
+        }
+        throw Error((payload.error||'Research service failed')+'. Staged run preserved; do not repeat paid research to recover it.')
+      }
+      if(payload.saved_run_id!==staged.id)throw Error('Research result ID did not match staged record.')
+      const {data:verified,error:verifyError}=await supabase.from('ai_analysis_runs')
+        .select('id,result,status').eq('id',staged.id).single()
+      if(verifyError||!verified||verified.result?.analysis_stage!=='COMPLETE'||!verified.result?.research_summary)
+        throw Error('Paid research readback incomplete. Do not make another paid request to recover it.')
+      setResearchDraft(verified.result)
+      setResearchAudit(verified.result.source_audit||null)
+      setResearchRunId(staged.id)
+      setMessage('Online research saved and read back. Review sources before promoting any claim or price.')
     } catch (err:any) {
       setMessage(err?.message || 'Research failed')
     } finally {
