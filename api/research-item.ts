@@ -168,7 +168,7 @@ function checkResearchEvidence(result:any) {
  if(true){
    result.valuation=result.valuation||{};
    result.valuation.valuation_confidence=Math.min(Number(result.valuation.valuation_confidence)||0,30);
-   result.valuation.notes=[result.valuation.notes||"","PROVISIONAL VALUE — SOLD EVIDENCE INADEQUATE: fewer than two cited sold candidates."].join(" ");
+   result.valuation.notes=[result.valuation.notes||"","PROVISIONAL VALUE — NO INDEPENDENTLY VERIFIED SOLD COMPARABLES: these are model-supplied market leads only."].join(" ");
    result.routing=result.routing||{};
    result.routing.sale_readiness="RESEARCH_FIRST";
    result.routing.specialist_review=true;
