@@ -9,6 +9,7 @@ import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
+import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
 
 export default function ItemDetail() {
   const {id} = useParams()
@@ -333,16 +334,16 @@ export default function ItemDetail() {
             </div>)}
           </details>
         </div>}
-                <div className="panel researchLauncher">
-          <div>
-            <div className="eyebrow">LIVE MARKET RESEARCH</div>
-            <h2>Need more research?</h2>
-            <p>Optional paid AI search. Existing findings are saved above.</p>
-          </div>
-          <button className="primaryButton inlineButton" onClick={runResearch} disabled={researching}>
-            {researching ? <><LoaderCircle className="spin" size={17}/> Researching…</> : <><Search size={17}/> Run new research</>}
-          </button>
-        </div>
+        <WorkspaceActionPanel eyebrow="RESEARCH OPTIONS" title="Research this object"
+         description="Continue with the original item photographs. Saved research remains available above."
+         primary={{
+          label:researching?'Researching…':'Research online',
+          onClick:runResearch,disabled:researching,loading:researching
+         }}
+         secondary={<a href="https://lens.google.com/" target="_blank" rel="noopener noreferrer"
+          className="ci-action-text-link">Manual image search ↗</a>}
+         note="Optional paid AI search. Your original evidence and earlier research remain unchanged."
+        />
 
         {researchDraft && <>
          <ResearchDecisionPanel research={researchDraft} sourceAudit={researchAudit} title="Research decision" />
