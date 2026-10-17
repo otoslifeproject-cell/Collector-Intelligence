@@ -93,7 +93,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
     review_decision:decision,review_note:note.slice(0,1200),
     evidence_status:'OWNER_VISUAL_COMPARISON_UNVERIFIED'
    }
-   const {data,error}=await supabase.from('ai_visual_reference_reviews').insert(payload)
+   const {data,error}=await supabase.from('ai_visual_reference_reviews').insert(payload as any)
       .select('id,reference_system_number,review_decision,created_at,review_note').single()
    if(error||!data)throw Error(error?.message||'Reference review was not saved')
    const {data:check,error:readError}=await supabase.from('ai_visual_reference_reviews')
