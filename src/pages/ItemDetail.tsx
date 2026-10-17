@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Comparable, Item, ItemPhoto } from '../types'
 import { date, money } from '../lib/format'
 import Confidence from '../components/Confidence'
+import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 
 export default function ItemDetail() {
   const {id} = useParams()
@@ -309,26 +310,14 @@ export default function ItemDetail() {
           </button>
         </div>
 
-        {researchDraft && <div className="panel researchDraftPanel">
-          <div className="panelHeader"><div><h2>Research decision</h2><span>Provisional · source verification pending</span></div><span className="pill accent">DRAFT</span></div>
-
-
-          <div className="note">Preserving this draft retains its provisional research record only. It will NOT change the item's maker, valuation or comparables. Independent original-source checks are required before promotion.</div>
-          <div className="researchMetricGrid">
-            <div><small>Attribution</small><strong>{researchDraft.identification_update?.attribution || researchDraft.identification_update?.maker || 'Unresolved'}</strong><span>{researchDraft.identification_update?.identification_confidence}% ID confidence</span></div>
-            <div><small>Balanced value</small><strong>{money(researchDraft.valuation?.balanced_low,researchDraft.valuation?.currency||'GBP')}–{money(researchDraft.valuation?.balanced_high,researchDraft.valuation?.currency||'GBP')}</strong><span>{researchDraft.valuation?.valuation_confidence}% value confidence</span></div>
-            <div><small>Route</small><strong>{researchDraft.routing?.best_venue || 'Research first'}</strong><span>{researchDraft.routing?.sale_readiness?.replaceAll('_',' ')}</span></div>
-          </div>
-          <details className="note"><summary style={{cursor:"pointer",fontWeight:700}}>Supporting evidence, cautions and comparable leads</summary>
-          <p>{researchDraft.research_summary}</p>
-          {researchAudit && <p><strong>Evidence status:</strong> {researchAudit.warning}</p>}
-          {researchDraft.identification_update?.contradictions?.length>0 && <div className="warningCallout"><ShieldAlert size={18}/><div><strong>Contradictions / cautions</strong>{researchDraft.identification_update.contradictions.map((x:string,i:number)=><div key={i}>{x}</div>)}</div></div>}
-          <div className="tableWrap researchPreviewTable"><table><thead><tr><th>Venue</th><th>Class</th><th>Price</th><th>Verification</th><th>Comparable</th></tr></thead><tbody>
-            {(researchDraft.comparables||[]).map((c:any,i:number)=><tr key={i}><td>{c.venue}{c.source_url && <> <a href={c.source_url} target="_blank"><ExternalLink size={12}/></a></>}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')}</td><td>{c.comparability_grade}</td></tr>)}
-          </tbody></table></div>
-          </details>
-          <div className="researchApprove"><button className="secondaryButton" onClick={()=>setResearchDraft(null)} disabled={researching}>Discard draft</button><button className="primaryButton inlineButton" onClick={approveResearch} disabled={researching}><Check size={17}/> Preserve provisional research</button></div>
-        </div>}
+        {researchDraft && <>
+         <ResearchDecisionPanel research={researchDraft} sourceAudit={researchAudit} title="Research decision" />
+         <div className="panel researchApprove">
+          <p className="ci-page-meta">Preserving this result keeps research provisional; it does not change maker, accepted value or trusted comparables.</p>
+          <button className="secondaryButton" onClick={()=>setResearchDraft(null)} disabled={researching}>Close research view</button>
+          {researchRunId&&<button className="primaryButton inlineButton" onClick={approveResearch} disabled={researching}><Check size={17}/> Preserve provisional research</button>}
+         </div>
+        </>}
 
         <div className="panel">
           <div className="panelHeader"><h2>Comparable evidence</h2><span>{comps.length} permanent records</span></div>
