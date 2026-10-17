@@ -34,7 +34,7 @@ export default function Research() {
   const [draftFeedback,setDraftFeedback] = useState<any[]>([])
   const [museumTarget,setMuseumTarget] = useState(()=>new URLSearchParams(location.search).get('item')||'')
   const [museumSaving,setMuseumSaving] = useState<string|null>(null)
-  const [museumSource,setMuseumSource] = useState<'vam'|'europeana'>('vam')
+  const [museumSource,setMuseumSource] = useState<'met'|'vam'|'europeana'>('met')
   const [museumQuery,setMuseumQuery] = useState('')
   const [museumResults,setMuseumResults] = useState<any[]>([])
   const [museumMessage,setMuseumMessage] = useState('')
@@ -109,7 +109,7 @@ export default function Research() {
 
   const saveMuseumLead=async (m:any) => {
     if(!museumTarget){setMuseumMessage('Select the CI object before saving.');return}
-    if(!m.sourceUrl || !/^https:\/\/(collections\.vam\.ac\.uk|www\.europeana\.eu)\//.test(m.sourceUrl)){
+    if(!m.sourceUrl || !/^https:\/\/(collections\.vam\.ac\.uk|www\.europeana\.eu|www\.metmuseum\.org)\//.test(m.sourceUrl)){
       setMuseumMessage('Unrecognised source URL; no record saved.');return
     }
     setMuseumSaving(m.id);setMuseumMessage('')
@@ -137,7 +137,10 @@ export default function Research() {
       const {data}=await supabase.auth.getSession()
       const token=data.session?.access_token
       if(!token)throw new Error('Please sign in again.')
-      const response=await fetch('/api/museum-search?source='+museumSource+'&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+token}})
+      const endpoint=museumSource==='met'
+        ?'/api/open-access-search?q='+encodeURIComponent(q)
+        :'/api/museum-search?source='+museumSource+'&q='+encodeURIComponent(q)
+      const response=await fetch(endpoint,{headers:{Authorization:'Bearer '+token}})
       const payload=await response.json()
       if(!response.ok)throw new Error(payload.error||'Museum lookup failed')
       setMuseumResults(payload.records||[])
@@ -419,10 +422,11 @@ export default function Research() {
       </div>
     </div>
     <details className="panel">
-      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — V&A and Europeana</summary>
-      <p>Search documented museum collection objects. Results are research leads, not maker authentication or confirmed sale prices.</p>
+      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — open-access or external</summary>
+      <p>Search The Met's public-domain CC0 illustrations. V&A commercial API access is paused pending licensing; use its public collection site manually. Museum objects are reference leads, not authentication or achieved prices.</p>
+      <p className="ci-page-meta"><a href="https://collections.vam.ac.uk/" target="_blank" rel="noopener noreferrer">Open V&A catalogue manually ↗</a> (licence permission required for in-app API/image use).</p>
       <div className="toolbar">
-        <select aria-label="Museum source" value={museumSource} onChange={e=>{setMuseumSource(e.target.value as 'vam'|'europeana');setMuseumResults([]);setMuseumMessage('')}}><option value="vam">V&A — active</option><option value="europeana">Europeana — API key required</option></select>
+        <select aria-label="Museum source" value={museumSource} onChange={e=>{setMuseumSource(e.target.value as 'met'|'vam'|'europeana');setMuseumResults([]);setMuseumMessage('')}}><option value="met">The Met — Open Access CC0</option><option value="vam">V&A — licence required</option><option value="europeana">Europeana — API key required</option></select>
         <input aria-label="Search museum objects" value={museumQuery} onChange={e=>setMuseumQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchMuseum()}} placeholder="Maker, material, object type…" style={{flex:1,minWidth:100}} />
         <button className="secondaryButton" disabled={museumLoading} onClick={searchMuseum}>{museumLoading?'Searching…':'Search museum'}</button>
       </div>
