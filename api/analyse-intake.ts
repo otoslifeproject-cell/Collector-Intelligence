@@ -106,6 +106,7 @@ Hard rules:
 - Inspect silhouette/proportions, colour/clarity, base, pontil, polished/ground areas, mould seams, bubbles/striae/inclusions, tooling, cut decoration, rim, handle joins/applied decoration, wear, labels, marks/signatures and visible chips/cracks/bruises/repairs.
 - For mixed batches, assign each image index to the object it depicts. Do not transfer evidence between objects.
 - In single-object intake, multiple camera angles of one physical piece must NOT become multiple object records.
+- image_indices MUST contain only the zero-based indices of actual uploaded images (the allowed list is supplied in this run). Never invent a nonexistent photo index or shift an index because descriptive notes count images from 1.
 - A matched PAIR is two physical pieces but can be one catalogue and selling lot. If a genuine matching pair is visible, describe the left and right pieces separately and retain their original photo indices so the owner can group them as one lot.
 - Never use shared images or similar colour alone as evidence that two objects are the same piece or a matched pair; flag ambiguity without inventing duplicates.
 - The user may later research the market. This intake pass has no verified sold-comparable search. Therefore any value is VISUAL-ONLY PROVISIONAL; use null when evidence is inadequate and keep valuation confidence appropriately low.
@@ -426,6 +427,20 @@ export default async function handler(req: any, res: any) {
     // Save the first paid model answer BEFORE enrichment, second-pass AI or client response.
     // If any later step fails, the user still has the original provisional report.
     const originalManifest=staged.result.image_manifest;
+    const validPhotoIndices=new Set(originalManifest.map((p:any)=>p.index));
+    const invalidPhotoReferences=(result.objects||[]).flatMap((o:any,objectIndex:number)=>
+      (Array.isArray(o.image_indices)?o.image_indices:[])
+       .filter((i:any)=>!Number.isInteger(i)||!validPhotoIndices.has(i))
+       .map((i:any)=>({object_index:objectIndex,model_photo_index:i}))
+    );
+    const photoIndexAudit={
+      status:invalidPhotoReferences.length?'OWNER_REVIEW_REQUIRED':'VALID_REFERENCES',
+      uploaded_photo_count:originalManifest.length,
+      invalid_photo_references:invalidPhotoReferences
+    };
+    // Keep raw first-pass source untouched; add an explicit audit rather than
+    // silently inventing a mapping or shifting photo numbers.
+    result={...result,photo_index_audit:photoIndexAudit};
     try {
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,{
         ...staged.result,...result,image_manifest:originalManifest,
