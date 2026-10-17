@@ -6,8 +6,11 @@
 <div class="appShell">
  <aside class="sidebar">
   <div class="brand"><div class="brandMark">CI</div><div><strong>Collector Intelligence</strong><span>Identify · Research · Value</span></div>
-   <button type="button" class="ci-appearance-toggle ci-appearance-mobile" aria-label="Switch to light mode">☀</button></div>
-  <nav><a class="navItem" href="#">Dashboard</a><a class="navItem active" href="#">Inventory</a><a class="navItem" href="#">Research</a><a class="navItem" href="#">Sales</a></nav>
+   <button type="button" class="ci-appearance-toggle ci-appearance-mobile" aria-label="Switch to light mode">☀</button>
+   <button type="button" id="ci-menu-toggle" class="ci-mobile-menu-toggle"
+    aria-label="Open navigation menu" aria-controls="ci-primary-navigation" aria-expanded="false">☰ Menu</button></div>
+  <nav id="ci-primary-navigation"><a class="navItem" href="#">Dashboard</a><a class="navItem active" href="#">Inventory</a><a class="navItem" href="#">Research</a><a class="navItem" href="#">Sales</a>
+    <button type="button" class="navItem buttonNav ci-mobile-signout">Sign out</button></nav>
   <div class="sidebarBottom"><button class="navItem buttonNav ci-appearance-toggle">Light mode</button></div>
  </aside>
  <main class="mainContent">
@@ -39,4 +42,13 @@
    </div>
   </div>
  </main>
-</div></body></html>
+</div>
+<script>
+document.getElementById('ci-menu-toggle').addEventListener('click',function(){
+ const nav=document.getElementById('ci-primary-navigation')
+ const show=nav.classList.toggle('is-open')
+ this.setAttribute('aria-expanded',String(show))
+ this.setAttribute('aria-label',show?'Close navigation menu':'Open navigation menu')
+})
+</script>
+</body></html>
