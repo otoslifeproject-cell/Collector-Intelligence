@@ -101,6 +101,7 @@ Hard rules:
 - Never invent a maker, signature, provenance, date, pattern name, mark, rarity claim, or auction result.
 - Separate direct visual FACT from STRONG_ATTRIBUTION, POSSIBLE_ATTRIBUTION and UNKNOWN.
 - Bubbles, rough pontils, weight and apparent wear are not proof of age by themselves.
+- IMPORTANT MATERIAL DISCRIMINATOR: This project previously misidentified a dark gilt/floral decorated METAL pair as glass, even repeating the glass error during online research. Do not assume dark reflective, enamelled or gilded surfaces are glass. Visually test metal, ceramic, wood and mixed construction against glass FIRST using rim thickness, rim/foot edge profile, joins, surface wear revealing substrate, tooling, reflections and observed material evidence. If you cannot distinguish, label material UNKNOWN and ask ONE decisive inspection, never confidently state glass.
 - If maker/date is not supported, return null or cautious wording.
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Inspect silhouette/proportions, colour/clarity, base, pontil, polished/ground areas, mould seams, bubbles/striae/inclusions, tooling, cut decoration, rim, handle joins/applied decoration, wear, labels, marks/signatures and visible chips/cracks/bruises/repairs.
@@ -186,6 +187,24 @@ function applyInscriptionReview(result: any, review: any) {
     }
   }
   return result;
+}
+
+// Owner-confirmed material mistakes are reusable cautionary benchmarks, not
+// independent maker identifications or permission to override new photos.
+async function loadOwnerMaterialLessons(url:string,key:string,token:string){
+ const qp=new URLSearchParams({select:'feedback_type,corrected_material,owner_statement,created_at',
+  feedback_type:'eq.MATERIAL_CORRECTION',order:'created_at.desc',limit:'20'});
+ const response=await fetch(url+'/rest/v1/ai_verdict_feedback?'+qp.toString(),{
+  headers:{apikey:key,Authorization:'Bearer '+token}
+ });
+ if(!response.ok)throw Error('OWNER_CORRECTIONS_'+response.status);
+ const rows=await response.json();
+ if(!Array.isArray(rows))throw Error('OWNER_CORRECTIONS_INVALID');
+ return rows.map((r:any)=>({
+  kind:'USER_OBSERVED_ERROR_PATTERN_NOT_AUTHENTICATION',
+  corrected_material:String(r.corrected_material||'').slice(0,100),
+  observation:String(r.owner_statement||'').slice(0,320)
+ }));
 }
 
 // Read-only, owner-scoped Knowledge Brain retrieval. Never promote an AI similarity match
@@ -343,6 +362,9 @@ export default async function handler(req: any, res: any) {
     return res.status(503).json({error:"Trusted Knowledge Brain inaccessible; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_NETWORK"});
   }
 
+  let ownerMaterialLessons:any[];
+  try{ownerMaterialLessons=await loadOwnerMaterialLessons(supabaseUrl,supabaseKey,token);}
+  catch(e:any){return res.status(503).json({error:'Owner correction retrieval unavailable. Stopped before paid AI to prevent repeating known material errors.',code:e?.message||'OWNER_CORRECTIONS_UNAVAILABLE'});}
   const { mode = "single", images = [], context = {}, run_id } = req.body || {};
   if (!Array.isArray(images) || images.length < 1) return res.status(400).json({ error: "At least one image is required" });
   if (images.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
@@ -387,7 +409,9 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "medium" },
-    instructions: systemPrompt + "\n\nMANDATORY CURRENT PROJECT SPECIFICATIONS (Master Brief governs):\n" + canonical.instructions,
+    instructions: systemPrompt + "\n\nMANDATORY CURRENT PROJECT SPECIFICATIONS (Master Brief governs):\n" + canonical.instructions
+       + "\n\nOWNER MATERIAL-CLASSIFICATION ERROR LESSONS — CAUTION ONLY, DO NOT TRANSFER ATTRIBUTIONS TO THIS OBJECT:\n"
+       + JSON.stringify(ownerMaterialLessons),
     input: [{ role: "user", content }],
     text: {
       format: {
@@ -447,7 +471,8 @@ export default async function handler(req: any, res: any) {
         initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
         image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
         canonical_policy_hashes:canonical.hashes,
-        knowledge_lookup:{status:'PENDING',matches:[]}
+        knowledge_lookup:{status:'PENDING',matches:[]},
+        material_correction_lessons_consulted:ownerMaterialLessons.length
       });
     }catch(e:any){
       return res.status(503).json({error:e?.message||'Paid analysis was returned but could not be persisted.',code:'FIRST_PASS_SAVE_FAILED',run_id});
