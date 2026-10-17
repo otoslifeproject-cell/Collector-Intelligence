@@ -214,7 +214,7 @@ export default function SavedDraft(){
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
-      <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>setGroupPair(e.target.checked)}/> One catalogue record for the pair (recommended)</label>
+      <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>{setGroupPair(e.target.checked);setConfirmedPhotoCorrection(false)}}/> One catalogue record for the pair (recommended)</label>
     </div>}
    {needsPhotoCorrection&&<div className="note ci-inline-note" role="alert">
     <strong>AI source-index discrepancy:</strong> this report refers to photo number(s) {[...new Set(missingSourceIndices)].map(n=>n+1).join(', ')}, but the original upload contains only {run.input_photo_count} files. Those model references are preserved as received; the existing uploaded photographs have not been altered.
@@ -315,7 +315,7 @@ export default function SavedDraft(){
      <div className="itemCardBody">
       <div className="itemMeta"><span>{paired?'Pair · 2 pieces':'Object '+(i+1)}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
       {run.status==='DRAFT'&&isPhotoManifestReady&&<label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
-       <input type="checkbox" checked={selected[i]!==false} onChange={e=>setSelected(v=>({...v,[i]:e.target.checked}))}/>
+       <input type="checkbox" checked={selected[i]!==false} onChange={e=>{setSelected(v=>({...v,[i]:e.target.checked}));setConfirmedPhotoCorrection(false)}}/>
        <span>Include in catalogue</span>
       </label>}
       <h3 className="ci-record-title">{title}</h3>
