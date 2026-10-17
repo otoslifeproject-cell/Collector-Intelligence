@@ -14,6 +14,13 @@ export default async function handler(req: any, res: any) {
   const raw=typeof req.query?.q==='string'?req.query.q.trim():'';
   if(raw.length<3||raw.length>100)return res.status(400).json({error:'Enter a search term of 3–100 characters'});
   const source=req.query?.source==='europeana'?'europeana':'vam';
+  if(source==='vam'){
+    return res.status(403).json({
+      error:'The V&A requires a separate licence for commercial API/image use. Until a licence is confirmed, use the Met Open Access reference search or open the V&A catalogue website manually.',
+      original_catalogue:'https://collections.vam.ac.uk/'
+    });
+  }
+
   if(source==='europeana'&&!process.env.EUROPEANA_API_KEY)return res.status(503).json({error:'Europeana connector awaits an official API key. V&A is available now.'});
   try {
     if(source==='europeana'){
