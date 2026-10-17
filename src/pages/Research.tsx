@@ -394,21 +394,21 @@ export default function Research() {
       <div className="eyebrow">RESEARCH OPTIONS</div>
       <h2>Choose how to research</h2>
       <p className="ci-research-lead">Start with free reference checks. Use a paid AI investigation only when it is worth the cost.</p>
-      <div className="ci-research-option-list">
-        <div className="ci-research-option">
-          {museumTarget?<Link className="primaryButton ci-research-choice" to={'/item/'+museumTarget+'?tab=market'}>Deep research →</Link>:<a href="#ci-research-object-chooser" className="primaryButton ci-research-choice">Choose object →</a>}
-          <div><strong>AI-assisted investigation</strong><p>Opens the object's Market research workspace. Any paid AI run requires a separate deliberate action; this button does not charge you.</p></div>
-          <span className="ci-research-cost">Paid AI optional</span>
+      <div className="ci-action-list">
+        <div className="ci-action-row">
+          {museumTarget?<Link className="primaryButton ci-action-row__button" to={'/item/'+museumTarget+'?tab=market'}>Deep research →</Link>:<a href="#ci-research-object-chooser" className="primaryButton ci-action-row__button">Choose object →</a>}
+          <div className="ci-action-row__text"><strong>AI-assisted investigation</strong><p>Opens the object's Market research workspace. Any paid AI run requires a separate deliberate action; this button does not charge you.</p></div>
+          <span className="ci-action-row__meta">Paid AI optional</span>
         </div>
-        <div className="ci-research-option">
-          <a className="secondaryButton ci-research-choice" href="#ci-museum-research">Museum comparison →</a>
-          <div><strong>Check collection catalogues</strong><p>Use available museum references or official catalogue links. Similar designs are leads, not authentication of your object.</p></div>
-          <span className="ci-research-cost">Free / external</span>
+        <div className="ci-action-row">
+          <a className="secondaryButton ci-action-row__button" href="#ci-museum-research">Museum comparison →</a>
+          <div className="ci-action-row__text"><strong>Check collection catalogues</strong><p>Use available museum references or official catalogue links. Similar designs are leads, not authentication of your object.</p></div>
+          <span className="ci-action-row__meta">Free / external</span>
         </div>
-        <div className="ci-research-option">
-          <a className="secondaryButton ci-research-choice" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Google Lens ↗</a>
-          <div><strong>Compare by image</strong><p>Opens Google Lens in a new tab. Upload an image there manually; Collector Intelligence does not send your private photos.</p></div>
-          <span className="ci-research-cost">External / manual</span>
+        <div className="ci-action-row">
+          <a className="secondaryButton ci-action-row__button" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Google Lens ↗</a>
+          <div className="ci-action-row__text"><strong>Compare by image</strong><p>Opens Google Lens in a new tab. Upload an image there manually; Collector Intelligence does not send your private photos.</p></div>
+          <span className="ci-action-row__meta">External / manual</span>
         </div>
       </div>
     </section>
