@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useState} from 'react'
 import {supabase} from '../lib/supabase'
 import {visualSearchTerm} from '../lib/openAccessVisual'
+import InfoDisclosure from './InfoDisclosure'
 
 type RecordLead={
  id:string;title:string;objectType:string;maker:string;date:string
@@ -84,9 +85,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
    if(!response.ok)throw Error(result.error||'Museum image search temporarily unavailable.')
    const seen=(result.records||[]).filter((x:any)=>x?.imageUrl&&/^[1-9]\d{0,9}$/.test(String(x.id)))
    setItems(seen);setActive(seen[0]||null)
-   setStatus(seen.length
-    ?seen.length+' illustrated reference candidates. Compare their actual shape, material, construction and decoration; none is a confirmed match.'
-    :'No illustrated records matched this search. Try a broader material + object-type description.')
+   setStatus(seen.length?seen.length+' illustrated results':'No illustrated results. Try a simpler search.')
   }catch(e:any){setStatus(e.message||'Reference catalogue temporarily unavailable.')}
   finally{setLoading(false)}
  }
@@ -124,24 +123,26 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
       .select('id,reference_system_number,review_decision,created_at,review_note').eq('id',data.id).single()
    if(readError||!check)throw Error('Reference saved but readback unavailable. Do not click again until history is refreshed.')
    setReviews(prev=>[check,...prev]);setNote('')
-   setStatus(decision==='NOT_A_MATCH'?'Lookalike rejection preserved. Later Deep Dive can avoid this false lead.':'Visual reference decision preserved as a lead, NOT as a maker or date authentication.')
+   setStatus(decision==='NOT_A_MATCH'?'Not a match saved':'Possible lookalike saved')
   }catch(e:any){setStatus(e.message||'Reference decision not confirmed')}
   finally{setSaving(false)}
  }
  const latestReview=(systemNumber:string)=>reviews.find(x=>x.reference_system_number===systemNumber)
  const newerVisualEvidence=!!latestResearchAt&&reviews.some(r=>Date.parse(r.created_at)>Date.parse(latestResearchAt))
  return <section className="panel ci-visual-workbench" aria-label="Illustrated source comparison">
-   <div className="panelHeader">
-    <div><div className="eyebrow">COMPARE ORIGINAL PHOTOS</div><h2>Find visual reference matches</h2></div>
-    <span>No paid AI · CC0 open-access museum images</span>
+   <div className="panelHeader ci-visual-heading">
+    <div><div className="eyebrow">COMPARE PHOTOS</div><h2>Find visual matches</h2></div>
+    <InfoDisclosure label="About search">
+     <p>No AI charge. Met Museum CC0 images are visual references, not proof of maker, age or value.</p>
+     <p>For a wider image search, <a href={'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(query)} target="_blank" rel="noopener noreferrer">open Google Images ↗</a>.</p>
+    </InfoDisclosure>
    </div>
-   <p className="ci-page-meta">Use the corrected material and visible construction to search open-access museum photographs. Similarity is not attribution, proof of age, or a sold comparable. You decide what resembles the real object.</p>
-   {newerVisualEvidence&&<p className="note" role="status">Your visual comparison decisions are newer than the displayed AI research. A new Deep Dive will use them; the older maker and price conclusions have NOT been recalculated yet.</p>}
+   <p className="ci-action-hint">Search by material, shape or decoration.</p>
+   {newerVisualEvidence&&<InfoDisclosure label="Newer visual evidence" warning><p>Saved comparisons are newer than the AI research; rerun Deep Dive before relying on older conclusions.</p></InfoDisclosure>}
    <div className="ci-visual-search-controls">
     <label>Visual search terms<input value={query} onChange={e=>{setQuery(e.target.value);setItems([]);setActive(null)}} placeholder="e.g. metal gilded vase" maxLength={100} onKeyDown={e=>{if(e.key==='Enter')void search()}}/></label>
     <button className="secondaryButton" disabled={loading} onClick={()=>void search()}>{loading?'Searching images…':'Find illustrated references'}</button>
    </div>
-   <p className="ci-page-meta">Need a wider visual search? <a href={'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(query)} target="_blank" rel="noopener noreferrer">Open Google Images manually ↗</a>. Search images are only visual clues; check the original maker or sale record before relying on a label.</p>
    <div className="ci-visual-columns">
     <div className="ci-visual-source">
      <strong>Your original photograph</strong>
@@ -156,12 +157,11 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
     <div className="ci-visual-source ci-visual-reference">
      <strong>The Met Open Access illustration · CC0</strong>
      {active?.imageUrl?<img src={active.imageUrl} alt={'Met Museum reference '+active.title} loading="lazy" referrerPolicy="no-referrer"/>:
-       <p className="ci-page-meta">Search illustrated references to compare with your original photograph.</p>}
+       <p className="ci-visual-empty">Search to see examples.</p>}
      {active&&<div className="ci-visual-caption">
       <strong>{active.title}</strong>
       <p>{[active.objectType,active.cataloguedMaterial,active.maker,active.date].filter(Boolean).join(' · ')}</p>
       <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">View original Met Museum object record ↗</a>
-      <small>The Metropolitan Museum of Art, New York · Open Access CC0 image.</small>
      </div>}
     </div>
    </div>
@@ -181,13 +181,12 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
       <button className="primaryButton inlineButton" disabled={saving||!historyReady} onClick={()=>void record('POSSIBLE_LOOKALIKE')}>Keep as possible lookalike</button>
      </div>
    </div>}
-   {status&&<p className="note" role="status">{status}</p>}
-   {reviews.length>0&&<details className="ci-archive-section">
-     <summary>{reviews.length} saved visual decision(s) · original reference preserved</summary>
+   {status&&<p className={/(unavailable|failed|invalid|error|could not|again later)/i.test(status)?'ci-inline-feedback ci-feedback-error':'ci-inline-feedback'} role="status">{status}</p>}
+   {reviews.length>0&&<InfoDisclosure label={reviews.length+' saved decisions'}>
      {reviews.slice(0,16).map(r=><p className="ci-page-meta" key={r.id}>
        {new Date(r.created_at).toLocaleString()} — {r.review_decision.replaceAll('_',' ')} — The Met {r.reference_system_number}
        {r.review_note?' · '+r.review_note:''}
       </p>)}
-   </details>}
+   </InfoDisclosure>}
  </section>
 }
