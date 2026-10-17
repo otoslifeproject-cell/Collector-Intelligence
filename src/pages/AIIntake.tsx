@@ -4,6 +4,7 @@ import { Camera, Images, LoaderCircle, Sparkles, Trash2, UploadCloud } from 'luc
 import { supabase } from '../lib/supabase'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
+import InfoDisclosure from '../components/InfoDisclosure'
 
 type UploadPhoto = {
   index: number
@@ -302,7 +303,7 @@ export default function AIIntake() {
         <div>
           <div className="eyebrow">AI CATALOGUE INTAKE</div>
           <h1>Photographs in. Catalogue out.</h1>
-          <p>Upload the object evidence. Collector Intelligence separates, describes and drafts the permanent records for your approval.</p>
+          <InfoDisclosure label="How intake works"><p>Photos are analysed into draft objects. You review and approve before anything enters your catalogue.</p></InfoDisclosure>
         </div>
       </div>
 
