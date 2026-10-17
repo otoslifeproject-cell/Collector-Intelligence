@@ -244,6 +244,7 @@ export default async function handler(req: any, res: any) {
   const isUuid=(value:any)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
   let itemForResearch:any=item;
   let trustedComparableRows:any[]=[];
+  let catalogueOrigin:any=null;
   let ownerCorrections:any[]=[];
   let visualReviews:any[]=[];
   if(draftMode){
@@ -290,7 +291,7 @@ export default async function handler(req: any, res: any) {
     }
   }else{
     if(!isUuid(item?.id))return res.status(400).json({error:'Valid catalogue item record required.'});
-    const ownerQuery=new URLSearchParams({select:'id',id:'eq.'+String(item.id),limit:'1'});
+    const ownerQuery=new URLSearchParams({select:'id,source_analysis_run_id,source_object_index',id:'eq.'+String(item.id),limit:'1'});
     let authorisedItem:any[];
     try{
       const ownerResponse=await fetch(`${supabaseUrl}/rest/v1/items?${ownerQuery}`,{
@@ -301,6 +302,7 @@ export default async function handler(req: any, res: any) {
     }catch{return res.status(503).json({error:'Item ownership check unavailable.'});}
     if(!Array.isArray(authorisedItem)||authorisedItem.length!==1)
       return res.status(403).json({error:'Catalogue item not found or not authorised.'});
+    catalogueOrigin=authorisedItem[0];
     try{
       const compQuery=new URLSearchParams({select:'id,venue,source_reference,source_url,lot_item_id,sale_date,price_type,price,currency,description,maker_attribution,dimensions,condition_summary,comparability_grade,verification_status',item_id:'eq.'+String(item.id),limit:'50'});
       const compResponse=await fetch(`${supabaseUrl}/rest/v1/trusted_comparables_v1?${compQuery}`,{
@@ -413,6 +415,68 @@ export default async function handler(req: any, res: any) {
       }).slice(0,20);
     }catch{
       return res.status(503).json({error:'Cannot read saved owner visual reviews; paid research was not started.'});
+    }
+  }
+  if(!draftMode&&catalogueOrigin?.source_analysis_run_id&&Number.isInteger(catalogueOrigin.source_object_index)){
+    try{
+      const originId=String(catalogueOrigin.source_analysis_run_id);
+      const originalIndex=Number(catalogueOrigin.source_object_index);
+      const parentQuery=new URLSearchParams({select:'id,result',id:'eq.'+originId,limit:'1'});
+      const parentResponse=await fetch(supabaseUrl+'/rest/v1/ai_analysis_runs?'+parentQuery.toString(),{
+        headers:{apikey:supabaseKey,Authorization:'Bearer '+token}
+      });
+      if(!parentResponse.ok)throw Error('Original photo report not accessible');
+      const parent=await parentResponse.json();
+      if(!Array.isArray(parent)||parent.length!==1)throw Error('Original report was not owner accessible');
+      const snapshot=parent[0].result?.owner_review?.approved_snapshot?.[String(originalIndex)];
+      const parentPaired=Array.isArray(snapshot?.pair_source_indices)&&
+        snapshot.pair_source_indices.length===2;
+      const refQuery=new URLSearchParams({
+        select:'id,source_photo_index,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,review_decision,review_note,created_at',
+        source_analysis_run_id:'eq.'+originId,
+        source_object_index:'eq.'+String(originalIndex),
+        paired_lot:'eq.'+(parentPaired?'true':'false'),
+        order:'created_at.desc',limit:'100'
+      });
+      const refs=await fetch(supabaseUrl+'/rest/v1/ai_visual_reference_reviews?'+refQuery.toString(),{
+        headers:{apikey:supabaseKey,Authorization:'Bearer '+token}
+      });
+      if(!refs.ok)throw Error('Earlier visual comparison history unavailable');
+      const oldVisual=await refs.json();
+      if(!Array.isArray(oldVisual))throw Error('Earlier visual comparison history invalid');
+      const correctionQuery=new URLSearchParams({
+        select:'id,source_object_index,feedback_type,corrected_material,owner_statement,created_at',
+        source_analysis_run_id:'eq.'+originId,order:'created_at.desc',limit:'100'
+      });
+      const corr=await fetch(supabaseUrl+'/rest/v1/ai_verdict_feedback?'+correctionQuery.toString(),{
+        headers:{apikey:supabaseKey,Authorization:'Bearer '+token}
+      });
+      if(!corr.ok)throw Error('Original user corrections unavailable');
+      const pastFeedback=await corr.json();
+      if(!Array.isArray(pastFeedback))throw Error('Original correction record invalid');
+      ownerCorrections=pastFeedback.filter((x:any)=>x.source_object_index==null||
+        Number(x.source_object_index)===originalIndex||
+        (parentPaired&&[0,1].includes(Number(x.source_object_index))));
+      const combined=[...visualReviews,...oldVisual].sort((a:any,b:any)=>
+        Date.parse(b.created_at)-Date.parse(a.created_at));
+      const seen=new Set<string>();
+      visualReviews=combined.filter((x:any)=>{
+        if(!/^O[0-9]{1,12}$/.test(String(x.reference_system_number||''))||
+          seen.has(x.reference_system_number))return false;
+        seen.add(x.reference_system_number);return true;
+      }).slice(0,20);
+      itemForResearch={
+        ...itemForResearch,owner_original_photo_run:originId,
+        original_pair_lot:parentPaired,
+        original_owner_material_corrections:ownerCorrections.map((x:any)=>({
+          feedback_type:x.feedback_type,corrected_material:x.corrected_material,
+          statement:String(x.owner_statement||'').slice(0,600)
+        }))
+      };
+    }catch{
+      return res.status(503).json({
+        error:'Original source photo and owner correction lineage could not be recovered. Research stopped before a paid model call.'
+      });
     }
   }
   const ownerVisualGuidance=visualReviews.map((x:any)=>({
