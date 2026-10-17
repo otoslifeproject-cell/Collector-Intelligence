@@ -1,0 +1,31 @@
+# Collector Intelligence — Quiet surfaces / two-click UI contract
+Date: 17 October 2026. Status: Implementation committed; signed-in owner acceptance pending.
+
+## Trigger and evidence
+Owner annotated a signed-in screenshot of the Saved Report / Market workspace in light mode. Red markup indicated excessive explanatory banners, verbose photo-index warning, date/AI provenance, repeated caveats and redundant research controls disrupting visual flow. Green markup indicated that *instructions supporting the next action are useful*, but were styled indistinguishably from low-priority notes. Owner explicitly demanded: stop appending paragraphs to page surfaces; route notes to hover/help or a separate place; obey two avoidable clicks; resolve inconsistent typography; keep dark mode an option. We do NOT store the owner's raw screenshot in public GitHub.
+
+## Product rule (governs all future views)
+**Show the object, its reliable stage and the next action. Hide every non-action explanatory sentence behind a keyboard/touch accessible Info control unless immediately necessary for a safe decision.**
+1. User-facing active instruction: one short positive, visibly distinct instruction alongside the relevant control (e.g. green-accented “Search by material, shape or decoration.”).
+2. Owner evidence/record state: short persistent status (“Owner corrected: Metal”, “Photo index needs review”) with evidence chronology accessible in contextual Info.
+3. System explanation: hidden by default behind named Info; open by click, keyboard or touch. Do not use hover-only tooltips which exclude touch and keyboard.
+4. Critical blocking action: keep the actual review/confirm control visible at the decision location, even if the full explanation is collapsed. In the photo-index mismatch case, the checkbox remains in Catalogue while original source mismatch text is in Info; the original photo source mapping is never silently corrected.
+5. Technical evidence/market claims: keep complete data in underlying records and existing closed Details, never overwrite or delete AI/review/owner audit records to shorten the page.
+6. No redundant primary CTA in one context; use task-oriented Research & value on non-market tabs, Dive deeper in Market, Catalogue through its named tab. Paid actions remain deliberate and labeled.
+7. Maximum two avoidable clicks from natural screen for core tasks once source data exists: Market -> Find illustrated references; Market -> Dive deeper; tab -> catalogue review. Additional explicit confirmation for irreversible catalogue approval is a safety exception.
+8. Shared type tokens across page headings, labels and body, in both dark and light. Theme changes colours only, not geometry. Code should not add inline custom page heading sizes.
+9. Before claiming release: CI Node+typecheck+Vite and 320/390/1100/1440 Chrome light/dark screenshot matrix, plus readback of deployed Git SHA. Signed-in touch/desktop remains separately required.
+
+## Code change summary
+- New `src/components/InfoDisclosure.tsx`: reusable native `details/summary` with Info icon. Works with mouse, touch and keyboard; supports warning label without an intrusive always-on banner.
+- `SavedDraft.tsx`: dynamic object/pair name instead of generic “Original AI report” with AI disclaimer; 2-line correction evidence becomes “Owner corrected: Metal” plus optional detail; timestamp/source status moved to one condensed metadata strip plus Info; incomplete/legacy report explanations collapsed; original photo-index discrepancy visible as compact review status, with full original numbering and preservation explanation in Info. In Catalogue the checkbox is still visible. Redundant Catalogue top action removed because the tab exists. Old model-estimate conflict note collapsed; only essential action and results show in Market.
+- `VisualReferenceWorkbench.tsx`: one short **green instruction** near search, high-contrast readable section title, an About search Info with source licence/verification limitations and manual Google Images link, concise empty state, one-line result count/status, optional saved-decision history in Info. No private photo sent to museum, no altered original.
+- `ResearchDecisionPanel.tsx`: retains essential price/maker/venue cards and concise summary; caveats and complete original research narrative accessible through Info, detailed provenance/market economics kept in separate closed sections. A true **per-vase vs pair value** mismatch remains visible as a compact warning.
+- `WorkspaceActionPanel.tsx`: optional terse description; research cost context moved to accessible Info rather than full paragraph.
+- `AIIntake.tsx`, `Research.tsx`, `Inventory.tsx`: replaced repeated above-the-fold workflow explanations with contextual Info on key entry surfaces.
+- `styles.css`: scope-specific quiet status, Info, action instruction and consistent label/body/heading typography tokens with dark/light palette parity; global page heading type scale fixed and Research inline override removed.
+- `tests/designContract.test.mjs`: source-level guard to prevent reintroduction of verbose report banners and verify Info/action instruction composition.
+- `tests/fixtures/appearance-layout.html` and `tests/ui-layout.spec.mjs`: real HTML/CSS fixture now represents report header, status, tabs, photo warning, green instruction, visual-reference action, concise paid research control and market cards. Browser checks Info details closed until clicked, action hint visible, two-click entry and responsive/light/dark geometry.
+
+## Explicit limits and next checkpoint
+No genuine market comparables were verified; no model run, upload, catalogue approval or sale triggered by UX changes. No original photo/source/rejected AI claim was modified. Browser fixture tests are not a signed-in end-to-end test. The owner must accept final typography and closed-note controls on the real saved metal-pair Market screen, plus compare dark/light and mobile 390px, once the intended Git SHA is production READY. Avoid further feature work until that check passes.
