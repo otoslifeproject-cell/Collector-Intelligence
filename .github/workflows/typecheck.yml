@@ -18,3 +18,15 @@ jobs:
         run: node --experimental-strip-types --test tests/*.test.mjs
       - name: TypeScript and Vite build
         run: npm run build
+      - name: Install Chromium for layout inspection
+        run: npx playwright install --with-deps chromium
+      - name: Six-view layout and accessibility checks
+        run: npx playwright test tests/ui-layout.spec.mjs --reporter=line
+      - name: Preserve UI review screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-research-layout-screenshots
+          path: test-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
