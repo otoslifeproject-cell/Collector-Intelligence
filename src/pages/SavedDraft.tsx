@@ -311,6 +311,7 @@ export default function SavedDraft(){
       analysisRunId={run.id} objectIndex={scopeIndex} paired={paired}
       photos={images} photoIndices={indicesForReview(scopeIndex)}
       ownerMaterial={correctedMaterial}
+      latestResearchAt={matchedResearchRun?.created_at||null}
       workingTitle={paired?(correctedPairTitle||'Matching pair'):run.result.objects?.[scopeIndex]?.working_title||'Collection object'}
      />}
 
