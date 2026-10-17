@@ -138,7 +138,9 @@ export default function SavedDraft(){
  const materialContradictsModel=!!correctedMaterial&&
    ((correctedMaterial.toLowerCase()==='metal'&&/glass|ceramic|pottery/.test(originalMaterial))||
     (correctedMaterial.toLowerCase()==='glass'&&/metal|ceramic|pottery/.test(originalMaterial)))
- const existingResearchObsolete=correctionAfterResearch||materialContradictsModel
+ // Only research completed BEFORE the owner's correction is superseded.
+ // New metal-informed deep dives must remain visible even while raw visual AI says glass.
+ const existingResearchObsolete=correctionAfterResearch
  const saveDisagreement=async()=>{
    if(!run||savingDisagreement)return
    const note=disagreementNote.trim()||'Owner rejects the model material. Reinvestigate using corrected material and original photographs.'
