@@ -20,13 +20,13 @@ export default async function handler(req:any,res:any){
   searchUrl.searchParams.set('q',raw)
   searchUrl.searchParams.set('hasImages','true')
   searchUrl.searchParams.set('limit','24')
-  const sr=await fetch(searchUrl.toString(),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)})
+  const sr=await fetch(searchUrl.toString(),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(4800)})
   if(!sr.ok)return res.status(502).json({error:'Met Open Access search temporarily unavailable',upstream_status:sr.status})
   const j=await sr.json()
   if(!Array.isArray(j.objectIDs))return res.status(502).json({error:'Museum search format changed'})
-  const ids=j.objectIDs.filter((id:any)=>Number.isSafeInteger(id)&&id>0&&id<=999999999).slice(0,14)
+  const ids=j.objectIDs.filter((id:any)=>Number.isSafeInteger(id)&&id>0&&id<=999999999).slice(0,7)
   const checked=await Promise.allSettled(ids.map(async(id:number)=>{
-    const response=await fetch(base+'v1/objects/'+id,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(8000)})
+    const response=await fetch(base+'v1/objects/'+id,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(3200)})
     if(!response.ok)return null
     const o=await response.json()
     if(o.isPublicDomain!==true||typeof o.primaryImageSmall!=='string'||!o.primaryImageSmall)return null
