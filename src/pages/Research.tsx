@@ -389,7 +389,7 @@ export default function Research() {
   }
 
   return <div>
-    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Research your objects</h1><InfoDisclosure label="About research"><p>Saved reports and individual objects retain their own source evidence, corrections and provisional valuations.</p></InfoDisclosure></div></div>
+    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1>Research your objects</h1><InfoDisclosure label="About research"><p>Saved reports and individual objects retain their own source evidence, corrections and provisional valuations.</p></InfoDisclosure></div></div>
     {researchDrafts.length>0&&<section className="ci-research-recent">
       <div className="panelHeader"><h2>Continue researching saved uploads</h2><span>{researchDrafts.length} recent unapproved reports</span></div>
       
