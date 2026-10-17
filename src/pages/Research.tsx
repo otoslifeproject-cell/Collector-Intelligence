@@ -141,7 +141,9 @@ export default function Research() {
         ?'/api/open-access-search?q='+encodeURIComponent(q)
         :'/api/museum-search?source='+museumSource+'&q='+encodeURIComponent(q)
       const response=await fetch(endpoint,{headers:{Authorization:'Bearer '+token}})
-      const payload=await response.json()
+      const raw=await response.text()
+      let payload:any={}
+      try{payload=JSON.parse(raw)}catch{throw new Error('Museum service response unavailable. No evidence was saved; retry later or open the museum site manually.')}
       if(!response.ok)throw new Error(payload.error||'Museum lookup failed')
       setMuseumResults(payload.records||[])
       setMuseumMessage((payload.records||[]).length?'Museum references only — these do not authenticate your item or establish a sold price.':'No catalogue records returned. Try a maker, technique or object type.')
