@@ -306,6 +306,7 @@ export default function ItemDetail() {
           photoIndices={photos.map((_,i)=>i)}
           itemPhotoIdsByIndex={Object.fromEntries(photos.map((p,i)=>[i,p.id]))}
           ownerMaterial={item.material||null}
+          latestResearchAt={pendingResearchRuns[0]?.created_at||savedResearchRuns[0]?.created_at||null}
           workingTitle={item.title||item.object_type||'Collection object'}
          />}
 
