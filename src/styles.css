@@ -648,3 +648,17 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .panel>p,.pageHeader p,.ci-page-header p{font-size:var(--ci-support-size);line-height:1.6}
 .panel label,.formCard label{font-size:var(--ci-label-size)}
 .panel input,.panel select,.panel textarea{font-size:var(--ci-body-size)}
+
+
+/* Mobile two-click contract: show every object workspace tab, never hide Sales
+   or Catalogue off the right edge of an overflowing horizontal strip. */
+@media(max-width:620px){
+ .tabBar{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:2px;overflow:visible;padding:0 0 4px;
+ }
+ .tabBar button{
+  width:100%;min-width:0;min-height:44px;padding:9px 5px;
+  font-size:var(--ci-support-size);white-space:normal;text-align:center;
+ }
+}
