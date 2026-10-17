@@ -9,11 +9,12 @@ type RecordLead={
 }
 type Review={id:string;reference_system_number:string;review_decision:string;created_at:string;review_note:string}
 type Props={
- analysisRunId:string;objectIndex:number;paired:boolean
+ analysisRunId?:string;itemId?:string;itemPhotoIdsByIndex?:Record<number,string>
+ objectIndex?:number;paired?:boolean
  photos:Record<number,string>;photoIndices:number[]
  ownerMaterial:string|null;workingTitle:string
 }
-export default function VisualReferenceWorkbench({analysisRunId,objectIndex,paired,photos,photoIndices,ownerMaterial,workingTitle}:Props){
+export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhotoIdsByIndex={},objectIndex=0,paired=false,photos,photoIndices,ownerMaterial,workingTitle}:Props){
  const eligible=useMemo(()=>[...new Set(photoIndices)].filter(i=>Number.isInteger(i)&&!!photos[i]),[photoIndices,photos])
  const [photoIndex,setPhotoIndex]=useState<number|null>(eligible[0]??null)
  const initial=visualSearchTerm(ownerMaterial||'',workingTitle)
@@ -29,19 +30,22 @@ export default function VisualReferenceWorkbench({analysisRunId,objectIndex,pair
   setPhotoIndex(eligible[0]??null)
   setQuery(visualSearchTerm(ownerMaterial||'',workingTitle))
   setItems([]);setActive(null);setStatus('')
- },[analysisRunId,objectIndex,paired,ownerMaterial,workingTitle])
+ },[analysisRunId,itemId,objectIndex,paired,ownerMaterial,workingTitle])
  useEffect(()=>{
   let alive=true
   const load=async()=>{
-   const {data,error}=await supabase.from('ai_visual_reference_reviews')
+   let request=supabase.from('ai_visual_reference_reviews')
      .select('id,reference_system_number,review_decision,created_at,review_note')
-     .eq('source_analysis_run_id',analysisRunId).eq('source_object_index',objectIndex)
-     .eq('paired_lot',paired).order('created_at',{ascending:false}).limit(100)
+   if(itemId)request=request.eq('item_id',itemId)
+   else if(analysisRunId)request=request.eq('source_analysis_run_id',analysisRunId)
+     .eq('source_object_index',objectIndex).eq('paired_lot',paired)
+   else {if(alive)setStatus('A real owner item or saved photo run is required.');return}
+   const {data,error}=await request.order('created_at',{ascending:false}).limit(100)
    if(alive){if(error)setStatus('Saved visual evidence unavailable. New reviews should not be written until history loads.');else setReviews(data||[])}
   }
   void load()
   return ()=>{alive=false}
- },[analysisRunId,objectIndex,paired])
+ },[analysisRunId,itemId,objectIndex,paired])
  const search=async()=>{
   const q=query.trim()
   if(q.length<3||q.length>100){setStatus('Enter 3–100 characters using the corrected material, form and decoration.');return}
@@ -69,9 +73,16 @@ export default function VisualReferenceWorkbench({analysisRunId,objectIndex,pair
   }
   setSaving(true);setStatus('Preserving comparison and source reference…')
   try{
+   if(!analysisRunId&&!itemId)throw Error('No saved source record to attach evidence.')
+   if(itemId&&!itemPhotoIdsByIndex[photoIndex])throw Error('The selected original photo does not have a verified collection photo ID.')
+   const scope=itemId?{
+      item_id:itemId,item_photo_id:itemPhotoIdsByIndex[photoIndex],paired_lot:false
+     }:{
+      source_analysis_run_id:analysisRunId,source_object_index:objectIndex,
+      paired_lot:paired,source_photo_index:photoIndex
+     }
    const payload={
-    source_analysis_run_id:analysisRunId,source_object_index:objectIndex,
-    paired_lot:paired,source_photo_index:photoIndex,
+    ...scope,
     reference_provider:'Victoria and Albert Museum',
     reference_system_number:active.id,reference_url:active.sourceUrl,
     reference_title:active.title.slice(0,250),
