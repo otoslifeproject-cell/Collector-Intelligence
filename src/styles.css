@@ -491,3 +491,30 @@ html[data-theme="light"] .tabBar button{color:var(--muted)}
 html[data-theme="light"] .ci-review-source>summary{color:var(--text)}
 html[data-theme="light"] .ci-review-section-heading h4{color:var(--text)}
 html[data-theme="light"] .ci-research-evidence-warning{color:var(--muted)}
+
+
+/* Accessible mobile disclosure navigation: all destinations and sign-out available;
+   no hidden horizontal scroll or duplicate appearance control. */
+.ci-mobile-menu-toggle,.ci-mobile-signout{display:none}
+@media(max-width:760px){
+ .ci-mobile-menu-toggle{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:44px;padding:9px 12px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--text);border-radius:9px;
+  font-size:12px;font-weight:700;cursor:pointer;flex:0 0 auto
+ }
+ .sidebar .brand{gap:9px}
+ .sidebar nav{display:none;overflow:visible;grid-template-columns:repeat(2,minmax(0,1fr));
+  padding:5px 0 10px;margin-top:5px}
+ .sidebar nav.is-open{display:grid}
+ .sidebar nav.is-open .navItem{display:flex;width:100%!important;min-width:0!important;
+  white-space:normal;min-height:44px;padding:10px 12px;font-size:13px}
+ .sidebar nav.is-open .ci-mobile-signout{display:flex}
+ .sidebarBottom{display:none!important}
+}
+@media(max-width:390px){
+ .sidebar .brand strong{font-size:12px}
+ .sidebar .brand span{font-size:10px}
+ .sidebar .brandMark{width:36px;height:36px}
+ .ci-mobile-menu-toggle{padding-inline:9px}
+}
