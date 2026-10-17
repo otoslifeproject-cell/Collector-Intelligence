@@ -257,7 +257,7 @@ export default function SavedDraft(){
  return <div className="ci-page ci-saved-draft">
   <header className="ci-page-header ci-report-heading">
     <div className="ci-report-heading-copy">
-     <div className="eyebrow">SAVED REPORT</div>
+     
      <h1 title={paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}>
       {paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}
      </h1>
