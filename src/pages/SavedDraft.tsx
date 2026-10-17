@@ -20,6 +20,7 @@ export default function SavedDraft(){
  const [approving,setApproving]=useState(false)
  const [selected,setSelected]=useState<Record<number,boolean>>({})
  const [groupPair,setGroupPair]=useState(true)
+ const [confirmedPhotoCorrection,setConfirmedPhotoCorrection]=useState(false)
  const [catalogued,setCatalogued]=useState<Array<{item_id:string;item_code:string;title:string;object_index:number}>>([])
  const [saveStatus,setSaveStatus]=useState('')
  const [activeTab,setActiveTab]=useState(()=>{
@@ -46,6 +47,7 @@ export default function SavedDraft(){
    const report=data as SavedRun
    setRun(report)
    setGroupPair(!!suggestSingleIntakePair(report.result?.objects||[],report.mode))
+   setConfirmedPhotoCorrection(false)
    setSelected(Object.fromEntries((report.result?.objects||[]).map((_:any,i:number)=>[i,true])))
    const {data:prior}=await supabase.from('ai_analysis_runs')
     .select('id,result,created_at,user_context').eq('mode','research').order('created_at',{ascending:false}).limit(100)
@@ -95,6 +97,17 @@ export default function SavedDraft(){
  const pairProposal=run?suggestSingleIntakePair(run.result?.objects||[],run.mode):null
  const paired=!!pairProposal&&groupPair
  const selectedIndices=paired?(selected[0]===false?[]:[0]):(run?.result?.objects||[]).flatMap((_:any,i:number)=>selected[i]===false?[]:[i]) as number[]
+ const manifestIndices=new Set<number>(Array.isArray(run?.result?.image_manifest)
+    ? run!.result.image_manifest.map((x:any)=>x.index).filter((x:any)=>Number.isInteger(x)):[])
+ const indicesForReview=(i:number):number[]=>{
+   const objects=run?.result?.objects||[]
+   const source=paired&&i===0
+    ? [...(objects[0]?.image_indices||[]),...(objects[1]?.image_indices||[])]
+    : objects[i]?.image_indices||[]
+   return [...new Set<number>(source.filter((x:any)=>Number.isInteger(x)))]
+ }
+ const missingSourceIndices=selectedIndices.flatMap(i=>indicesForReview(i).filter(n=>!manifestIndices.has(n)))
+ const needsPhotoCorrection=missingSourceIndices.length>0
  const hasReviewObjects=!!run && Array.isArray(run.result?.objects) && run.result.objects.length>0
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
@@ -151,12 +164,18 @@ export default function SavedDraft(){
  const approveSaved=async()=>{
   if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approving||saving)return
   if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
+  if(needsPhotoCorrection&&!confirmedPhotoCorrection){setSaveStatus('Confirm the valid source photo mapping before approval.');return}
   setApproving(true);setSaveStatus('Saving catalogue and linking original photographs…')
   try{
    const reviews:Record<string,object>={}
-   for(const i of selectedIndices)reviews[String(i)]=paired&&i===0
-     ? {...edits[i],working_title:pairProposal?.title,pair_source_indices:[0,1]}
-     : {...edits[i]}
+   for(const i of selectedIndices){
+    const raw=indicesForReview(i)
+    const valid=raw.filter(n=>manifestIndices.has(n))
+    const correction=raw.length!==valid.length?{confirmed_photo_indices:valid}:{}
+    reviews[String(i)]=paired&&i===0
+      ? {...edits[i],working_title:pairProposal?.title,pair_source_indices:[0,1],...correction}
+      : {...edits[i],...correction}
+   }
    const {data,error:e}=await supabase.rpc('ci_approve_saved_intake_v1',{
     p_run_id:run.id,p_object_indices:selectedIndices,p_reviews:reviews
    })
@@ -197,9 +216,16 @@ export default function SavedDraft(){
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
       <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>setGroupPair(e.target.checked)}/> One catalogue record for the pair (recommended)</label>
     </div>}
+   {needsPhotoCorrection&&<div className="note ci-inline-note" role="alert">
+    <strong>AI source-index discrepancy:</strong> this report refers to photo number(s) {[...new Set(missingSourceIndices)].map(n=>n+1).join(', ')}, but the original upload contains only {run.input_photo_count} files. Those model references are preserved as received; the existing uploaded photographs have not been altered.
+    {activeTab==='catalogue'&&<label className="ci-record-selection">
+     <input type="checkbox" checked={confirmedPhotoCorrection} onChange={e=>setConfirmedPhotoCorrection(e.target.checked)}/>
+     <span>Confirm only the existing source photos referenced by this report should be linked to the catalogue record.</span>
+    </label>}
+   </div>}
    {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
-    <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length} onClick={approveSaved}>
+    <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={approveSaved}>
      {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
     </button>
    </div>}
