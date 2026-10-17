@@ -158,3 +158,25 @@ test('report header stays empty except title, back and bell; all notices are hid
  expect(geometry.withinViewport).toBe(true)
  await expect(page.locator('.ci-visual-workbench').getByRole('button',{name:'Find illustrated references'})).toBeVisible()
 })
+
+test('activity bell opens a bounded popup without moving tabs, including 320px phones',async({page})=>{
+ for(const width of [320,390,1100,1440]){
+  await page.setViewportSize({width,height:900})
+  await page.goto(fixture)
+  const nav=page.locator('.tabBar')
+  const heading=page.locator('.ci-report-heading')
+  const menu=page.locator('.ci-report-menu')
+  const before=await nav.boundingBox()
+  await menu.locator('summary').click()
+  await expect(menu.locator('.ci-report-menu-content')).toBeVisible()
+  const popup=await menu.locator('.ci-report-menu-content').boundingBox()
+  const after=await nav.boundingBox()
+  expect(popup).not.toBeNull()
+  expect(popup.x).toBeGreaterThanOrEqual(-1)
+  expect(popup.x+popup.width).toBeLessThanOrEqual(width+1)
+  expect(after.y).toBe(before.y)
+  await menu.locator('summary').click()
+  await expect(menu.locator('.ci-report-menu-content')).not.toBeVisible()
+  await expect(heading).toBeVisible()
+ }
+})
