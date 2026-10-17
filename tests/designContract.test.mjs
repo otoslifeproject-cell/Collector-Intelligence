@@ -53,7 +53,9 @@ test('compare action is visible in two clicks without filling screen with advice
  assert.match(compare,/<InfoDisclosure label="About search">/)
  assert.doesNotMatch(compare,/Need a wider visual search\?/)
  assert.match(info,/className=.*ci-info-disclosure/)
- assert.match(info,/<summary>/)
+ assert.match(info,/<summary aria-label=\{label\}/)
+ assert.match(info,/sr-only/)
+ assert.match(info,/title=\{label\}/)
 })
 test('shared typography scale applies to dark and light without distinct font metrics',()=>{
  assert.match(css,/--ci-body-size:14px/)
