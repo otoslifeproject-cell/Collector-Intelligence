@@ -8,7 +8,7 @@ import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materialContradictsVisualGuess} from '../lib/ownerCorrections'
 
-type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;user_context?:any}
+type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;owner_review_revision:number;user_context?:any}
 export default function SavedDraft(){
  const {id}=useParams()
  const navigate=useNavigate()
@@ -48,7 +48,7 @@ export default function SavedDraft(){
   let alive=true
   async function load(){
    setBusy(true);setError('');setRun(null);setImages({})
-   const {data,error:e}=await supabase.from('ai_analysis_runs').select('id,status,mode,created_at,result,input_photo_count,user_context').eq('id',id||'').single()
+   const {data,error:e}=await supabase.from('ai_analysis_runs').select('id,status,mode,created_at,result,input_photo_count,owner_review_revision,user_context').eq('id',id||'').single()
    if(!alive)return
    if(e||!data){setError('Saved report unavailable or access denied.');setBusy(false);return}
    const report=data as SavedRun
@@ -88,14 +88,22 @@ export default function SavedDraft(){
   if(!run||run.status!=='DRAFT')return
   setSaving(true);setSaveStatus('')
   try{
-   const {data:latest,error:readError}=await supabase.from('ai_analysis_runs').select('result,status').eq('id',run.id).single()
-   if(readError||!latest||latest.status!=='DRAFT')throw Error('This report is no longer an editable draft.')
-   const next={...latest.result,owner_review:{...(latest.result.owner_review||{}),objects:{...(latest.result.owner_review?.objects||{}),...edits},edited_at:new Date().toISOString()}}
-   const {data:updated,error:writeError}=await supabase.from('ai_analysis_runs').update({result:next}).eq('id',run.id).eq('status','DRAFT').select('result').single()
-   if(writeError||!updated)throw Error('Could not save the reviewed draft. Your original analysis has not been replaced.')
-   setRun(r=>r?{...r,result:updated.result}:r)
-   setSaveStatus('Changes saved to your original report. No AI analysis or catalogue approval was run.')
-  }catch(e:any){setSaveStatus(e?.message||'Save failed')}
+   const {data,error:writeError}=await supabase.rpc('ci_save_owner_review_v1',{
+    p_run_id:run.id,p_expected_revision:run.owner_review_revision??0,
+    p_object_changes:edits
+   })
+   if(writeError)throw Error(writeError.message)
+   if(!Array.isArray(data)||data.length!==1||typeof data[0]?.revision!=='number')
+    throw Error('Owner review could not be confirmed. Check original report before retrying.')
+   setRun(r=>r?{...r,owner_review_revision:data[0].revision,
+    result:{...r.result,owner_review:data[0].owner_review}}:r)
+   setSaveStatus('Owner review revision '+data[0].revision+' saved with previous edits preserved. No AI rerun.')
+  }catch(e:any){
+   const detail=e?.message||'Save failed'
+   setSaveStatus(detail.includes('REVIEW_REVISION_CONFLICT')
+    ? 'Another tab saved a newer review. Your current text remains here. Copy your edits before reloading this page. No later edits were overwritten.'
+    :detail)
+  }
   finally{setSaving(false)}
  }
  const openSavedObject=(i:number)=>{
