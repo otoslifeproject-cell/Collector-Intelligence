@@ -4,6 +4,7 @@ import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {supabase} from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
+import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
 export default function SavedDraft(){
@@ -227,26 +228,8 @@ export default function SavedDraft(){
      </div>
      {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
     </div>
-    {visibleResearch&&<div className="panel researchDraftPanel">
-     <div className="panelHeader"><h2>Research decision</h2><span>Source verification remains required</span></div>
-     <div className="researchMetricGrid">
-      <div><small>Attribution</small><strong>{visibleResearch.identification_update?.attribution||visibleResearch.identification_update?.maker||'Unconfirmed'}</strong><span>{visibleResearch.identification_update?.identification_confidence??'—'}% identification confidence</span></div>
-      <div><small>Balanced value</small><strong>{money(visibleResearch.valuation?.balanced_low??null,visibleResearch.valuation?.currency||'GBP')} – {money(visibleResearch.valuation?.balanced_high??null,visibleResearch.valuation?.currency||'GBP')}</strong><span>{visibleResearch.valuation?.valuation_confidence??'—'}% valuation confidence</span></div>
-      <div><small>Suggested route</small><strong>{visibleResearch.routing?.best_venue||'Research first'}</strong><span>{visibleResearch.routing?.sale_readiness?.replaceAll('_',' ')||'Provisional'}</span></div>
-     </div>
-     <p>{visibleResearch.research_summary}</p>
-     {visibleAudit&&<p className="note">{visibleAudit.warning||'Original sale receipts have not been independently verified in this workflow.'}</p>}
-     <details className="ci-review-section ci-review-source"><summary>Source leads, prices and verification status</summary>
-      <div className="tableWrap"><table><thead><tr><th>Source</th><th>Price basis</th><th>Amount</th><th>Verification</th></tr></thead>
-      <tbody>{(visibleResearch.comparables||[]).map((c:any,j:number)=><tr key={j}>
-       <td>{c.source_url?<a href={c.source_url} target="_blank" rel="noreferrer">{c.venue||'Source'}</a>:c.venue}</td>
-       <td>{String(c.price_type||'UNVERIFIED').replaceAll('_',' ')}</td>
-       <td>{money(c.price??null,c.currency||'GBP')}</td>
-       <td>{c.verification_status||'UNVERIFIED'}</td>
-      </tr>)}</tbody></table></div>
-     </details>
-    </div>}
-   </div>}
+    {visibleResearch&&<ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Market research and valuation" />}
+      </div>}
    {activeTab==='photos'&&<div className="panel"><div className="panelHeader"><h2>Original photographs</h2><span>{Object.values(images).filter(Boolean).length} accessible</span></div>
      <div className="photoGrid">{Object.entries(images).map(([index,url])=>url?<div className="photoTile" key={index}><img src={url} alt={'Original photograph '+(Number(index)+1)}/><span>Photo {Number(index)+1}</span></div>:null)}</div>
    </div>}
