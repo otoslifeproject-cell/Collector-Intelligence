@@ -249,10 +249,9 @@ export default function SavedDraft(){
   {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
-   <div className="ci-page-actions">
-    <button className="primaryButton" onClick={()=>setActiveTab('market')}>Research & value →</button>
+   <div className="ci-report-top-actions">
+    {activeTab!=='market'&&<button className="primaryButton" onClick={()=>setActiveTab('market')}>Research & value →</button>}
     <button className="secondaryButton" onClick={()=>setDisagreeOpen(v=>!v)}>Disagree with verdict</button>
-    <button className="secondaryButton" onClick={()=>setActiveTab('catalogue')}>Catalogue / continue →</button>
    </div>
    {disagreeOpen&&<section className="panel ci-owner-disagreement">
      <div className="panelHeader"><h2>Disagree with verdict</h2><span>Owner observation takes precedence</span></div>
@@ -327,7 +326,7 @@ export default function SavedDraft(){
     <WorkspaceActionPanel
      eyebrow="RESEARCH OPTIONS"
      title={paired?'Research this pair':'Research this object'}
-     description="Continue using the original photographs and your corrections. Earlier findings stay saved."
+     description=""
      primary={{
       label:researching?'Researching…':'Dive deeper',
       onClick:()=>runDraftResearch('deep_dive'),
