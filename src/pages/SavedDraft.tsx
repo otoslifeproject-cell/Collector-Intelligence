@@ -5,8 +5,9 @@ import {supabase} from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
+import SaleEconomics from '../components/SaleEconomics'
 
-type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number}
+type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;user_context?:any}
 export default function SavedDraft(){
  const {id}=useParams()
  const navigate=useNavigate()
@@ -39,7 +40,7 @@ export default function SavedDraft(){
   let alive=true
   async function load(){
    setBusy(true);setError('');setRun(null);setImages({})
-   const {data,error:e}=await supabase.from('ai_analysis_runs').select('id,status,mode,created_at,result,input_photo_count').eq('id',id||'').single()
+   const {data,error:e}=await supabase.from('ai_analysis_runs').select('id,status,mode,created_at,result,input_photo_count,user_context').eq('id',id||'').single()
    if(!alive)return
    if(e||!data){setError('Saved report unavailable or access denied.');setBusy(false);return}
    const report=data as SavedRun
@@ -255,10 +256,16 @@ export default function SavedDraft(){
       {(o.evidence||[]).map((e:any,j:number)=><p key={j}><strong>{e.certainty_class||'UNKNOWN'}: </strong>{e.claim}</p>)}
      </details>)}
    </div>}
-   {activeTab==='sales'&&<div className="panel"><div className="panelHeader"><h2>Sales planning</h2><span>No publication without approval</span></div>
-     <p>{visibleResearch?.routing?.best_venue?'Suggested venue: '+visibleResearch.routing.best_venue:'Run online market research to identify likely buyers, selling routes and expected net return.'}</p>
-     <p>{visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness requires evidence review.'}</p>
-     <button className="primaryButton inlineButton" onClick={()=>setActiveTab('market')}>Review market evidence →</button>
+   {activeTab==='sales'&&<div className="marketStack">
+    <div className="panel">
+     <div className="panelHeader"><h2>Sales planning</h2><span>No listing or publication without approval</span></div>
+     <p>{visibleResearch?.routing?.best_venue?'Research suggests '+visibleResearch.routing.best_venue+' as the likely route.':'Run online market research to explore likely buyers, gross sale levels and selling routes.'}</p>
+     <p>{visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness needs source and condition review.'}</p>
+     <button className="secondaryButton inlineButton" onClick={()=>setActiveTab('market')}>Review source evidence and valuation →</button>
+    </div>
+    <SaleEconomics currency={run.result?.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP'}
+     acquisitionPrice={run.user_context?.purchase_price??null}
+     contextLabel={paired?'two-piece matched lot':'saved draft object'}/>
    </div>}
    {(activeTab==='overview'||activeTab==='catalogue')&&<>
    <ObjectCollectionToolbar
