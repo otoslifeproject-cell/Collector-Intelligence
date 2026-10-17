@@ -69,16 +69,16 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
  const search=async()=>{
   const q=query.trim()
   if(q.length<3||q.length>100){setStatus('Enter 3–100 characters using the corrected material, form and decoration.');return}
-  setLoading(true);setStatus('Searching official illustrated V&A catalogue records…')
+  setLoading(true);setStatus('Searching open-access museum reference images…')
   try{
    const {data:{session}}=await supabase.auth.getSession()
    if(!session)throw Error('Sign in again to search museum sources.')
-   const response=await fetch('/api/museum-search?source=vam&visual=1&q='+encodeURIComponent(q),{
+   const response=await fetch('/api/open-access-search?q='+encodeURIComponent(q),{
     headers:{Authorization:'Bearer '+session.access_token}
    })
    const result=await response.json()
    if(!response.ok)throw Error(result.error||'Museum image search failed.')
-   const seen=(result.records||[]).filter((x:any)=>x?.imageUrl&&/^O\d{1,12}$/.test(String(x.id)))
+   const seen=(result.records||[]).filter((x:any)=>x?.imageUrl&&/^[1-9]\d{0,9}$/.test(String(x.id)))
    setItems(seen);setActive(seen[0]||null)
    setStatus(seen.length
     ?seen.length+' illustrated reference candidates. Compare their actual shape, material, construction and decoration; none is a confirmed match.'
@@ -88,7 +88,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
  }
  const record=async(decision:'POSSIBLE_LOOKALIKE'|'NOT_A_MATCH'|'NEEDS_REVIEW')=>{
   if(!active||photoIndex===null||saving||!historyReady)return
-  if(!/^O\d{1,12}$/.test(active.id)||active.sourceUrl!=='https://collections.vam.ac.uk/item/'+active.id+'/'){
+  if(!/^[1-9]\d{0,9}$/.test(active.id)||active.sourceUrl!=='https://www.metmuseum.org/art/collection/search/'+active.id){
    setStatus('Original museum reference is invalid; nothing was saved.');return
   }
   setSaving(true);setStatus('Preserving comparison and source reference…')
@@ -103,7 +103,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
      }
    const payload={
     ...scope,
-    reference_provider:'Victoria and Albert Museum',
+    reference_provider:'The Metropolitan Museum of Art',reference_image_license:'CC0_MET_OPEN_ACCESS_PUBLIC_DOMAIN',
     reference_system_number:active.id,reference_url:active.sourceUrl,
     reference_title:active.title.slice(0,250),
     reference_maker:active.maker?.slice(0,180)||null,
@@ -129,9 +129,9 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
  return <section className="panel ci-visual-workbench" aria-label="Illustrated source comparison">
    <div className="panelHeader">
     <div><div className="eyebrow">COMPARE ORIGINAL PHOTOS</div><h2>Find visual reference matches</h2></div>
-    <span>No paid AI · museum illustration leads</span>
+    <span>No paid AI · CC0 open-access museum images</span>
    </div>
-   <p className="ci-page-meta">Use the corrected material and visible construction to search official museum photographs. Similarity is not attribution, proof of age, or a sold comparable. You decide what resembles the real object.</p>
+   <p className="ci-page-meta">Use the corrected material and visible construction to search open-access museum photographs. Similarity is not attribution, proof of age, or a sold comparable. You decide what resembles the real object.</p>
    {newerVisualEvidence&&<p className="note" role="status">Your visual comparison decisions are newer than the displayed AI research. A new Deep Dive will use them; the older maker and price conclusions have NOT been recalculated yet.</p>}
    <div className="ci-visual-search-controls">
     <label>Visual search terms<input value={query} onChange={e=>{setQuery(e.target.value);setItems([]);setActive(null)}} placeholder="e.g. metal gilded vase" maxLength={100} onKeyDown={e=>{if(e.key==='Enter')void search()}}/></label>
@@ -150,14 +150,14 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
       :<p className="note">No verified photo association is available for this object. Do not compare another object's photographs.</p>}
     </div>
     <div className="ci-visual-source ci-visual-reference">
-     <strong>Official V&A catalogue illustration</strong>
-     {active?.imageUrl?<img src={active.imageUrl} alt={'V&A reference '+active.title} loading="lazy" referrerPolicy="no-referrer"/>:
+     <strong>The Met Open Access illustration · CC0</strong>
+     {active?.imageUrl?<img src={active.imageUrl} alt={'Met Museum reference '+active.title} loading="lazy" referrerPolicy="no-referrer"/>:
        <p className="ci-page-meta">Search illustrated references to compare with your original photograph.</p>}
      {active&&<div className="ci-visual-caption">
       <strong>{active.title}</strong>
       <p>{[active.objectType,active.cataloguedMaterial,active.maker,active.date].filter(Boolean).join(' · ')}</p>
-      <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">View actual V&A object record ↗</a>
-      <small>Image source: Victoria and Albert Museum, London. Check catalogue image reuse terms at source.</small>
+      <a href={active.sourceUrl} target="_blank" rel="noopener noreferrer">View original Met Museum object record ↗</a>
+      <small>The Metropolitan Museum of Art, New York · Open Access CC0 image.</small>
      </div>}
     </div>
    </div>
@@ -181,7 +181,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
    {reviews.length>0&&<details className="ci-archive-section">
      <summary>{reviews.length} saved visual decision(s) · original reference preserved</summary>
      {reviews.slice(0,16).map(r=><p className="ci-page-meta" key={r.id}>
-       {new Date(r.created_at).toLocaleString()} — {r.review_decision.replaceAll('_',' ')} — V&A {r.reference_system_number}
+       {new Date(r.created_at).toLocaleString()} — {r.review_decision.replaceAll('_',' ')} — The Met {r.reference_system_number}
        {r.review_note?' · '+r.review_note:''}
       </p>)}
    </details>}
