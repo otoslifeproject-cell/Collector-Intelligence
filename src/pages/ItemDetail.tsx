@@ -7,6 +7,7 @@ import { date, money } from '../lib/format'
 import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
+import RecordSaleOutcome from '../components/RecordSaleOutcome'
 
 export default function ItemDetail() {
   const {id} = useParams()
@@ -354,6 +355,7 @@ export default function ItemDetail() {
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
+       <RecordSaleOutcome itemId={item.id} currency={item.currency||'GBP'} itemStatus={item.status}/>
       </div>}
 
       {tab==='catalogue' && <div className="cataloguePreview">
