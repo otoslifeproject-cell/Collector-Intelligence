@@ -184,6 +184,38 @@ async function verifyUser(token: string, supabaseUrl: string, supabaseKey: strin
   return response.ok;
 }
 
+async function ownerScopedResearchRun(url:string,key:string,token:string,runId:string){
+ const qp=new URLSearchParams({select:'id,status,mode,input_photo_count,result,user_context',id:'eq.'+runId,limit:'1'});
+ const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+qp.toString(),{
+  headers:{apikey:key,Authorization:'Bearer '+token}
+ });
+ if(!response.ok)throw Error('Owner research staging access unavailable ('+response.status+')');
+ const rows=await response.json();
+ if(!Array.isArray(rows)||rows.length!==1)throw Error('Staged research run not available for owner');
+ return rows[0];
+}
+async function claimResearchRun(url:string,key:string,token:string,runId:string){
+ const response=await fetch(url+'/rest/v1/rpc/ci_claim_paid_research_v1',{
+  method:'POST',headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+  body:JSON.stringify({p_run_id:runId})
+ });
+ if(!response.ok){
+  const error=await response.json().catch(()=>({}));
+  throw Error(error.message||'Existing research already processing; no duplicate AI request made.');
+ }
+ return response.json();
+}
+async function persistResearchResult(url:string,key:string,token:string,runId:string,model:string,result:any){
+ const qp=new URLSearchParams({id:'eq.'+runId,status:'eq.DRAFT',select:'id,result,model'});
+ const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+qp.toString(),{
+  method:'PATCH',headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'return=representation'},
+  body:JSON.stringify({model,result})
+ });
+ const rows=await response.json().catch(()=>[]);
+ if(!response.ok||!Array.isArray(rows)||rows.length!==1)throw Error('Paid research result not confirmed in owner private storage');
+ return rows[0];
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const auth = String(req.headers.authorization || "");
@@ -206,7 +238,7 @@ export default async function handler(req: any, res: any) {
   try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
-  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [] } = req.body || {};
+  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [], research_run_id } = req.body || {};
   const draftMode=typeof draft_run_id==='string';
   const isUuid=(value:any)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
   let itemForResearch:any=item;
@@ -278,6 +310,31 @@ export default async function handler(req: any, res: any) {
   }
   if(!Array.isArray(images)||images.length>12||images.some((url:any)=>typeof url!=='string'||!url.startsWith(supabaseUrl+'/storage/v1/')))
     return res.status(400).json({error:'Invalid private image links for research; no paid research.'});
+  if(!isUuid(research_run_id))return res.status(400).json({error:'Research must first be saved as an owner-scoped session. No paid AI run was made.'});
+  let researchEnvelope:any;
+  try{
+    researchEnvelope=await ownerScopedResearchRun(supabaseUrl,supabaseKey,token,research_run_id);
+  }catch(e:any){return res.status(503).json({error:e?.message||'Private research staging unavailable; no AI charged.'});}
+  const ctx=researchEnvelope.user_context||{};
+  const correctSource=draftMode?ctx.source_analysis_run_id===draft_run_id&&
+     Number(ctx.source_object_index)===draft_index&&
+     JSON.stringify(ctx.pair_source_indices||[])===JSON.stringify(pair_source_indices||[])
+     :ctx.item_id===item.id;
+  if(researchEnvelope.mode!=='research'||researchEnvelope.status!=='DRAFT'||
+     researchEnvelope.input_photo_count!==images.length||!correctSource)
+    return res.status(409).json({error:'Staged research does not match the source object, pair status or original photo count. No AI charged.'});
+  if(researchEnvelope.result?.analysis_stage==='COMPLETE'&&researchEnvelope.result?.research_summary)
+    return res.status(200).json({
+      saved_run_id:research_run_id,model:researchEnvelope.model||null,
+      result:researchEnvelope.result,
+      source_audit:researchEnvelope.result.source_audit||null,
+      canonical_policy_hashes:researchEnvelope.result.canonical_policy_hashes||null,
+      reused_saved_result:true
+    });
+  try{
+    const claim=await claimResearchRun(supabaseUrl,supabaseKey,token,research_run_id);
+    if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
+  }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
 
   const content: any[] = [{
     type: "input_text",
@@ -316,7 +373,24 @@ export default async function handler(req: any, res: any) {
     const source_audit=checkResearchEvidence(result);
     source_audit.trusted_database_comparables=trustedComparableRows.length;
     source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
-    return res.status(200).json({model:payload.model || body.model,response_id:payload.id || null,result,source_audit,canonical_policy_hashes:canonical.hashes});
+    const savedResult={
+      ...result,source_audit,canonical_policy_hashes:canonical.hashes,
+      analysis_stage:'COMPLETE',response_id:payload.id||null
+    };
+    try{
+      await persistResearchResult(supabaseUrl,supabaseKey,token,research_run_id,payload.model||body.model,savedResult);
+    }catch(e:any){
+      return res.status(503).json({
+        code:'PAID_RESEARCH_SAVE_NOT_CONFIRMED',
+        error:e?.message||'The paid research result was not confirmed in storage. Do not launch another paid run to recover it.',
+        result:savedResult,source_audit
+      });
+    }
+    return res.status(200).json({
+      saved_run_id:research_run_id,model:payload.model||body.model,
+      response_id:payload.id||null,result:savedResult,source_audit,
+      canonical_policy_hashes:canonical.hashes
+    });
   } catch {
     return res.status(502).json({error:"Could not parse structured research output",raw:text.slice(0,2000)});
   }
