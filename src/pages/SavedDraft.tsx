@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {ArrowLeft,Bell} from 'lucide-react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
@@ -15,6 +15,7 @@ import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materi
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;owner_review_revision:number;user_context?:any}
 export default function SavedDraft(){
  const {id}=useParams()
+ const reportMenuRef=useRef<HTMLDetailsElement>(null)
  const navigate=useNavigate()
  const [run,setRun]=useState<SavedRun|null>(null)
  const [images,setImages]=useState<Record<number,string>>({})
@@ -40,6 +41,16 @@ export default function SavedDraft(){
  const [lastResearchScope,setLastResearchScope]=useState('')
  const [verdictFeedback,setVerdictFeedback]=useState<any[]>([])
  const [disagreeOpen,setDisagreeOpen]=useState(false)
+ useEffect(()=>{
+  const closeOutside=(event:PointerEvent)=>{
+   if(reportMenuRef.current?.open&&!reportMenuRef.current.contains(event.target as Node)){
+    reportMenuRef.current.open=false
+    setDisagreeOpen(false)
+   }
+  }
+  document.addEventListener('pointerdown',closeOutside)
+  return ()=>document.removeEventListener('pointerdown',closeOutside)
+ },[])
  const [disagreementMaterial,setDisagreementMaterial]=useState('Metal')
  const [disagreementType,setDisagreementType]=useState('MATERIAL_CORRECTION')
  const [disagreementNote,setDisagreementNote]=useState('')
@@ -255,7 +266,7 @@ export default function SavedDraft(){
      <Link to="/inventory" className="ci-report-icon-control" aria-label="Back to Inventory" title="Back to Inventory">
       <ArrowLeft size={19} aria-hidden="true"/>
      </Link>
-     {run&&<details className="ci-report-menu" onKeyDown={e=>{if(e.key==='Escape')e.currentTarget.open=false}}>
+     {run&&<details ref={reportMenuRef} className="ci-report-menu" onKeyDown={e=>{if(e.key==='Escape'){e.currentTarget.open=false;setDisagreeOpen(false)}}}>
       <summary aria-label="Report notifications and actions" title="Report notifications and actions">
        <Bell size={19} aria-hidden="true"/>
        {noticeCount>0&&<span className="ci-report-notice-count" aria-label={noticeCount+' source issue requiring review'}>{noticeCount}</span>}
