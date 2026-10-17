@@ -57,7 +57,7 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
    <div className="tableWrap"><table>
     <thead><tr><th>Source</th><th>Basis</th><th>Price</th><th>Verification</th><th>Relevance</th></tr></thead>
     <tbody>{comparables.map((comp:any,i:number)=><tr key={i}>
-     <td>{comp.source_url?<a href={comp.source_url} target="_blank" rel="noreferrer">{comp.venue||'Source'} <ExternalLink size={12}/></a>:comp.venue||'Unspecified'}
+     <td>{typeof comp.source_url==='string'&&/^https:\/\/[^\s]+$/i.test(comp.source_url)?<a href={comp.source_url} target="_blank" rel="noopener noreferrer">{comp.venue||'Source'} <ExternalLink size={12}/></a>:comp.venue||'Unspecified'}
       <div className="ci-page-meta">{comp.description}</div></td>
      <td>{text(comp.price_type)||'Unknown'}</td>
      <td>{money(comp.price,comp.currency||currency)}</td>
