@@ -518,3 +518,13 @@ html[data-theme="light"] .ci-research-evidence-warning{color:var(--muted)}
  .sidebar .brandMark{width:36px;height:36px}
  .ci-mobile-menu-toggle{padding-inline:9px}
 }
+
+
+@media(max-width:360px){
+ .sidebar .brand{gap:7px}
+ .sidebar .brand span{display:none}
+ .sidebar .brand strong{font-size:11px}
+ .ci-mobile-menu-toggle{width:44px;padding:0}
+ .ci-mobile-menu-toggle span{display:none}
+ .ci-appearance-mobile{width:44px}
+}
