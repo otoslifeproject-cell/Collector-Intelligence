@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link,useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
+import InfoDisclosure from '../components/InfoDisclosure'
 
 type KnowledgeRow = {
   id: string
@@ -388,10 +389,10 @@ export default function Research() {
   }
 
   return <div>
-    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Research your objects</h1><p>Continue saved photo reports or open a permanent object. Keep evidence and valuations attached to the right physical piece or pair.</p></div></div>
+    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Research your objects</h1><InfoDisclosure label="About research"><p>Saved reports and individual objects retain their own source evidence, corrections and provisional valuations.</p></InfoDisclosure></div></div>
     {researchDrafts.length>0&&<section className="ci-research-recent">
       <div className="panelHeader"><h2>Continue researching saved uploads</h2><span>{researchDrafts.length} recent unapproved reports</span></div>
-      <p className="ci-page-meta">Reuse retained photographs and source research without another intake charge. Your material corrections override old AI titles.</p>
+      
       <div className="cardGrid ci-object-grid ci-view-tiles">
        {researchDrafts.slice(0,6).map((draft:any)=>{
         const objects=draft.result?.objects||[]
