@@ -662,3 +662,19 @@ body{font-size:var(--ci-body-size);line-height:1.5}
   font-size:var(--ci-support-size);white-space:normal;text-align:center;
  }
 }
+
+
+/* Info is an unobtrusive accessible icon by default. Its label is announced
+   by assistive tech and appears as a native title on hover; tap/click expands. */
+.ci-info-icon-only>summary{
+ width:36px;height:36px;min-width:36px;min-height:36px;
+ justify-content:center;padding:0;border:1px solid transparent;border-radius:8px;
+ color:var(--muted)
+}
+.ci-info-icon-only>summary:hover,.ci-info-icon-only[open]>summary{
+ background:var(--panel2);border-color:var(--line);color:var(--text)
+}
+.ci-info-icon-only .ci-info-disclosure-body{font-size:var(--ci-support-size)}
+.ci-report-meta .ci-info-icon-only>summary,
+.ci-owner-status .ci-info-icon-only>summary,
+.ci-photo-review-status .ci-info-icon-only>summary{width:30px;min-width:30px;height:30px;min-height:30px}
