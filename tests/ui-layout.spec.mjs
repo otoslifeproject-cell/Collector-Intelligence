@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url'
 import {mkdirSync} from 'node:fs'
 
 const fixture=pathToFileURL(resolve('tests/fixtures/appearance-layout.html')).href
-const widths=[390,1100,1440]
+const widths=[320,390,1100,1440]
 const themes=['dark','light']
 mkdirSync('test-artifacts',{recursive:true})
 
