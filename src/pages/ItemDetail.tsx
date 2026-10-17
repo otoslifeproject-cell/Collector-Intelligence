@@ -29,6 +29,7 @@ export default function ItemDetail() {
   const [message,setMessage] = useState('')
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
+  const [originalReportPaired,setOriginalReportPaired] = useState(false)
   const [researching,setResearching] = useState(false)
   const [researchDraft,setResearchDraft] = useState<any|null>(null)
   const [researchRunId,setResearchRunId] = useState<string|null>(null)
@@ -59,6 +60,7 @@ export default function ItemDetail() {
     ])
     const snapshot=(parentQuery.data as any)?.result?.owner_review?.approved_snapshot?.[String(originalIndex)]
     const wasPair=Array.isArray(snapshot?.pair_source_indices)&&snapshot.pair_source_indices.length===2
+    setOriginalReportPaired(wasPair)
     const itemRuns=(researchQuery.data||[]).filter((x:any)=>{
       if(!x.result?.research_summary)return false
       if(x.user_context?.item_id===id)return true
@@ -297,6 +299,9 @@ export default function ItemDetail() {
         {photos.some(p=>!!photoUrls[p.id])&&
          <VisualReferenceWorkbench
           itemId={item.id}
+          legacySourceRunId={(item as any).source_analysis_run_id||null}
+          legacyObjectIndex={(item as any).source_object_index??null}
+          legacyPaired={originalReportPaired}
           photos={Object.fromEntries(photos.map((p,i)=>[i,photoUrls[p.id]||'']))}
           photoIndices={photos.map((_,i)=>i)}
           itemPhotoIdsByIndex={Object.fromEntries(photos.map((p,i)=>[i,p.id]))}
