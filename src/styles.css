@@ -269,3 +269,35 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-economics-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .ci-economics-results>div{min-width:0;overflow-wrap:anywhere}
 @media(max-width:650px){.ci-economics-fields,.ci-economics-results{grid-template-columns:1fr}}
+
+
+/* Phase 6: photo-first source comparison, original photos are never transformed. */
+.ci-visual-workbench{display:grid;gap:16px;min-width:0}
+.ci-visual-workbench .panelHeader{margin-bottom:0;align-items:start}
+.ci-visual-search-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.ci-visual-search-controls label{display:grid;gap:6px;flex:1 1 250px;min-width:0}
+.ci-visual-search-controls input{width:100%;min-width:0}
+.ci-visual-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ci-visual-source{min-width:0;display:grid;align-content:start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.ci-visual-source>img{width:100%;height:280px;object-fit:contain;background:#1a1c20;border-radius:8px}
+.ci-visual-source label{display:grid;gap:6px;font-size:12px}
+.ci-visual-source select{min-width:0;max-width:100%}
+.ci-visual-caption{display:grid;gap:6px;line-height:1.4;overflow-wrap:anywhere}
+.ci-visual-caption p{color:var(--muted);margin:0;font-size:13px}
+.ci-visual-caption small{color:var(--muted);font-size:11px}
+.ci-visual-caption a{text-decoration:underline;text-underline-offset:3px;color:var(--accent)}
+.ci-visual-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:9px}
+.ci-visual-result{display:grid;align-content:start;gap:7px;text-align:left;min-width:0;padding:7px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);cursor:pointer}
+.ci-visual-result.is-selected,.ci-visual-result:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ci-visual-result img{width:100%;height:100px;object-fit:contain;background:#191e24;border-radius:5px}
+.ci-visual-result span{font-size:12px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ci-visual-result small{font-size:10px;color:var(--muted)}
+.ci-visual-decision{display:grid;gap:10px}
+.ci-visual-decision label{display:grid;gap:6px}
+.ci-visual-decision textarea{width:100%}
+@media(max-width:680px){
+ .ci-visual-columns{grid-template-columns:1fr}
+ .ci-visual-source>img{height:230px}
+ .ci-visual-search-controls .secondaryButton{width:100%}
+ .ci-visual-results{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+}
