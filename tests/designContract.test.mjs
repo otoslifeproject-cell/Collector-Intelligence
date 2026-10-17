@@ -39,12 +39,21 @@ test('all major controls meet minimum button height and visible focus rules',()=
  assert.match(css,/:focus-visible\{outline:2px solid var\(--focus-color\)/)
 })
 
-test('routine report notes are discoverable but not visible as stacked paragraphs',()=>{
- assert.match(draft,/InfoDisclosure label="Report details"/)
- assert.match(draft,/ci-owner-status/)
- assert.match(draft,/ci-photo-review-status/)
- assert.doesNotMatch(draft,/Original AI report<\/h1><p>/)
- assert.doesNotMatch(draft,/note ci-owner-evidence/)
+test('report metadata and correction controls are inside one closed menu, never above navigation',()=>{
+ assert.match(draft,/ci-report-menu/)
+ assert.match(draft,/aria-label="Report notifications and actions"/)
+ assert.match(draft,/Disagree with verdict/)
+ assert.match(draft,/Source photo index needs review/)
+ assert.match(draft,/Report details/)
+ for(const oldClass of ['ci-owner-status','ci-photo-review-status','ci-report-meta','ci-report-top-actions']){
+  assert.doesNotMatch(draft,new RegExp('className="'+oldClass))
+ }
+ const menuStart=draft.indexOf('className="ci-report-menu"')
+ const navStart=draft.indexOf('className="tabBar"')
+ const notice=draft.indexOf('Source photo index needs review')
+ const reportDetail=draft.indexOf('Report details')
+ assert.ok(menuStart>=0&&notice>menuStart&&reportDetail>menuStart&&navStart>reportDetail)
+ assert.match(draft,/activeTab==='catalogue'&&needsPhotoCorrection&&<label className="ci-catalogue-photo-confirm"/)
 })
 test('compare action is visible in two clicks without filling screen with advice',()=>{
  const compare=read('src/components/VisualReferenceWorkbench.tsx')
