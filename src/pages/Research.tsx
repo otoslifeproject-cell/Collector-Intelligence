@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import {suggestSingleIntakePair} from '../lib/pairGrouping'
 
 type KnowledgeRow = {
   id: string
@@ -27,6 +28,9 @@ type KnowledgeRow = {
 
 export default function Research() {
   const [museumItems,setMuseumItems] = useState<any[]>([])
+  const [researchDrafts,setResearchDrafts] = useState<any[]>([])
+  const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
+  const [draftFeedback,setDraftFeedback] = useState<any[]>([])
   const [museumTarget,setMuseumTarget] = useState(()=>new URLSearchParams(window.location.search).get('item')||'')
   const [museumSaving,setMuseumSaving] = useState<string|null>(null)
   const [museumSource,setMuseumSource] = useState<'vam'|'europeana'>('vam')
@@ -71,8 +75,30 @@ export default function Research() {
   const [integrityResults,setIntegrityResults] = useState<Record<string,string>>({})
 
   useEffect(()=>{
+    let mounted=true
     supabase.from('items').select('id,item_code,title').order('updated_at',{ascending:false}).limit(100)
-      .then(({data,error})=>{if(!error)setMuseumItems(data||[])})
+      .then(({data,error})=>{if(mounted&&!error)setMuseumItems(data||[])})
+    void (async()=>{
+      const [draftRows,feedbackRows]=await Promise.all([
+        supabase.from('ai_analysis_runs').select('id,mode,created_at,input_photo_count,result')
+          .eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(12),
+        supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
+          .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100)
+      ])
+      if(!mounted)return
+      const drafts=(draftRows.data||[]).filter((r:any)=>Array.isArray(r.result?.objects)&&r.result.objects.length)
+      setResearchDrafts(drafts)
+      setDraftFeedback(feedbackRows.data||[])
+      const covers=await Promise.all(drafts.map(async(r:any)=>{
+        const first=(r.result.image_manifest||[]).find((m:any)=>
+          typeof m.storage_path==='string'&&Number.isInteger(m.index))
+        if(!first)return [r.id,''] as const
+        const signed=await supabase.storage.from('item-images').createSignedUrl(first.storage_path,900)
+        return [r.id,signed.data?.signedUrl||''] as const
+      }))
+      if(mounted)setDraftCovers(Object.fromEntries(covers))
+    })()
+    return ()=>{mounted=false}
   },[])
 
   const saveMuseumLead=async (m:any) => {
@@ -352,6 +378,31 @@ export default function Research() {
 
   return <div>
     <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Choose an object</h1><p>Research and saved findings belong to each object.</p></div></div>
+    {researchDrafts.length>0&&<section className="ci-research-recent">
+      <div className="panelHeader"><h2>Continue researching saved uploads</h2><span>{researchDrafts.length} recent unapproved reports</span></div>
+      <p className="ci-page-meta">Reuse retained photographs and source research without another intake charge. Your material corrections override old AI titles.</p>
+      <div className="cardGrid ci-object-grid ci-view-tiles">
+       {researchDrafts.slice(0,6).map((draft:any)=>{
+        const objects=draft.result?.objects||[]
+        const pair=suggestSingleIntakePair(objects,draft.mode)
+        const correction=draftFeedback.find((x:any)=>x.source_analysis_run_id===draft.id&&x.source_object_index==null)
+        const material=correction?.corrected_material||null
+        const rawTitle=pair?.title||objects[0]?.working_title||'Unidentified object'
+        const title=material?rawTitle.replace(/\bglass\b/gi,String(material).toLowerCase()):rawTitle
+        return <Link key={draft.id} to={'/draft/'+draft.id+'?tab=market'} className="itemCard ci-record-card">
+         <div className="itemCardImage placeholderGlass">
+          {draftCovers[draft.id]?<img src={draftCovers[draft.id]} alt={title}/>:<span className="ci-missing-photo">Saved source photos</span>}
+         </div>
+         <div className="itemCardBody">
+          <div className="itemMeta"><span>{pair?'Matched pair · 2 pieces':'Draft report'}</span><span>Not catalogued</span></div>
+          <h3 className="ci-record-title">{title}</h3>
+          <p className="ci-record-stage">{material?'Owner corrected: '+material:'Attribution provisional'} · {draft.input_photo_count} source photographs</p>
+          <span className="primaryButton ci-card-action">Open Market / Deep Dive →</span>
+         </div>
+        </Link>
+       })}
+      </div>
+    </section>}
     <div className="panel" style={{padding:16}}>
       <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
         <select aria-label="Choose an object" value={museumTarget} onChange={e=>setMuseumTarget(e.target.value)} style={{flex:'1 1 240px',minWidth:0}}>
