@@ -15,6 +15,6 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - name: Matched-pair regression tests
-        run: node --experimental-strip-types --test tests/pairGrouping.test.mjs
+        run: node --experimental-strip-types --test tests/*.test.mjs
       - name: TypeScript and Vite build
         run: npm run build
