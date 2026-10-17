@@ -48,8 +48,23 @@ export default function ItemDetail() {
     ])
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
-    const {data:runs}=await supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100)
-    const itemRuns=(runs||[]).filter((x:any)=>x.user_context?.item_id===id&&x.result?.research_summary)
+    const originalItem=itemData as any
+    const parentId=originalItem?.source_analysis_run_id as string|null
+    const originalIndex=originalItem?.source_object_index as number|null
+    const [researchQuery,parentQuery]=await Promise.all([
+      supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100),
+      parentId?supabase.from('ai_analysis_runs').select('result').eq('id',parentId).single():Promise.resolve({data:null})
+    ])
+    const snapshot=(parentQuery.data as any)?.result?.owner_review?.approved_snapshot?.[String(originalIndex)]
+    const wasPair=Array.isArray(snapshot?.pair_source_indices)&&snapshot.pair_source_indices.length===2
+    const itemRuns=(researchQuery.data||[]).filter((x:any)=>{
+      if(!x.result?.research_summary)return false
+      if(x.user_context?.item_id===id)return true
+      if(!parentId||originalIndex===null||x.user_context?.source_analysis_run_id!==parentId)return false
+      const matchingIndex=Number(x.user_context?.source_object_index)===Number(originalIndex)
+      const originalResearchWasPair=Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2
+      return matchingIndex&&originalResearchWasPair===wasPair
+    })
     setSavedResearchRuns(itemRuns.filter((x:any)=>x.status==='APPROVED'))
     setPendingResearchRuns(itemRuns.filter((x:any)=>x.status==='DRAFT'))
     const rows = (photoData || []) as ItemPhoto[]
@@ -280,7 +295,7 @@ export default function ItemDetail() {
         {pendingResearchRuns.length>0 && <div className="panel">
           <div className="panelHeader"><h2>Recovered research drafts</h2><span>{pendingResearchRuns.length} saved drafts</span></div>
           {pendingResearchRuns.map((run:any)=><div className="note" key={run.id}>
-            <strong>{new Date(run.created_at).toLocaleString()} — provisional, not yet preserved</strong>
+            <strong>{new Date(run.created_at).toLocaleString()} — saved provisional research{run.user_context?.source_analysis_run_id?' · from original photo draft':''}</strong>
             <p>{String(run.result?.research_summary||'Research result saved').slice(0,350)}</p>
             <button className="primaryButton inlineButton" disabled={researching} onClick={()=>{
               setResearchDraft(run.result);setResearchAudit(run.result?.source_audit||null);setResearchRunId(run.id);
