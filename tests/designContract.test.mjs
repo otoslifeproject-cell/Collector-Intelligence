@@ -27,7 +27,7 @@ test('light/dark mode is shared and available on both desktop and mobile',()=>{
  assert.match(sidebar,/ci-appearance-mobile/)
  assert.match(sidebar,/onToggleAppearance/)
  assert.match(css,/html\[data-theme="light"\]/)
- assert.match(css,/\.ci-workspace-action-panel\{\s*display:grid/)
+ assert.match(css,/\.researchLauncher,\.ci-workspace-action-panel\{\s*display:grid/)
  assert.match(css,/\.sidebar nav \.navItem\{width:auto!important/)
 })
 test('detailed economics is hidden by default and summary stays visible',()=>{
