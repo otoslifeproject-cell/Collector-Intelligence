@@ -390,6 +390,28 @@ export default function Research() {
 
   return <div>
     <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1>Research your objects</h1><InfoDisclosure label="About research"><p>Saved reports and individual objects retain their own source evidence, corrections and provisional valuations.</p></InfoDisclosure></div></div>
+    <section className="ci-research-options panel" aria-label="Choose research method">
+      <div className="eyebrow">RESEARCH OPTIONS</div>
+      <h2>Choose how to research</h2>
+      <p className="ci-research-lead">Start with free reference checks. Use a paid AI investigation only when it is worth the cost.</p>
+      <div className="ci-research-option-list">
+        <div className="ci-research-option">
+          {museumTarget?<Link className="primaryButton ci-research-choice" to={'/item/'+museumTarget+'?tab=market'}>Deep research →</Link>:<a href="#ci-research-object-chooser" className="primaryButton ci-research-choice">Choose object →</a>}
+          <div><strong>AI-assisted investigation</strong><p>Opens the object's Market research workspace. Any paid AI run requires a separate deliberate action; this button does not charge you.</p></div>
+          <span className="ci-research-cost">Paid AI optional</span>
+        </div>
+        <div className="ci-research-option">
+          <a className="secondaryButton ci-research-choice" href="#ci-museum-research">Museum comparison →</a>
+          <div><strong>Check collection catalogues</strong><p>Use available museum references or official catalogue links. Similar designs are leads, not authentication of your object.</p></div>
+          <span className="ci-research-cost">Free / external</span>
+        </div>
+        <div className="ci-research-option">
+          <a className="secondaryButton ci-research-choice" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Google Lens ↗</a>
+          <div><strong>Compare by image</strong><p>Opens Google Lens in a new tab. Upload an image there manually; Collector Intelligence does not send your private photos.</p></div>
+          <span className="ci-research-cost">External / manual</span>
+        </div>
+      </div>
+    </section>
     {researchDrafts.length>0&&<section className="ci-research-recent">
       <div className="panelHeader"><h2>Continue researching saved uploads</h2><span>{researchDrafts.length} recent unapproved reports</span></div>
       
@@ -415,7 +437,7 @@ export default function Research() {
        })}
       </div>
     </section>}
-    <div className="panel" style={{padding:16}}>
+    <div id="ci-research-object-chooser" className="panel" style={{padding:16}}>
       <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
         <select aria-label="Choose an object" value={museumTarget} onChange={e=>setMuseumTarget(e.target.value)} style={{flex:'1 1 240px',minWidth:0}}>
           <option value="">Select a CI object</option>
@@ -424,7 +446,7 @@ export default function Research() {
         {museumTarget?<Link to={'/item/'+museumTarget} className="primaryButton">Open object →</Link>:<span style={{fontSize:12,color:'var(--muted)'}}>Select an object to see its findings</span>}
       </div>
     </div>
-    <details className="panel">
+    <details id="ci-museum-research" className="panel" open>
       <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Museum references — open-access or external</summary>
       <p>Search The Met's public-domain CC0 illustrations. V&A commercial API access is paused pending licensing; use its public collection site manually. Museum objects are reference leads, not authentication or achieved prices.</p>
       <p className="ci-page-meta"><a href="https://collections.vam.ac.uk/" target="_blank" rel="noopener noreferrer">Open V&A catalogue manually ↗</a> (licence permission required for in-app API/image use).</p>
