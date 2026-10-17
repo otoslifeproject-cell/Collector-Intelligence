@@ -338,7 +338,7 @@ export default async function handler(req: any, res: any) {
 
   const content: any[] = [{
     type: "input_text",
-    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
   }];
   for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
 
