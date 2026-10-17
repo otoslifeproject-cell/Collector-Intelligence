@@ -383,7 +383,7 @@ export default function Research() {
   }
 
   return <div>
-    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Choose an object</h1><p>Research and saved findings belong to each object.</p></div></div>
+    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1 style={{fontSize:'clamp(26px,3vw,38px)'}}>Research your objects</h1><p>Continue saved photo reports or open a permanent object. Keep evidence and valuations attached to the right physical piece or pair.</p></div></div>
     {researchDrafts.length>0&&<section className="ci-research-recent">
       <div className="panelHeader"><h2>Continue researching saved uploads</h2><span>{researchDrafts.length} recent unapproved reports</span></div>
       <p className="ci-page-meta">Reuse retained photographs and source research without another intake charge. Your material corrections override old AI titles.</p>
@@ -429,7 +429,12 @@ export default function Research() {
       {museumResults.length>0 && <label style={{display:'block',marginBottom:12}}>Save references against item <select value={museumTarget} onChange={e=>setMuseumTarget(e.target.value)}><option value="">Choose an item — required</option>{museumItems.map((i:any)=><option key={i.id} value={i.id}>{i.item_code} — {i.title||'Untitled'}</option>)}</select></label>}
       {museumMessage && <p className="note">{museumMessage}</p>}
       {museumResults.length>0 && <div className="tableWrap"><table><thead><tr><th>Museum object</th><th>Type / maker</th><th>Date</th><th>Original record</th><th>Save lead</th></tr></thead><tbody>
-      {museumResults.map((m:any)=><tr key={m.id}><td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td><td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">{m.provider==='Europeana'?'Europeana record ↗':'V&A catalogue ↗'}</a></td></tr>)}
+      {museumResults.map((m:any)=><tr key={m.id}>
+        <td>{m.title}</td><td>{m.objectType}{m.maker?' · '+m.maker:''}</td><td>{m.date||'Unknown'}</td>
+        <td><a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">{m.provider==='Europeana'?'Europeana record ↗':'V&A catalogue ↗'}</a></td>
+        <td><button className="secondaryButton" disabled={!museumTarget||!!museumSaving} onClick={()=>void saveMuseumLead(m)}>
+          {museumSaving===m.id?'Saving…':'Save provisional lead'}</button></td>
+       </tr>)}
       </tbody></table></div>}
     </details>
     <details className="panel"><summary style={{cursor:"pointer",fontWeight:700}}>Research tasks ({tasks.length})</summary><div style={{marginTop:14}} className="panelHeader"><h2>Research tasks</h2><span>Highest-information evidence first</span></div>
