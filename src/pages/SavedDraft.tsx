@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react'
+import {ArrowLeft,Bell} from 'lucide-react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {supabase} from '../lib/supabase'
@@ -132,6 +133,7 @@ export default function SavedDraft(){
  }
  const missingSourceIndices=selectedIndices.flatMap(i=>indicesForReview(i).filter(n=>!manifestIndices.has(n)))
  const needsPhotoCorrection=missingSourceIndices.length>0
+ const noticeCount=run&&(needsPhotoCorrection||!Array.isArray(run.result?.image_manifest)||run.result?.analysis_stage!=='COMPLETE')?1:0
  const hasReviewObjects=!!run && Array.isArray(run.result?.objects) && run.result.objects.length>0
  const isPhotoManifestReady=!!run && Array.isArray(run.result?.image_manifest) &&
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
@@ -242,65 +244,92 @@ export default function SavedDraft(){
   }finally{setApproving(false)}
  }
  return <div className="ci-page ci-saved-draft">
-  <header className="ci-page-header">
-    <div><div className="eyebrow">SAVED REPORT</div><h1>{paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}</h1></div>
-    <Link to="/inventory" className="secondaryButton inlineButton">← Inventory</Link>
-  </header>
-  {busy&&<p role="status">Opening your saved report…</p>}
+  <header className="ci-page-header ci-report-heading">
+    <div className="ci-report-heading-copy">
+     <div className="eyebrow">SAVED REPORT</div>
+     <h1 title={paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}>
+      {paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}
+     </h1>
+    </div>
+    <div className="ci-report-heading-tools">
+     <Link to="/inventory" className="ci-report-icon-control" aria-label="Back to Inventory" title="Back to Inventory">
+      <ArrowLeft size={19} aria-hidden="true"/>
+     </Link>
+     {run&&<details className="ci-report-menu" onKeyDown={e=>{if(e.key==='Escape')e.currentTarget.open=false}}>
+      <summary aria-label="Report notifications and actions" title="Report notifications and actions">
+       <Bell size={19} aria-hidden="true"/>
+       {noticeCount>0&&<span className="ci-report-notice-count" aria-label={noticeCount+' source issue requiring review'}>{noticeCount}</span>}
+      </summary>
+      <div className="ci-report-menu-content">
+       <strong className="ci-report-menu-title">Report activity</strong>
+       <button type="button" className="ci-report-menu-action" onClick={()=>setDisagreeOpen(v=>!v)}>
+        {disagreeOpen?'Close correction form':'Disagree with verdict'}
+       </button>
+       {disagreeOpen&&<section className="ci-report-correction-form" aria-label="Correct AI verdict">
+        <label>What is wrong?
+         <select value={disagreementType} onChange={e=>setDisagreementType(e.target.value)}>
+          <option value="MATERIAL_CORRECTION">Material</option>
+          <option value="ATTRIBUTION_REJECTION">Maker or attribution</option>
+          <option value="IDENTIFICATION_CORRECTION">Object type or period</option>
+          <option value="OTHER">Value, pair or another conclusion</option>
+         </select></label>
+        {disagreementType==='MATERIAL_CORRECTION'&&<label>Actual material
+         <select value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
+          {['Metal','Glass','Ceramic','Wood','Stone','Textile','Mixed materials','Unknown'].map(x=><option key={x} value={x}>{x}</option>)}
+         </select></label>}
+        <label>Correction details
+         <textarea rows={3} maxLength={2000} value={disagreementNote}
+          onChange={e=>setDisagreementNote(e.target.value)} placeholder="Describe what needs correcting"/></label>
+        <div className="ci-page-actions">
+         <button className="primaryButton" disabled={savingDisagreement} onClick={saveDisagreement}>
+          {savingDisagreement?'Saving…':'Save correction'}
+         </button>
+         <button className="secondaryButton" onClick={()=>setDisagreeOpen(false)}>Cancel</button>
+        </div>
+       </section>}
+       {scopeFeedback.length>0&&<div className="ci-report-menu-entry">
+        <strong>Owner correction{correctedMaterial?': '+correctedMaterial:''}</strong>
+        <p>{scopeFeedback[0].owner_statement}</p>
+       </div>}
+       {needsPhotoCorrection&&<div className="ci-report-menu-entry ci-report-menu-warning">
+        <strong>Source photo index needs review</strong>
+        <p>The AI references photo(s) {[...new Set(missingSourceIndices)].map(n=>n+1).join(', ')};
+         the upload contains only {run.input_photo_count}. Original photos and AI text remain unchanged.</p>
+       </div>}
+       {!Array.isArray(run.result?.image_manifest)&&<div className="ci-report-menu-entry ci-report-menu-warning">
+        <strong>Unverified photo source</strong>
+        <p>The historical report lacks a confirmed manifest. Catalogue photo linking remains restricted.</p>
+       </div>}
+       {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
+        <div className="ci-report-menu-entry ci-report-menu-warning">
+         <strong>Incomplete analysis</strong><p>Second-stage checks have not been saved.</p>
+        </div>}
+       <div className="ci-report-menu-entry">
+        <strong>Report details</strong>
+        <p>{run.input_photo_count} photos · {run.status==='DRAFT'?'Not catalogued':run.status}
+         · saved {new Date(run.created_at).toLocaleString()}</p>
+        <p>Original evidence and earlier AI interpretations remain preserved.</p>
+       </div>
+      </div>
+     </details>}
+    </div>
+   </header>
+   {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
-   <div className="ci-report-top-actions">
-    {activeTab!=='market'&&<button className="primaryButton" onClick={()=>setActiveTab('market')}>Research & value →</button>}
-    <button className="secondaryButton" onClick={()=>setDisagreeOpen(v=>!v)}>Disagree with verdict</button>
-   </div>
-   {disagreeOpen&&<section className="panel ci-owner-disagreement">
-     <div className="panelHeader"><h2>Disagree with verdict</h2><span>Owner observation takes precedence</span></div>
-     <p className="ci-page-meta">Correct the material and explain. The old AI conclusion remains in the evidence trail, not as a verified identification.</p>
-     <div className="ci-review-fields">
-      <label>What do you disagree with?
-       <select value={disagreementType} onChange={e=>setDisagreementType(e.target.value)}>
-        <option value="MATERIAL_CORRECTION">Material is wrong</option>
-        <option value="ATTRIBUTION_REJECTION">Maker or attribution is wrong</option>
-        <option value="IDENTIFICATION_CORRECTION">Object identification, type or period is wrong</option>
-        <option value="OTHER">Value, pair grouping or another conclusion is wrong</option>
-       </select></label>
-      {disagreementType==='MATERIAL_CORRECTION'&&<label>Correct material<select value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
-       {['Metal','Glass','Ceramic','Wood','Stone','Textile','Mixed materials','Unknown'].map(x=><option key={x} value={x}>{x}</option>)}</select></label>}
-      <label>What did it get wrong?<textarea rows={3} maxLength={2000} value={disagreementNote} onChange={e=>setDisagreementNote(e.target.value)} placeholder="Material, maker, shape, period, or incorrect comparable"/></label>
-     </div>
-     <div className="ci-page-actions"><button className="primaryButton" disabled={savingDisagreement} onClick={saveDisagreement}>{savingDisagreement?'Saving…':'Save correction'}</button>
-      <button className="secondaryButton" onClick={()=>setDisagreeOpen(false)}>Cancel</button></div>
-    </section>}
-   {scopeFeedback.length>0&&<div className="ci-owner-status">
-     <span className="ci-compact-status">Owner corrected{correctedMaterial?': '+correctedMaterial:''}</span>
-     <InfoDisclosure label="Correction details"><p>{scopeFeedback[0].owner_statement}</p><p>The earlier AI wording remains in the evidence record.</p></InfoDisclosure>
-    </div>}
    <div className="tabBar" role="tablist" aria-label="Object workspace">
     {['overview','photos','identification','market','sales','catalogue'].map(t=>
       <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
    </div>
-   <div className="ci-report-meta"><span>{run.input_photo_count} original photos</span><span>{run.status==='DRAFT'?'Not catalogued':run.status}</span>
-     <InfoDisclosure label="Report details">
-      <p>Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single upload'}.</p>
-      <p>Original analysis and source photos are preserved; viewing uses no paid AI.</p>
-     </InfoDisclosure></div>
-   {!hasReviewObjects&&run.status==='DRAFT'&&<InfoDisclosure label="Analysis incomplete" warning><p>No saved first-pass objects; source files remain private. Catalogue approval is unavailable.</p></InfoDisclosure>}
-   {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
-     <InfoDisclosure label="Analysis incomplete" warning><p>Second-stage checks have not been saved. Catalogue approval remains disabled.</p></InfoDisclosure>}
-   {!Array.isArray(run.result?.image_manifest)&&<InfoDisclosure label="Photo source unconfirmed" warning><p>Original written findings remain intact. Verify the upload session before attaching photos.</p></InfoDisclosure>}
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
       <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>{setGroupPair(e.target.checked);setConfirmedPhotoCorrection(false)}}/> One catalogue record for the pair (recommended)</label>
     </div>}
-   {needsPhotoCorrection&&<div className="ci-photo-review-status">
-    <span className="ci-compact-status ci-status-warning">Photo index needs review</span>
-    <InfoDisclosure label="Why?"><p>The AI refers to photo(s) {[...new Set(missingSourceIndices)].map(n=>n+1).join(', ')}; the upload contains {run.input_photo_count} files. Original references were preserved, never silently reassigned.</p></InfoDisclosure>
-    {activeTab==='catalogue'&&<label className="ci-record-selection">
-     <input type="checkbox" checked={confirmedPhotoCorrection} onChange={e=>setConfirmedPhotoCorrection(e.target.checked)}/>
-     <span>Use only confirmed existing photos</span>
-    </label>}
-   </div>}
+   {activeTab==='catalogue'&&needsPhotoCorrection&&<label className="ci-catalogue-photo-confirm">
+    <input type="checkbox" checked={confirmedPhotoCorrection} onChange={e=>setConfirmedPhotoCorrection(e.target.checked)}/>
+    Confirm existing uploaded photos only
+   </label>}
    {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
     <button className="primaryButton" disabled={approving||saving||!isPhotoManifestReady||!selectedIndices.length||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={approveSaved}>
