@@ -353,7 +353,7 @@ export default function AIIntake() {
 
         {message && <div className="note">{message}</div>}
         <div className="intakeActions">
-          <button className="primaryButton intakeBigButton" disabled={!photos.length} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse & draft catalogue</button>
+          <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse & draft catalogue</button>
           <span>Nothing is written to the permanent catalogue until you approve the draft.</span>
         </div>
       </>}
