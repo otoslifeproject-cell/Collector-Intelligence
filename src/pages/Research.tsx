@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link,useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 
@@ -27,11 +27,12 @@ type KnowledgeRow = {
 }
 
 export default function Research() {
+  const location=useLocation()
   const [museumItems,setMuseumItems] = useState<any[]>([])
   const [researchDrafts,setResearchDrafts] = useState<any[]>([])
   const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
   const [draftFeedback,setDraftFeedback] = useState<any[]>([])
-  const [museumTarget,setMuseumTarget] = useState(()=>new URLSearchParams(window.location.search).get('item')||'')
+  const [museumTarget,setMuseumTarget] = useState(()=>new URLSearchParams(location.search).get('item')||'')
   const [museumSaving,setMuseumSaving] = useState<string|null>(null)
   const [museumSource,setMuseumSource] = useState<'vam'|'europeana'>('vam')
   const [museumQuery,setMuseumQuery] = useState('')
@@ -73,6 +74,11 @@ export default function Research() {
   const [snapshotMedia,setSnapshotMedia] = useState('text/plain')
   const [integrityBusy,setIntegrityBusy] = useState<string|null>(null)
   const [integrityResults,setIntegrityResults] = useState<Record<string,string>>({})
+
+  useEffect(()=>{
+    const linkedObject=new URLSearchParams(location.search).get('item')
+    if(linkedObject)setMuseumTarget(linkedObject)
+  },[location.search])
 
   useEffect(()=>{
     let mounted=true
