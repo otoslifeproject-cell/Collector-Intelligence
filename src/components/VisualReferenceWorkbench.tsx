@@ -10,11 +10,12 @@ type RecordLead={
 type Review={id:string;reference_system_number:string;review_decision:string;created_at:string;review_note:string}
 type Props={
  analysisRunId?:string;itemId?:string;itemPhotoIdsByIndex?:Record<number,string>
+ legacySourceRunId?:string|null;legacyObjectIndex?:number|null;legacyPaired?:boolean
  objectIndex?:number;paired?:boolean
  photos:Record<number,string>;photoIndices:number[]
  ownerMaterial:string|null;workingTitle:string
 }
-export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhotoIdsByIndex={},objectIndex=0,paired=false,photos,photoIndices,ownerMaterial,workingTitle}:Props){
+export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhotoIdsByIndex={},legacySourceRunId=null,legacyObjectIndex=null,legacyPaired=false,objectIndex=0,paired=false,photos,photoIndices,ownerMaterial,workingTitle}:Props){
  const eligible=useMemo(()=>[...new Set(photoIndices)].filter(i=>Number.isInteger(i)&&!!photos[i]),[photoIndices,photos])
  const [photoIndex,setPhotoIndex]=useState<number|null>(eligible[0]??null)
  const initial=visualSearchTerm(ownerMaterial||'',workingTitle)
@@ -22,6 +23,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
  const [items,setItems]=useState<RecordLead[]>([])
  const [active,setActive]=useState<RecordLead|null>(null)
  const [reviews,setReviews]=useState<Review[]>([])
+ const [historyReady,setHistoryReady]=useState(false)
  const [note,setNote]=useState('')
  const [loading,setLoading]=useState(false)
  const [saving,setSaving]=useState(false)
@@ -33,19 +35,37 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
  },[analysisRunId,itemId,objectIndex,paired,ownerMaterial,workingTitle])
  useEffect(()=>{
   let alive=true
+  setHistoryReady(false)
   const load=async()=>{
    let request=supabase.from('ai_visual_reference_reviews')
      .select('id,reference_system_number,review_decision,created_at,review_note')
    if(itemId)request=request.eq('item_id',itemId)
    else if(analysisRunId)request=request.eq('source_analysis_run_id',analysisRunId)
      .eq('source_object_index',objectIndex).eq('paired_lot',paired)
-   else {if(alive)setStatus('A real owner item or saved photo run is required.');return}
+   else {if(alive)setStatus('A saved item or upload is required.');return}
    const {data,error}=await request.order('created_at',{ascending:false}).limit(100)
-   if(alive){if(error)setStatus('Saved visual evidence unavailable. New reviews should not be written until history loads.');else setReviews(data||[])}
+   let previous:any[]=[]
+   let priorError:any=null
+   if(itemId&&legacySourceRunId&&legacyObjectIndex!==null){
+    const older=await supabase.from('ai_visual_reference_reviews')
+      .select('id,reference_system_number,review_decision,created_at,review_note')
+      .eq('source_analysis_run_id',legacySourceRunId)
+      .eq('source_object_index',legacyObjectIndex).eq('paired_lot',legacyPaired)
+      .order('created_at',{ascending:false}).limit(100)
+    previous=older.data||[]
+    priorError=older.error
+   }
+   if(alive){
+    if(error||priorError)setStatus('Prior visual evidence could not be loaded. Saving is blocked until history is accessible.')
+    else{
+     setReviews([...(data||[]),...previous].sort((a:any,b:any)=>Date.parse(b.created_at)-Date.parse(a.created_at)))
+     setHistoryReady(true)
+    }
+   }
   }
   void load()
   return ()=>{alive=false}
- },[analysisRunId,itemId,objectIndex,paired])
+ },[analysisRunId,itemId,objectIndex,paired,legacySourceRunId,legacyObjectIndex,legacyPaired])
  const search=async()=>{
   const q=query.trim()
   if(q.length<3||q.length>100){setStatus('Enter 3–100 characters using the corrected material, form and decoration.');return}
@@ -67,7 +87,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
   finally{setLoading(false)}
  }
  const record=async(decision:'POSSIBLE_LOOKALIKE'|'NOT_A_MATCH'|'NEEDS_REVIEW')=>{
-  if(!active||photoIndex===null||saving)return
+  if(!active||photoIndex===null||saving||!historyReady)return
   if(!/^O\d{1,12}$/.test(active.id)||active.sourceUrl!=='https://collections.vam.ac.uk/item/'+active.id+'/'){
    setStatus('Original museum reference is invalid; nothing was saved.');return
   }
@@ -150,8 +170,8 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
      <label>What did you actually notice? (optional)
       <textarea value={note} maxLength={1200} rows={2} onChange={e=>setNote(e.target.value)} placeholder="e.g. similar floral layout, but different foot and casting joins"/></label>
      <div className="ci-page-actions">
-      <button className="secondaryButton" disabled={saving} onClick={()=>void record('NOT_A_MATCH')}>Not a match</button>
-      <button className="primaryButton inlineButton" disabled={saving} onClick={()=>void record('POSSIBLE_LOOKALIKE')}>Keep as possible lookalike</button>
+      <button className="secondaryButton" disabled={saving||!historyReady} onClick={()=>void record('NOT_A_MATCH')}>Not a match</button>
+      <button className="primaryButton inlineButton" disabled={saving||!historyReady} onClick={()=>void record('POSSIBLE_LOOKALIKE')}>Keep as possible lookalike</button>
      </div>
    </div>}
    {status&&<p className="note" role="status">{status}</p>}
