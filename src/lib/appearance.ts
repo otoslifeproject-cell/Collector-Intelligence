@@ -13,5 +13,7 @@ export function storedAppearance():Appearance{
 export function applyAppearance(value:Appearance){
  document.documentElement.dataset.theme=value
  document.documentElement.style.colorScheme=value
+ const meta=document.querySelector('meta[name="theme-color"]')
+ if(meta)meta.setAttribute('content',value==='light'?'#f5f7fa':'#0B0F14')
  try{window.localStorage.setItem(KEY,value)}catch{ /* private browsing or blocked storage */ }
 }
