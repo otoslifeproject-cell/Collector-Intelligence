@@ -8,6 +8,7 @@ import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
+import InfoDisclosure from '../components/InfoDisclosure'
 import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materialContradictsVisualGuess} from '../lib/ownerCorrections'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;owner_review_revision:number;user_context?:any}
@@ -242,7 +243,7 @@ export default function SavedDraft(){
  }
  return <div className="ci-page ci-saved-draft">
   <header className="ci-page-header">
-    <div><div className="eyebrow">SAVED ANALYSIS</div><h1>Original AI report</h1><p>Preserved provisional findings · No additional AI usage</p></div>
+    <div><div className="eyebrow">SAVED REPORT</div><h1>{paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}</h1></div>
     <Link to="/inventory" className="secondaryButton inlineButton">← Inventory</Link>
   </header>
   {busy&&<p role="status">Opening your saved report…</p>}
@@ -271,27 +272,34 @@ export default function SavedDraft(){
      <div className="ci-page-actions"><button className="primaryButton" disabled={savingDisagreement} onClick={saveDisagreement}>{savingDisagreement?'Saving…':'Save correction'}</button>
       <button className="secondaryButton" onClick={()=>setDisagreeOpen(false)}>Cancel</button></div>
     </section>}
-   {scopeFeedback.length>0&&<div className="note ci-owner-evidence" role="status"><strong>Owner correction on record:</strong> {correctedMaterial?'Material: '+correctedMaterial+'. ':''}{scopeFeedback[0].owner_statement}
-     <p className="ci-page-meta">Original AI output retained. New research must use the correction.</p></div>}
+   {scopeFeedback.length>0&&<div className="ci-owner-status">
+     <span className="ci-compact-status">Owner corrected{correctedMaterial?': '+correctedMaterial:''}</span>
+     <InfoDisclosure label="Correction details"><p>{scopeFeedback[0].owner_statement}</p><p>The earlier AI wording remains in the evidence record.</p></InfoDisclosure>
+    </div>}
    <div className="tabBar" role="tablist" aria-label="Object workspace">
     {['overview','photos','identification','market','sales','catalogue'].map(t=>
       <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
    </div>
-   <p className="ci-page-meta">Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single item'} · {run.input_photo_count} original photographs reported · {run.status}</p>
-   {!hasReviewObjects&&run.status==='DRAFT'&&<div className="note ci-inline-note">Original upload session saved. The paid AI report did not reach a saved first-pass result, so there are no objects to review or catalogue here. Your uploaded source photographs remain in private storage.</div>}
+   <div className="ci-report-meta"><span>{run.input_photo_count} original photos</span><span>{run.status==='DRAFT'?'Not catalogued':run.status}</span>
+     <InfoDisclosure label="Report details">
+      <p>Saved {new Date(run.created_at).toLocaleString()} · {run.mode==='batch'?'Mixed batch':'Single upload'}.</p>
+      <p>Original analysis and source photos are preserved; viewing uses no paid AI.</p>
+     </InfoDisclosure></div>
+   {!hasReviewObjects&&run.status==='DRAFT'&&<InfoDisclosure label="Analysis incomplete" warning><p>No saved first-pass objects; source files remain private. Catalogue approval is unavailable.</p></InfoDisclosure>}
    {Array.isArray(run.result?.image_manifest)&&run.result?.analysis_stage!=='COMPLETE'&&run.status==='DRAFT'&&
-     <div className="note ci-inline-note">A source report exists but its second-stage checks have not been saved. Review the preserved original findings; catalogue approval remains disabled until the analysis is complete.</div>}
-   {!Array.isArray(run.result?.image_manifest)&&<div className="note ci-inline-note">This older report has no confirmed photograph manifest. The written findings are preserved; photographs cannot be attached safely until their source session is verified.</div>}
+     <InfoDisclosure label="Analysis incomplete" warning><p>Second-stage checks have not been saved. Catalogue approval remains disabled.</p></InfoDisclosure>}
+   {!Array.isArray(run.result?.image_manifest)&&<InfoDisclosure label="Photo source unconfirmed" warning><p>Original written findings remain intact. Verify the upload session before attaching photos.</p></InfoDisclosure>}
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
       <label className="ci-record-selection"><input type="checkbox" checked={groupPair} onChange={e=>{setGroupPair(e.target.checked);setConfirmedPhotoCorrection(false)}}/> One catalogue record for the pair (recommended)</label>
     </div>}
-   {needsPhotoCorrection&&<div className="note ci-inline-note" role="alert">
-    <strong>AI source-index discrepancy:</strong> this report refers to photo number(s) {[...new Set(missingSourceIndices)].map(n=>n+1).join(', ')}, but the original upload contains only {run.input_photo_count} files. Those model references are preserved as received; the existing uploaded photographs have not been altered.
+   {needsPhotoCorrection&&<div className="ci-photo-review-status">
+    <span className="ci-compact-status ci-status-warning">Photo index needs review</span>
+    <InfoDisclosure label="Why?"><p>The AI refers to photo(s) {[...new Set(missingSourceIndices)].map(n=>n+1).join(', ')}; the upload contains {run.input_photo_count} files. Original references were preserved, never silently reassigned.</p></InfoDisclosure>
     {activeTab==='catalogue'&&<label className="ci-record-selection">
      <input type="checkbox" checked={confirmedPhotoCorrection} onChange={e=>setConfirmedPhotoCorrection(e.target.checked)}/>
-     <span>Confirm only the existing source photos referenced by this report should be linked to the catalogue record.</span>
+     <span>Use only confirmed existing photos</span>
     </label>}
    </div>}
    {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&<div className="ci-page-actions">
@@ -300,7 +308,7 @@ export default function SavedDraft(){
      {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
     </button>
    </div>}
-   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&<p className="ci-page-meta">Select objects below before approval. Original AI findings and photographs will remain preserved.</p>}
+   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&<p className="ci-action-hint">Select the objects to catalogue.</p>}
    {catalogued.length>0&&<div className="panel ci-catalogued-result" role="status">
     <h2>Objects safely catalogued</h2>
     <div className="ci-catalogued-links">{catalogued.map(item=><Link key={item.item_id} to={'/item/'+item.item_id} className="secondaryButton inlineButton">{item.item_code} · {item.title||'Object'}</Link>)}</div>
@@ -335,8 +343,7 @@ export default function SavedDraft(){
       Manual image search ↗</a>}
      note="Dive deeper uses paid AI research. Museum image comparisons above are free; reverse-image search remains manual."
     >
-     {existingResearchObsolete&&<p className="note" role="alert">
-      Your correction supersedes earlier glass conclusions. Check attribution and prices before selling.</p>}
+     {existingResearchObsolete&&<InfoDisclosure label="Earlier research superseded" warning><p>Owner correction invalidates the prior glass conclusions. Historical findings remain preserved.</p></InfoDisclosure>}
      {visibleResearch?
       <details className="ci-archive-section">
        <summary>Another standard online search · paid</summary>
@@ -347,7 +354,7 @@ export default function SavedDraft(){
       <button className="secondaryButton ci-action-minor-button"
        disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'}
        onClick={()=>runDraftResearch('standard')}>Standard research instead</button>}
-     {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research result(s). No new upload needed.</p>}
+     {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved results</span>}
      {unfinishedResearch.length>0&&<details className="ci-archive-section">
       <summary>{unfinishedResearch.length} interrupted or staged investigation(s)</summary>
       <p className="ci-page-meta">Inspect previous attempts before rerunning; a paid request may have been interrupted.</p>
@@ -363,7 +370,7 @@ export default function SavedDraft(){
      </div>
      {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
     </div>}
-    {materialContradictsModel&&<p className="note" role="alert">Previous visual estimates have been suppressed because they assumed {originalMaterial||'another material'}. Your recorded material is {correctedMaterial}.</p>}
+    {materialContradictsModel&&<InfoDisclosure label="Earlier image-only estimate withheld" warning><p>The model assumed {originalMaterial||'another material'}; owner-recorded material is {correctedMaterial}. The original guess remains available in the saved AI evidence.</p></InfoDisclosure>}
     {visibleResearch&&(existingResearchObsolete
      ? <details className="ci-archive-section"><summary>View superseded research · not valid for pricing</summary>
         <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Superseded model research"/>
