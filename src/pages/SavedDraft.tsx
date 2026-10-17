@@ -36,6 +36,7 @@ export default function SavedDraft(){
  const [verdictFeedback,setVerdictFeedback]=useState<any[]>([])
  const [disagreeOpen,setDisagreeOpen]=useState(false)
  const [disagreementMaterial,setDisagreementMaterial]=useState('Metal')
+ const [disagreementType,setDisagreementType]=useState('MATERIAL_CORRECTION')
  const [disagreementNote,setDisagreementNote]=useState('')
  const [savingDisagreement,setSavingDisagreement]=useState(false)
  const [query,setQuery]=useState('')
@@ -135,6 +136,9 @@ export default function SavedDraft(){
  const visibleAudit=matchedResearchRun?.result?.source_audit || (lastResearchScope===scopeKey?researchAudit:null)
  const correctionAfterResearch=!!matchedResearchRun&&scopeFeedback.some((x:any)=>Date.parse(x.created_at)>Date.parse(matchedResearchRun.created_at))
  const originalMaterial=String(run?.result?.objects?.[scopeIndex]?.material||'').toLowerCase()
+ const correctedPairTitle=pairProposal?.title&&correctedMaterial
+  ? pairProposal.title.replace(/\bglass\b/gi,correctedMaterial.toLowerCase())
+  :pairProposal?.title
  const materialContradictsModel=!!correctedMaterial&&
    ((correctedMaterial.toLowerCase()==='metal'&&/glass|ceramic|pottery/.test(originalMaterial))||
     (correctedMaterial.toLowerCase()==='glass'&&/metal|ceramic|pottery/.test(originalMaterial)))
@@ -148,7 +152,7 @@ export default function SavedDraft(){
    try{
      const {data,error:e}=await supabase.from('ai_verdict_feedback').insert({
        source_analysis_run_id:run.id,source_object_index:paired?null:scopeIndex,
-       feedback_type:'MATERIAL_CORRECTION',corrected_material:disagreementMaterial,owner_statement:note
+       feedback_type:disagreementType,corrected_material:disagreementType==='MATERIAL_CORRECTION'?disagreementMaterial:null,owner_statement:note
      }).select('id,source_object_index,feedback_type,corrected_material,owner_statement,created_at').single()
      if(e||!data)throw Error(e?.message||'Owner correction was not saved')
      setVerdictFeedback(v=>[data,...v]);setDisagreeOpen(false);setDisagreementNote('')
@@ -210,7 +214,7 @@ export default function SavedDraft(){
     const valid=raw.filter(n=>manifestIndices.has(n))
     const correction=raw.length!==valid.length?{confirmed_photo_indices:valid}:{}
     reviews[String(i)]=paired&&i===0
-      ? {...edits[i],working_title:pairProposal?.title,pair_source_indices:[0,1],...correction}
+      ? {...edits[i],working_title:correctedPairTitle,pair_source_indices:[0,1],...correction}
       : {...edits[i],...correction}
    }
    const {data,error:e}=await supabase.rpc('ci_approve_saved_intake_v1',{
@@ -244,8 +248,15 @@ export default function SavedDraft(){
      <div className="panelHeader"><h2>Disagree with verdict</h2><span>Owner observation takes precedence</span></div>
      <p className="ci-page-meta">Correct the material and explain. The old AI conclusion remains in the evidence trail, not as a verified identification.</p>
      <div className="ci-review-fields">
-      <label>Correct material<select value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
-       {['Metal','Glass','Ceramic','Wood','Stone','Textile','Mixed materials','Unknown'].map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+      <label>What do you disagree with?
+       <select value={disagreementType} onChange={e=>setDisagreementType(e.target.value)}>
+        <option value="MATERIAL_CORRECTION">Material is wrong</option>
+        <option value="ATTRIBUTION_REJECTION">Maker or attribution is wrong</option>
+        <option value="IDENTIFICATION_CORRECTION">Object identification, type or period is wrong</option>
+        <option value="OTHER">Value, pair grouping or another conclusion is wrong</option>
+       </select></label>
+      {disagreementType==='MATERIAL_CORRECTION'&&<label>Correct material<select value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
+       {['Metal','Glass','Ceramic','Wood','Stone','Textile','Mixed materials','Unknown'].map(x=><option key={x} value={x}>{x}</option>)}</select></label>}
       <label>What did it get wrong?<textarea rows={3} maxLength={2000} value={disagreementNote} onChange={e=>setDisagreementNote(e.target.value)} placeholder="Material, maker, shape, period, or incorrect comparable"/></label>
      </div>
      <div className="ci-page-actions"><button className="primaryButton" disabled={savingDisagreement} onClick={saveDisagreement}>{savingDisagreement?'Saving…':'Save correction'}</button>
@@ -347,8 +358,8 @@ export default function SavedDraft(){
    {activeTab==='sales'&&<div className="marketStack">
     <div className="panel">
      <div className="panelHeader"><h2>Sales planning</h2><span>No listing or publication without approval</span></div>
-     <p>{visibleResearch?.routing?.best_venue?'Research suggests '+visibleResearch.routing.best_venue+' as the likely route.':'Run online market research to explore likely buyers, gross sale levels and selling routes.'}</p>
-     <p>{visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness needs source and condition review.'}</p>
+     <p>{!existingResearchObsolete&&visibleResearch?.routing?.best_venue?'Research suggests '+visibleResearch.routing.best_venue+' as the likely route.':'Current source-backed selling route not established. Rerun material-corrected research first.'}</p>
+     <p>{!existingResearchObsolete?visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness needs source and condition review.':'Prior sale-readiness judgement superseded by owner correction.'}</p>
      <button className="secondaryButton inlineButton" onClick={()=>setActiveTab('market')}>Review source evidence and valuation →</button>
     </div>
     <SaleEconomics currency={run.result?.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP'}
