@@ -1,4 +1,5 @@
-import {ExternalLink, ShieldAlert} from 'lucide-react'
+import {ExternalLink} from 'lucide-react'
+import InfoDisclosure from './InfoDisclosure'
 import {money} from '../lib/format'
 
 type Props={
@@ -24,10 +25,8 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
  const checks=Array.isArray(research.next_evidence)?research.next_evidence:[]
  const contradictions=Array.isArray(id.contradictions)?id.contradictions:[]
  return <section className="panel researchDraftPanel ci-research-decision" aria-label="Provisional market research">
-  <div className="panelHeader"><h2>{title}</h2><span>Provisional · independently verify originals</span></div>
-  {paired&&<p className="ci-page-meta">
-   <strong>Valuation scope: </strong>{quotedPerPiece?'Individual vessel, NOT the whole pair': 'Proposed matched pair lot; verify that the valuation notes actually describe both pieces'}
-  </p>}
+  <div className="panelHeader"><h2>{title}</h2><span className="ci-compact-status">Provisional</span></div>
+  {paired&&quotedPerPiece&&<span className="ci-compact-status ci-status-warning">Estimate is for one vase, not the pair</span>}
   <div className="researchMetricGrid">
    <div><small>Attribution</small><strong title={attribution}>{short(attribution,128)}</strong>
     <span>{id.identification_confidence??'—'}% identification confidence — not authentication</span></div>
@@ -38,14 +37,14 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
     <span>{text(route.sale_readiness)||'Unknown readiness'}</span></div>
   </div>
   {summary&&<div className="ci-research-brief-wrap">
-    <p className="ci-research-brief">{short(summary,360)}</p>
-    {summary.length>360&&<details className="ci-archive-section">
-      <summary>Read complete research summary</summary>
-      <p className="ci-research-brief ci-research-full-summary">{summary}</p>
-    </details>}
+    <p className="ci-research-brief">{short(summary,180)}</p>
+    {summary.length>180&&<InfoDisclosure label="Full research summary"><p className="ci-research-full-summary">{summary}</p></InfoDisclosure>}
    </div>}
-  <p className="ci-research-evidence-warning"><ShieldAlert size={17}/> Model-supplied source claims are research leads, not verified sold comparables or approved catalogue values.</p>
-  {sourceAudit?.warning&&<p className="ci-page-meta"><strong>Source audit:</strong> {sourceAudit.warning}</p>}
+  <InfoDisclosure label="Evidence quality">
+    <p>Model-supplied leads are not independently verified sold comparables or authenticated maker records.</p>
+    {sourceAudit?.warning&&<p>{sourceAudit.warning}</p>}
+    {paired&&!quotedPerPiece&&<p>Price scope is the proposed matched pair; verify both physical pieces are included in each reference.</p>}
+   </InfoDisclosure>
   <details className="ci-review-section ci-review-source">
    <summary>Market value and selling economics</summary>
    <div className="ci-research-value-wrap">
