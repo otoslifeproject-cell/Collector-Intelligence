@@ -766,3 +766,23 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-research-cost{border:1px solid #59636a;border-radius:999px;padding:6px 8px;font-size:10px;color:#d3dadf;white-space:nowrap}
 #ci-museum-research,#ci-research-object-chooser{scroll-margin-top:22px}
 @media(max-width:900px){.ci-research-option{grid-template-columns:minmax(0,1fr);gap:8px}.ci-research-choice{justify-self:stretch}.ci-research-cost{justify-self:start}}
+
+/* GLOBAL CI ACTION SYSTEM v1 — one prominent action, short optional context, advanced notes tucked away.
+   Reuse these classes for Dashboard, Intake, Research, object detail and selling workflows. */
+:root{--ci-action-height:48px;--ci-action-padding:12px 18px;--ci-action-radius:11px;--ci-action-surface:#19252c;--ci-action-border:#405059;--ci-action-text:#f2f3ef}
+.ci-action-list{display:grid;gap:10px;max-width:100%}
+.ci-action-row{display:grid;grid-template-columns:minmax(180px,230px) minmax(0,1fr) auto;align-items:center;gap:18px;min-width:0;padding:14px 16px;background:var(--ci-action-surface);border:1px solid var(--ci-action-border);border-radius:var(--ci-action-radius)}
+.ci-action-row__button,.ci-action-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--ci-action-height);padding:var(--ci-action-padding);border-radius:var(--ci-action-radius);font-size:14px;font-weight:750;text-align:center;line-height:1.35;text-decoration:none;cursor:pointer;white-space:normal}
+.ci-action-row__button.primaryButton,.ci-action-primary.primaryButton{background:var(--accent);color:#18150d}
+.ci-action-row__button.secondaryButton{background:#2c3b45;color:#f3f5f4;border:1px solid #657780}
+.ci-action-row__button:hover,.ci-action-primary:hover{filter:brightness(1.1)}
+.ci-action-row__button:focus-visible,.ci-action-primary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.ci-action-row__text{min-width:0;line-height:1.4}
+.ci-action-row__text strong{display:block;font-size:14px;line-height:1.35;color:var(--text)}
+.ci-action-row__text p{font-size:12px;line-height:1.55;color:#c6d0d5;margin:4px 0 0;max-width:68ch}
+.ci-action-row__meta{font-size:11px;color:#d5dee2;border:1px solid #64727a;border-radius:100px;padding:6px 10px;white-space:nowrap}
+.ci-secondary-note{font-size:12px;line-height:1.6;color:var(--muted)}
+.ci-secondary-note summary{cursor:pointer;font-weight:650}
+.ci-page .heroActions .primaryButton,.ci-page .heroActions .secondaryButton,.pageHeader .heroActions .primaryButton,.pageHeader .heroActions .secondaryButton,.ci-intake-review-heading .primaryButton{min-height:var(--ci-action-height);display:inline-flex;align-items:center;justify-content:center;border-radius:var(--ci-action-radius);font-size:13px}
+@media(max-width:900px){.ci-action-row{grid-template-columns:minmax(0,1fr);gap:8px}.ci-action-row__button{width:100%}.ci-action-row__meta{justify-self:start}}
+@media(max-width:600px){.ci-action-row{padding:12px}.ci-action-row__button{min-height:48px;font-size:13px}.ci-action-row__text p{font-size:12px}}
