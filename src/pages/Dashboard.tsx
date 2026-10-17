@@ -37,7 +37,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="pageHeader">
-        <div><div className="eyebrow">OVERVIEW</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Your collection</h1></div><div className="heroActions"><Link className="primaryButton" to="/intake">+ Analyse photos</Link><Link className="secondaryButton" to="/inventory">All objects</Link></div>
+        <div><div className="eyebrow">OVERVIEW</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Your collection</h1></div><div className="heroActions"><Link className="primaryButton ci-action-primary" to="/intake">+ Analyse photos</Link><Link className="secondaryButton" to="/inventory">All objects</Link></div>
       </div>
       <details style={{marginTop:12}}><summary style={{cursor:"pointer",color:"var(--muted)",fontWeight:700}}>Collection totals · {items.length} objects</summary><div className="statsGrid" style={{marginTop:12}}>
         <StatCard label="Objects catalogued" value={items.length} sub="Permanent CI records" icon={<Boxes/>}/>
