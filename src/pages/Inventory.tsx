@@ -82,7 +82,7 @@ export default function Inventory() {
     const pair=suggestSingleIntakePair(objects,run.mode)
     if(pair){
       const union=[...new Set<number>(objects.flatMap((o:any)=>Array.isArray(o.image_indices)?o.image_indices:[]))]
-      return [{run,object:{...objects[0],working_title:correctedMaterial?pair.title.replace(/\\bglass\\b/gi,correctedMaterial.toLowerCase()):pair.title,image_indices:union,material:correctedMaterial||objects[0]?.material},index:0,pairPieces:2,searchText:objects.map((o:any)=>o.working_title).join(' ')}]
+      return [{run,object:{...objects[0],working_title:correctedMaterial?pair.title.replace(/\bglass\b/gi,correctedMaterial.toLowerCase()):pair.title,image_indices:union,material:correctedMaterial||objects[0]?.material},index:0,pairPieces:2,searchText:objects.map((o:any)=>o.working_title).join(' ')}]
     }
     return objects.map((object:any,index:number)=>({run,object,index,pairPieces:0,searchText:object.working_title||''}))
   }).filter(({object,searchText}:any)=>[searchText,object.working_title,object.object_type,object.maker].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
