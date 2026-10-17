@@ -47,7 +47,7 @@ export default function SavedDraft(){
    const {data:prior}=await supabase.from('ai_analysis_runs')
     .select('id,result,created_at,user_context').eq('mode','research').order('created_at',{ascending:false}).limit(100)
    if(alive){
-     const past=(prior||[]).filter((x:any)=>x.user_context?.source_analysis_run_id===report.id)
+     const past=(prior||[]).filter((x:any)=>x.user_context?.source_analysis_run_id===report.id&&x.result?.research_summary)
      setResearchHistory(past)
      if(past.length){setResearchResult(past[0].result);setResearchAudit(past[0].result?.source_audit||null)}
    }
@@ -110,23 +110,36 @@ export default function SavedDraft(){
      const i=paired?0:researchIndex
      const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
      const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
+     // Pre-stage an owner-scoped source link BEFORE the paid model request.
+     const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
+       mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
+       user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:paired?[0,1]:[]},
+       result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
+     }).select('id,created_at,user_context').single()
+     if(stageError||!staged?.id)throw Error('Could not preserve the research session; no paid AI was requested.')
      const response=await fetch('/api/research-item',{
       method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
       body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:paired?[0,1]:[],
-       images:urls})
+       research_run_id:staged.id,images:urls})
      })
      const payload=await response.json()
-     if(!response.ok)throw Error(payload.error||'Live research could not be completed.')
-     if(!payload?.result?.valuation)throw Error('Research service returned an incomplete result.')
+     if(!response.ok){
+       if(payload?.result?.research_summary){
+         setLastResearchScope(scopeKey)
+         setResearchResult(payload.result);setResearchAudit(payload.source_audit||null)
+       }
+       throw Error((payload.error||'Live research did not complete.')+
+        ' The staged research run remains saved; do not repeat the paid request to recover it.')
+     }
+     if(payload.saved_run_id!==staged.id)throw Error('Research identity mismatch; no result is being presented as saved.')
+     const {data:verified,error:verifyError}=await supabase.from('ai_analysis_runs')
+       .select('id,result,created_at,user_context').eq('id',staged.id).single()
+     if(verifyError||!verified||verified.result?.analysis_stage!=='COMPLETE'||!verified.result?.research_summary)
+       throw Error('Research completed but database readback failed. Do not pay for another search to recover this result.')
      setLastResearchScope(scopeKey)
-     setResearchResult(payload.result);setResearchAudit(payload.source_audit||null)
-     const {data:created,error:e}=await supabase.from('ai_analysis_runs').insert({
-       mode:'research',model:payload.model||'unknown',status:'DRAFT',input_photo_count:urls.length,
-       user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:paired?[0,1]:[]},
-       result:{...payload.result,source_audit:payload.source_audit||null,canonical_policy_hashes:payload.canonical_policy_hashes||null}
-     }).select('id,result,created_at,user_context').single()
-     if(e||!created)throw Error('Research completed but could not be archived. Keep this page open; do not pay for another search to recover it.')
-     setResearchHistory(v=>[created,...v]);setSaveStatus('Online research saved as provisional evidence. Your original AI report is unchanged.')
+     setResearchResult(verified.result);setResearchAudit(verified.result.source_audit||null)
+     setResearchHistory(v=>[verified,...v])
+     setSaveStatus('Online research safely saved and read back. Original photographs and AI report unchanged.')
    }catch(err:any){setSaveStatus(err?.message||'Research failed')}
    finally{setResearching(false)}
  }
