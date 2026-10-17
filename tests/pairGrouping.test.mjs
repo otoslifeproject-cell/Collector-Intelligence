@@ -29,3 +29,15 @@ test('unrelated objects with similar colours are not automatically grouped',()=>
   {working_title:'Matching amber glass bowl — right example'}
  ],'single'),null)
 })
+
+
+test('latest October dark decorated pair is grouped even when image assignment is uncertain',()=>{
+ const pair=[
+  {working_title:'Left vessel from apparent matching pair: dark decorated tapered glass vase',image_indices:[0]},
+  {working_title:'Right/detail-photographed vessel from apparent matching pair: dark decorated tapered glass vase',image_indices:[0,1,2,3,4,5,6]}
+ ]
+ const result=suggestSingleIntakePair(pair,'single')
+ assert.ok(result)
+ assert.deepEqual(result.indices,[0,1])
+ assert.match(result.title,/pair/i)
+})
