@@ -455,3 +455,12 @@ html[data-theme="light"] .tabBar button.active{color:var(--text)}
  .panelHeader{align-items:flex-start}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+
+/* Mobile layout regression 2026-10-17: inherited width:100% must not
+   make every navigation link a full viewport or reveal duplicate theme actions. */
+@media(max-width:760px){
+ .sidebar nav .navItem{width:auto!important;min-width:max-content!important;flex:0 0 auto;white-space:nowrap}
+ .sidebarBottom{display:none!important}
+ .ci-appearance-mobile{display:inline-flex}
+}
