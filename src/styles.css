@@ -753,3 +753,16 @@ body{font-size:var(--ci-body-size);line-height:1.5}
  .ci-saved-draft .tabBar{margin-top:6px;margin-bottom:16px}
  .ci-report-menu-content{width:min(355px,calc(100vw - 32px));}
 }
+
+/* Research method launcher — deliberately simple, reusable action-row hierarchy. */
+.ci-research-options{margin-bottom:20px;padding:22px}
+.ci-research-options h2{font-size:20px;margin:6px 0 5px;letter-spacing:-.02em}
+.ci-research-lead{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 18px}
+.ci-research-option-list{display:grid;gap:9px}
+.ci-research-option{display:grid;grid-template-columns:190px minmax(0,1fr) auto;align-items:center;gap:16px;padding:13px 14px;background:#192229;border:1px solid #35414a;border-radius:12px}
+.ci-research-choice{display:inline-flex;align-items:center;justify-content:center;min-height:43px;text-align:center;font-size:12px}
+.ci-research-option strong{font-size:13px;color:var(--text)}
+.ci-research-option p{color:#bfc9d0;line-height:1.5;font-size:12px;margin:4px 0 0}
+.ci-research-cost{border:1px solid #59636a;border-radius:999px;padding:6px 8px;font-size:10px;color:#d3dadf;white-space:nowrap}
+#ci-museum-research,#ci-research-object-chooser{scroll-margin-top:22px}
+@media(max-width:900px){.ci-research-option{grid-template-columns:minmax(0,1fr);gap:8px}.ci-research-choice{justify-self:stretch}.ci-research-cost{justify-self:start}}
