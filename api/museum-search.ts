@@ -1,4 +1,5 @@
 // Public museum reference lookup only. Records are leads, NEVER authentication or sold comparables.
+import {vamImageFromRecord} from '../src/lib/vamVisual'
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') return res.status(405).json({error:'Method not allowed'});
   const url=process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -41,6 +42,7 @@ export default async function handler(req: any, res: any) {
     const endpoint=new URL('https://api.vam.ac.uk/v2/objects/search');
     endpoint.searchParams.set('q',raw);
     endpoint.searchParams.set('page_size','20');
+    if(req.query?.visual==='1')endpoint.searchParams.set('images_exist','1');
     const reply=await fetch(endpoint,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
     if(!reply.ok)return res.status(502).json({error:'V&A catalogue unavailable',upstream_status:reply.status});
     const body=await reply.json();
@@ -53,12 +55,18 @@ export default async function handler(req: any, res: any) {
         objectType:readable(x.objectType).slice(0,120),
         maker:readable(x._primaryMaker).slice(0,160),
         date:readable(x._primaryDate).slice(0,120),
+        imageUrl:vamImageFromRecord(x),
+        imageProvider:'Victoria and Albert Museum, London',
+        accessionNumber:String(x.accessionNumber||'').slice(0,100),
+        cataloguedMaterial:readable(x._sampleMaterial).slice(0,140),
         sourceUrl:/^O\d+$/.test(id)?'https://collections.vam.ac.uk/item/'+encodeURIComponent(id)+'/':null,
         provider:'Victoria and Albert Museum',
         evidenceStatus:'REFERENCE_LEAD_UNVERIFIED_FOR_USER_OBJECT'
       };
     }).filter((r:any)=>r.id && r.sourceUrl).filter((r:any,i:number,a:any[])=>a.findIndex((p:any)=>p.id===r.id)===i).slice(0,8);
     res.setHeader('Cache-Control','private, no-store');
-    return res.status(200).json({provider:'Victoria and Albert Museum',query:raw,records:results,warning:'Museum catalogue records are reference leads only; they do not authenticate your object or verify market prices.'});
+    return res.status(200).json({provider:'Victoria and Albert Museum',query:raw,records:results,
+      imageRightsNote:'Museum reference images courtesy of the V&A. Consult the linked V&A item record for reuse terms.',
+      warning:'Museum catalogue records are reference leads only; they do not authenticate your object or verify market prices.'});
   }catch{return res.status(502).json({error:'Museum lookup unavailable; try again later'})}
 }
