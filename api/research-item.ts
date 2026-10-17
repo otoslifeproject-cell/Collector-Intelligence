@@ -343,7 +343,7 @@ export default async function handler(req: any, res: any) {
   if(draftMode){
     try{
       const qp=new URLSearchParams({
-        select:'id,source_object_index,paired_lot,source_photo_index,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,review_decision,review_note,created_at',
+        select:'id,source_object_index,paired_lot,source_photo_index,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,reference_provider,reference_image_license,review_decision,review_note,created_at',
         source_analysis_run_id:'eq.'+draft_run_id,
         source_object_index:'eq.'+String(draft_index),
         paired_lot:'eq.'+(pair_source_indices.length===2?'true':'false'),
@@ -357,7 +357,7 @@ export default async function handler(req: any, res: any) {
       if(!Array.isArray(entries))throw Error('Invalid private visual reference evidence');
       const identifiers=new Set<string>();
       visualReviews=entries.filter((x:any)=>{
-        if(!/^O[0-9]{1,12}$/.test(String(x.reference_system_number||'')))return false;
+        if(!/^[1-9][0-9]{0,9}$/.test(String(x.reference_system_number||'')))return false;
         if(identifiers.has(x.reference_system_number))return false;
         identifiers.add(x.reference_system_number);
         return true;
@@ -398,7 +398,7 @@ export default async function handler(req: any, res: any) {
   if(!draftMode){
     try{
       const qp=new URLSearchParams({
-        select:'id,item_photo_id,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,review_decision,review_note,created_at',
+        select:'id,item_photo_id,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,reference_provider,reference_image_license,review_decision,review_note,created_at',
         item_id:'eq.'+String(item.id),order:'created_at.desc',limit:'100'
       });
       const response=await fetch(supabaseUrl+'/rest/v1/ai_visual_reference_reviews?'+qp.toString(),{
@@ -409,7 +409,7 @@ export default async function handler(req: any, res: any) {
       if(!Array.isArray(entries))throw Error('Item reference reviews malformed');
       const known=new Set<string>();
       visualReviews=entries.filter((x:any)=>{
-        if(!/^O[0-9]{1,12}$/.test(String(x.reference_system_number||'')))return false;
+        if(!/^[1-9][0-9]{0,9}$/.test(String(x.reference_system_number||'')))return false;
         if(known.has(x.reference_system_number))return false;
         known.add(x.reference_system_number);return true;
       }).slice(0,20);
@@ -432,7 +432,7 @@ export default async function handler(req: any, res: any) {
       const parentPaired=Array.isArray(snapshot?.pair_source_indices)&&
         snapshot.pair_source_indices.length===2;
       const refQuery=new URLSearchParams({
-        select:'id,source_photo_index,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,review_decision,review_note,created_at',
+        select:'id,source_photo_index,reference_system_number,reference_url,reference_title,reference_maker,reference_material,reference_image_url,reference_provider,reference_image_license,review_decision,review_note,created_at',
         source_analysis_run_id:'eq.'+originId,
         source_object_index:'eq.'+String(originalIndex),
         paired_lot:'eq.'+(parentPaired?'true':'false'),
@@ -461,7 +461,7 @@ export default async function handler(req: any, res: any) {
         Date.parse(b.created_at)-Date.parse(a.created_at));
       const seen=new Set<string>();
       visualReviews=combined.filter((x:any)=>{
-        if(!/^O[0-9]{1,12}$/.test(String(x.reference_system_number||''))||
+        if(!/^[1-9][0-9]{0,9}$/.test(String(x.reference_system_number||''))||
           seen.has(x.reference_system_number))return false;
         seen.add(x.reference_system_number);return true;
       }).slice(0,20);
@@ -481,7 +481,7 @@ export default async function handler(req: any, res: any) {
   }
   const ownerVisualGuidance=visualReviews.map((x:any)=>({
     original_photo_index:x.source_photo_index??null,item_photo_id:x.item_photo_id??null,
-    museum:'Victoria and Albert Museum',museum_system_number:x.reference_system_number,
+    museum:'The Metropolitan Museum of Art',museum_system_number:x.reference_system_number,
     source_record:x.reference_url,catalogued_reference_title:String(x.reference_title||'').slice(0,250),
     reference_maker:String(x.reference_maker||'').slice(0,160),
     reference_material:String(x.reference_material||'').slice(0,120),
@@ -495,7 +495,7 @@ export default async function handler(req: any, res: any) {
 4. Verify every price lead class (HAMMER / buyer-premium-inclusive REALISED / dealer ASKING / marketplace ASKING). Use precise source URLs and dates; distinguish a pair lot from one physical piece, and exclude glass-only lots from metal-object valuation.
 5. Produce a short actionable research_summary that answers likely type, current best attribution with honest confidence, strongest reference images/sources, realistic provisional WHOLE-LOT value, and best next physical discriminator. Provide competing hypotheses as explicit contradictions when unresolved.
 6. Reuse ONLY independently approved knowledge and source-backed owner corrections; don't fabricate reviewed Knowledge Brain records.
-7. Distinguish the user's original images from separately provided V&A reference images. Owner-marked NOT_A_MATCH is a documented negative comparator and must not be presented as a confirming maker/design match. POSSIBLE_LOOKALIKE is not authentication, even when a museum's own object is securely catalogued.`
+7. Distinguish the user's original images from separately provided CC0 open-access museum reference images. Owner-marked NOT_A_MATCH is a documented negative comparator and must not be presented as a confirming maker/design match. POSSIBLE_LOOKALIKE is not authentication, even when a museum's own object is securely catalogued.`
    : '';
   const content: any[] = [{
     type: "input_text",
@@ -503,11 +503,15 @@ export default async function handler(req: any, res: any) {
   }];
   for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
   if(depth==='deep_dive'){
-    const referenceImages=visualReviews.filter((x:any)=>typeof x.reference_image_url==='string'&&
-      /^https:\/\/framemark\.vam\.ac\.uk\/collections\/[A-Za-z0-9_-]+\/full\/![0-9]+,[0-9]+\/0\/default\.jpg$/.test(x.reference_image_url)).slice(0,3);
+    const referenceImages=visualReviews.filter((x:any)=>
+      x.reference_provider==='The Metropolitan Museum of Art'&&
+      x.reference_image_license==='CC0_MET_OPEN_ACCESS_PUBLIC_DOMAIN'&&
+      typeof x.reference_image_url==='string'&&
+      /^https:\/\/images\.metmuseum\.org\/[A-Za-z0-9_./%()!~-]+\.(jpg|jpeg|png)(\?[A-Za-z0-9=&_-]+)?$/i.test(x.reference_image_url)
+    ).slice(0,3);
     for (const ref of referenceImages){
       content.push({type:'input_text',text:
-        'SEPARATE PUBLIC MUSEUM COMPARISON, NOT A PHOTO OF THE OWNED OBJECT: V&A '+ref.reference_system_number+
+        'SEPARATE CC0 PUBLIC-DOMAIN MET MUSEUM REFERENCE, NOT A PHOTO OF THE OWNED OBJECT: Met object '+ref.reference_system_number+
         '. Owner review: '+ref.review_decision+'. '+String(ref.review_note||'').slice(0,320)+
         '. Do NOT transfer this museum record\'s maker/age to the user object without decisive matching evidence.'});
       content.push({type:'input_image',image_url:ref.reference_image_url,detail:'low'});
