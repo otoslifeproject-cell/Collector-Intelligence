@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
+import InfoDisclosure from '../components/InfoDisclosure'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
@@ -110,7 +111,7 @@ export default function Inventory() {
       <div className="inventorySummary">{filtered.length} permanent catalogue items · {unfinished.length} unfinished draft lots/objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
       {showDrafts&&pendingSessions.length>0&&<section className="section">
         <h2 className="ci-section-title">Uploaded photographs awaiting a completed AI report <span>{pendingSessions.length} sessions</span></h2>
-        <p className="ci-page-meta">Your original uploads are retained. An incomplete AI response is not a confirmed catalogue object and cannot be approved.</p>
+        <InfoDisclosure label="About incomplete uploads"><p>Original photos remain in private storage. An unfinished AI report cannot be approved as an item.</p></InfoDisclosure>
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{pendingSessions.map((run:any)=><article className="itemCard ci-record-card" key={run.id}>
           <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':pending']?<img src={draftCovers[run.id+':pending']} alt="Saved source photograph"/>:<span className="ci-missing-photo">Original upload stored</span>}</div>
           <div className="itemCardBody">
