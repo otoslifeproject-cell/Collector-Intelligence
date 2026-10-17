@@ -6,6 +6,7 @@ import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
+import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materialContradictsVisualGuess} from '../lib/ownerCorrections'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;owner_review_revision:number;user_context?:any}
@@ -305,6 +306,14 @@ export default function SavedDraft(){
    </div>}
    {saveStatus&&<p role="status" className="note">{saveStatus}</p>}
    {activeTab==='market'&&<div className="marketStack">
+    {isPhotoManifestReady&&Object.values(images).some(Boolean)&&
+     <VisualReferenceWorkbench
+      analysisRunId={run.id} objectIndex={scopeIndex} paired={paired}
+      photos={images} photoIndices={indicesForReview(scopeIndex)}
+      ownerMaterial={correctedMaterial}
+      workingTitle={paired?(correctedPairTitle||'Matching pair'):run.result.objects?.[scopeIndex]?.working_title||'Collection object'}
+     />}
+
     <div className="panel researchLauncher">
       <div><div className="eyebrow">ONLINE IDENTIFICATION & MARKET RESEARCH</div>
        <h2>Research what we already know</h2>
