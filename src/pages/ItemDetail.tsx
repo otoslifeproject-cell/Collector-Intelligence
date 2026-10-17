@@ -6,6 +6,7 @@ import { Comparable, Item, ItemPhoto } from '../types'
 import { date, money } from '../lib/format'
 import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
+import SaleEconomics from '../components/SaleEconomics'
 
 export default function ItemDetail() {
   const {id} = useParams()
@@ -326,7 +327,19 @@ export default function ItemDetail() {
         </div>
       </div>}
 
-      {tab==='sales' && <div className="panel"><div className="panelHeader"><h2>Sales record</h2><span>Listings and actual outcomes</span></div><div className="valueSummary"><div><small>Acquisition</small><strong>{money(item.acquisition_price,item.acquisition_currency||'GBP')}</strong></div><div><small>Fast cash</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div><div><small>Expected net</small><strong>{money(item.expected_net,item.currency||'GBP')}</strong></div></div><div className="empty"><p>Platform listings and final sale outcomes are stored separately so asking price is never confused with achieved value.</p></div></div>}
+      {tab==='sales' && <div className="marketStack">
+       <div className="panel">
+        <div className="panelHeader"><h2>Sales and listing record</h2><span>Original collection object</span></div>
+        <div className="valueSummary">
+         <div><small>Acquisition · cash paid</small><strong>{money(item.acquisition_price,item.acquisition_currency||'GBP')}</strong></div>
+         <div><small>Indicative fast cash · gross</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
+         <div><small>Previously recorded expected net</small><strong>{money(item.expected_net,item.currency||'GBP')}</strong></div>
+        </div>
+        <p className="ci-page-meta">Previously recorded prices are not evidence of achieved sales. Do not automatically use dealer asking as a realised price.</p>
+        {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
+       </div>
+       <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
+      </div>}
 
       {tab==='catalogue' && <div className="cataloguePreview">
         <div className="catalogueTop"><span>{item.item_code}</span><span>Collector Intelligence Catalogue</span></div>
