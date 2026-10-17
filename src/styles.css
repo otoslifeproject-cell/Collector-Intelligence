@@ -1,8 +1,10 @@
 :root{
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  color:#edf1f4;background:#0B0F14;font-synthesis:none;text-rendering:optimizeLegibility;
-  --bg:#0B0F14;--panel:#141a20;--panel2:#192127;--line:#303840;--muted:#8A9099;
-  --text:#F7F5EF;--accent:#C9A96B;--accent2:#86a8bf;--good:#73b58c;--warn:#d5a959;--risk:#d77474;
+  color:var(--text);background:var(--bg);font-synthesis:none;text-rendering:optimizeLegibility;
+  /* The SAME layout and semantic component hierarchy is used by both appearances.
+     Dark surfaces are intentionally differentiated as clearly as the approved light palette. */
+  --bg:#111820;--panel:#202a34;--panel2:#2b3844;--line:#40505e;--muted:#b6c4d0;
+  --text:#f3f6f8;--accent:#c9a96b;--accent2:#aecfe6;--good:#80c99c;--warn:#e2b766;--risk:#f49a9a;
 }
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,rgba(210,170,93,.08),transparent 28%),var(--bg);color:var(--text)}
 a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.appShell{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
@@ -48,7 +50,7 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 @media(max-width:1100px){.intakeThumbGrid{grid-template-columns:repeat(6,1fr)}}
 @media(max-width:760px){.intakeModeGrid,.draftGrid{grid-template-columns:1fr}.intakeThumbGrid{grid-template-columns:repeat(4,1fr)}.intakeActions{align-items:stretch;flex-direction:column}.intakeBigButton{justify-content:center}.reviewTop{display:block}.reviewCount{display:inline-block;margin-top:10px}}
 
-.marketStack{display:grid;gap:14px}.researchLauncher{display:flex;align-items:center;justify-content:space-between;gap:22px;background:linear-gradient(135deg,rgba(134,168,191,.06),transparent 40%),var(--panel)}.researchLauncher h2{margin:4px 0 6px}.researchLauncher p{margin:0;max-width:760px}.researchDraftPanel{border-color:#5c5135;box-shadow:inset 0 1px rgba(210,170,93,.12)}.researchSummary{color:#c8d0d5;line-height:1.6;margin-bottom:15px}.researchMetricGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}.researchMetricGrid>div{border:1px solid var(--line);background:#10161a;border-radius:9px;padding:12px}.researchMetricGrid small,.researchMetricGrid strong,.researchMetricGrid span{display:block}.researchMetricGrid small{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.researchMetricGrid strong{font-size:14px;margin-top:4px}.researchMetricGrid span{font-size:10px;color:var(--muted);margin-top:4px}.researchPreviewTable{border:1px solid var(--line);border-radius:9px;margin-top:13px}.researchApprove{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}@media(max-width:760px){.researchLauncher{display:block}.researchLauncher button{margin-top:15px}.researchMetricGrid{grid-template-columns:1fr}.researchApprove{flex-direction:column}}
+.marketStack{display:grid;gap:14px}.researchLauncher{display:flex;align-items:center;justify-content:space-between;gap:22px;background:linear-gradient(135deg,rgba(134,168,191,.06),transparent 40%),var(--panel)}.researchLauncher h2{margin:4px 0 6px}.researchLauncher p{margin:0;max-width:760px}.researchDraftPanel{border-color:var(--line);box-shadow:none}.researchSummary{color:var(--text);line-height:1.6;margin-bottom:15px}.researchMetricGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}.researchMetricGrid>div{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:12px}.researchMetricGrid small,.researchMetricGrid strong,.researchMetricGrid span{display:block}.researchMetricGrid small{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.researchMetricGrid strong{font-size:14px;margin-top:4px}.researchMetricGrid span{font-size:10px;color:var(--muted);margin-top:4px}.researchPreviewTable{border:1px solid var(--line);border-radius:9px;margin-top:13px}.researchApprove{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}@media(max-width:760px){.researchLauncher{display:block}.researchLauncher button{margin-top:15px}.researchMetricGrid{grid-template-columns:1fr}.researchApprove{flex-direction:column}}
 
 /* Approved Collector Facet assets — originals remain PNG, no altered master files */
 .brandMark{overflow:hidden;flex-shrink:0;background:var(--bg);border-color:rgba(201,169,107,.35)}
@@ -166,7 +168,7 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .ci-object-grid.ci-view-list .ci-object-review[open],.ci-object-grid.ci-view-compact .ci-object-review[open]{overflow-wrap:anywhere}
 
 /* Review workspace visual hierarchy — shared surface, readable content, lower cognitive load. */
-:root{--ci-review-surface:#1a242b;--ci-review-recess:#10171d;--ci-review-line:#40505b;--ci-review-body:#d3dce2}
+:root{--ci-review-surface:#273540;--ci-review-recess:#202b35;--ci-review-line:#485b69;--ci-review-body:#d6e1e8}
 .ci-object-grid .ci-object-review[open]{background:var(--ci-review-surface);border:1px solid var(--ci-review-line);border-radius:11px;margin:12px -4px 0;padding:0;box-shadow:0 6px 18px rgba(0,0,0,.09)}
 .ci-object-grid .ci-object-review[open]>summary{padding:12px 16px;border-bottom:1px solid var(--ci-review-line);min-height:44px;color:#e8cc90}
 .ci-object-grid .ci-object-review-content{gap:0;padding:0}
@@ -306,10 +308,10 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 /* COLLECTOR FACET DESIGN SYSTEM v3 — one shared layout, semantic surfaces and persistent appearance.
    These rules supersede earlier page-specific flex and hard-coded dark treatments. */
 :root{
- --sidebar-bg:#0d1115;--input-bg:#0f1418;--nav-text:#c2ccd5;
- --link:#c8d9e8;--button-on-accent:#17130c;--focus-color:#dcb76b;
- --error-bg:#241719;--error-text:#f0b6b8;--error-border:#754b4b;
- --note-bg:#11171b;--warn-bg:#251f13;--warn-text:#e2c987;--warn-border:#69582f;
+ --sidebar-bg:#17212b;--input-bg:#1a2630;--nav-text:#d9e4ec;
+ --link:#c0def0;--button-on-accent:#17130c;--focus-color:#f0ca78;
+ --error-bg:#382628;--error-text:#ffd3d5;--error-border:#8c565b;
+ --note-bg:#28343f;--warn-bg:#393021;--warn-text:#f7dba0;--warn-border:#8a7042;
  --ci-control-height:44px;--ci-page-width:1200px;
  color-scheme:dark;
 }
@@ -416,9 +418,9 @@ a.ci-action-text-link:hover{text-decoration-thickness:2px}
 .ci-object-grid .ci-object-review[open]>summary{color:var(--accent)}
 .ci-review-section-hint,.ci-review-source-content small{color:var(--muted)}
 .ci-review-section-number{background:var(--panel2);color:var(--accent)}
-html[data-theme="light"] .researchMetricGrid>div,html[data-theme="light"] .researchPreviewTable{
- background:var(--panel2);border-color:var(--line)}
-html[data-theme="light"] .researchSummary{color:var(--text)}
+/* Exact SAME metric-card surface and border across dark/light; only tokens vary. */
+.researchMetricGrid>div,.researchPreviewTable{background:var(--panel2);border-color:var(--line)}
+.researchSummary{color:var(--text)}
 html[data-theme="light"] .ci-review-source-content>div{background:var(--panel2)}
 html[data-theme="light"] .itemMeta{color:var(--muted)}
 html[data-theme="light"] .itemCardImage{background:var(--panel2)}
@@ -470,7 +472,7 @@ html[data-theme="light"] .tabBar button.active{color:var(--text)}
    future, not introduce another hard-coded dark background or inactive control. */
 html[data-theme="light"] .loginPage{background:var(--bg)}
 html[data-theme="light"] .loginPanel{background:var(--panel);box-shadow:0 20px 60px rgba(39,56,71,.09)}
-html[data-theme="light"] .researchDraftPanel{border-color:var(--line);box-shadow:none}
+.researchDraftPanel{border-color:var(--line);box-shadow:none}
 html[data-theme="light"] .researchMetricGrid small{color:var(--muted)}
 html[data-theme="light"] .ci-view-switch button{background:var(--panel);color:var(--text)}
 html[data-theme="light"] .ci-view-switch button.active{background:var(--panel2);border-color:var(--accent)}
