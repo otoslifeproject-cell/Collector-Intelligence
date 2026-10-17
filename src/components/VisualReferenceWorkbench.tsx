@@ -76,8 +76,12 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
    const response=await fetch('/api/open-access-search?q='+encodeURIComponent(q),{
     headers:{Authorization:'Bearer '+session.access_token}
    })
-   const result=await response.json()
-   if(!response.ok)throw Error(result.error||'Museum image search failed.')
+   const raw=await response.text()
+   let result:any={}
+   try{result=JSON.parse(raw)}catch{
+    throw Error('Museum image service returned an unexpected response. No comparison was saved. Try again later or use the manual image-search link.')
+   }
+   if(!response.ok)throw Error(result.error||'Museum image search temporarily unavailable.')
    const seen=(result.records||[]).filter((x:any)=>x?.imageUrl&&/^[1-9]\d{0,9}$/.test(String(x.id)))
    setItems(seen);setActive(seen[0]||null)
    setStatus(seen.length
