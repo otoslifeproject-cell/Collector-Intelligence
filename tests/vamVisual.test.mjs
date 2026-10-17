@@ -12,6 +12,7 @@ test('unsafe images, arbitrary hosts and missing images do not render',()=>{
 })
 test('owner corrected metal controls search rather than model glass guess',()=>{
  assert.match(visualSearchTerm('Metal','Matching dark decorated glass pair of vases'),/^Metal /)
+ assert.doesNotMatch(visualSearchTerm('Metal','Matching dark decorated glass pair of vases'),/glass/i)
 })
 test('query remains bounded and handles unusual source text',()=>{
  assert.ok(visualSearchTerm('Enamelled metal','Left example — gilded and enamelled decorative vase').length<=100)
