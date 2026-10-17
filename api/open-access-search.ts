@@ -1,3 +1,4 @@
+import {safeMetImage} from '../src/lib/openAccessVisual'
 // Search ONLY the Met Museum's CC0, public-domain object images.
 // No owner's original photograph is sent to the museum; only the typed text query.
 export default async function handler(req:any,res:any){
@@ -29,12 +30,8 @@ export default async function handler(req:any,res:any){
     if(!response.ok)return null
     const o=await response.json()
     if(o.isPublicDomain!==true||typeof o.primaryImageSmall!=='string'||!o.primaryImageSmall)return null
-    let imageUrl:string
-    try{
-      const img=new URL(o.primaryImageSmall)
-      if(img.protocol!=='https:'||img.hostname!=='images.metmuseum.org')return null
-      imageUrl=img.toString()
-    }catch{return null}
+    const imageUrl=safeMetImage(o.primaryImageSmall)
+    if(!imageUrl)return null
     return {
       id:String(id),title:String(o.title||'Untitled museum object').slice(0,220),
       objectType:String(o.classification||o.objectName||'').slice(0,120),
