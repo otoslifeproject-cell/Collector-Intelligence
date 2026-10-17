@@ -9,6 +9,7 @@ import {suggestSingleIntakePair} from '../lib/pairGrouping'
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
   const [draftRuns,setDraftRuns] = useState<any[]>([])
+  const [ownerMaterialCorrections,setOwnerMaterialCorrections]=useState<any[]>([])
   const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
   const [covers,setCovers] = useState<Record<string,string>>({})
   const [query,setQuery] = useState('')
@@ -19,6 +20,9 @@ export default function Inventory() {
   const changeView=(next:'tiles'|'list'|'compact')=>{setView(next);try{window.localStorage.setItem('ci-inventory-view',next)}catch{ /* Storage optional */ }}
 
   useEffect(()=>{
+    supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
+      .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100)
+      .then(({data})=>setOwnerMaterialCorrections(data||[]))
     supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
       if(error)return
       const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects)||Array.isArray(run.result?.image_manifest))
@@ -73,10 +77,12 @@ export default function Inventory() {
 
   const unfinished=draftRuns.flatMap((run:any)=>{
     const objects=Array.isArray(run.result?.objects)?run.result.objects:[]
+    const correction=ownerMaterialCorrections.find((x:any)=>x.source_analysis_run_id===run.id&&x.source_object_index==null)
+    const correctedMaterial=correction?.corrected_material||null
     const pair=suggestSingleIntakePair(objects,run.mode)
     if(pair){
       const union=[...new Set<number>(objects.flatMap((o:any)=>Array.isArray(o.image_indices)?o.image_indices:[]))]
-      return [{run,object:{...objects[0],working_title:pair.title,image_indices:union},index:0,pairPieces:2,searchText:objects.map((o:any)=>o.working_title).join(' ')}]
+      return [{run,object:{...objects[0],working_title:correctedMaterial?pair.title.replace(/\\bglass\\b/gi,correctedMaterial.toLowerCase()):pair.title,image_indices:union,material:correctedMaterial||objects[0]?.material},index:0,pairPieces:2,searchText:objects.map((o:any)=>o.working_title).join(' ')}]
     }
     return objects.map((object:any,index:number)=>({run,object,index,pairPieces:0,searchText:object.working_title||''}))
   }).filter(({object,searchText}:any)=>[searchText,object.working_title,object.object_type,object.maker].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()))
