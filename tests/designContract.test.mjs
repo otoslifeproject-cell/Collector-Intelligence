@@ -32,9 +32,32 @@ test('light/dark mode is shared and available on both desktop and mobile',()=>{
 })
 test('detailed economics is hidden by default and summary stays visible',()=>{
  assert.doesNotMatch(research,/<details className="ci-review-section ci-review-source" open>/)
- assert.match(research,/Read complete research summary/)
+ assert.match(research,/Full research summary/)
 })
 test('all major controls meet minimum button height and visible focus rules',()=>{
  assert.match(css,/--ci-control-height:44px/)
  assert.match(css,/:focus-visible\{outline:2px solid var\(--focus-color\)/)
+})
+
+test('routine report notes are discoverable but not visible as stacked paragraphs',()=>{
+ assert.match(draft,/InfoDisclosure label="Report details"/)
+ assert.match(draft,/ci-owner-status/)
+ assert.match(draft,/ci-photo-review-status/)
+ assert.doesNotMatch(draft,/Original AI report<\/h1><p>/)
+ assert.doesNotMatch(draft,/note ci-owner-evidence/)
+})
+test('compare action is visible in two clicks without filling screen with advice',()=>{
+ const compare=read('src/components/VisualReferenceWorkbench.tsx')
+ const info=read('src/components/InfoDisclosure.tsx')
+ assert.match(compare,/<p className="ci-action-hint">Search by material, shape or decoration/)
+ assert.match(compare,/<InfoDisclosure label="About search">/)
+ assert.doesNotMatch(compare,/Need a wider visual search\?/)
+ assert.match(info,/className=.*ci-info-disclosure/)
+ assert.match(info,/<summary>/)
+})
+test('shared typography scale applies to dark and light without distinct font metrics',()=>{
+ assert.match(css,/--ci-body-size:14px/)
+ assert.match(css,/--ci-support-size:13px/)
+ assert.match(css,/--ci-label-size:12px/)
+ assert.match(css,/\.ci-visual-workbench,\.ci-research-decision,\.ci-workspace-action-panel/)
 })
