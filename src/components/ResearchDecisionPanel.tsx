@@ -16,6 +16,10 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
  const notes=String(val.notes||'')
  const quotedPerPiece=paired&&/\bper\s+(?:individual|piece|vase|vessel|single\s+vase)\b/i.test(notes)
  const currency=val.currency||'GBP'
+ const attribution=String(id.attribution||id.maker||'Unresolved')
+ const routeTitle=String(route.best_venue||'Research first')
+ const short=(t:string,n:number)=>t.length>n?t.slice(0,n).trimEnd()+'…':t
+ const summary=String(research.research_summary||'')
  const comparables=Array.isArray(research.comparables)?research.comparables:[]
  const checks=Array.isArray(research.next_evidence)?research.next_evidence:[]
  const contradictions=Array.isArray(id.contradictions)?id.contradictions:[]
@@ -25,18 +29,24 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
    <strong>Valuation scope: </strong>{quotedPerPiece?'Individual vessel, NOT the whole pair': 'Proposed matched pair lot; verify that the valuation notes actually describe both pieces'}
   </p>}
   <div className="researchMetricGrid">
-   <div><small>Attribution</small><strong>{id.attribution||id.maker||'Unresolved'}</strong>
+   <div><small>Attribution</small><strong title={attribution}>{short(attribution,128)}</strong>
     <span>{id.identification_confidence??'—'}% identification confidence — not authentication</span></div>
    <div><small>{quotedPerPiece?'Individual vessel balanced estimate':paired?'Pair lot balanced estimate':'Balanced estimate'} · provisional</small>
     <strong>{money(val.balanced_low,currency)} – {money(val.balanced_high,currency)}</strong>
     <span>{val.valuation_confidence??'—'}% valuation confidence</span></div>
-   <div><small>Suggested selling route</small><strong>{route.best_venue||'Research first'}</strong>
+   <div><small>Suggested selling route</small><strong title={routeTitle}>{short(routeTitle,92)}</strong>
     <span>{text(route.sale_readiness)||'Unknown readiness'}</span></div>
   </div>
-  {research.research_summary&&<p className="ci-research-brief">{research.research_summary}</p>}
+  {summary&&<div className="ci-research-brief-wrap">
+    <p className="ci-research-brief">{short(summary,360)}</p>
+    {summary.length>360&&<details className="ci-archive-section">
+      <summary>Read complete research summary</summary>
+      <p className="ci-research-brief ci-research-full-summary">{summary}</p>
+    </details>}
+   </div>}
   <p className="ci-research-evidence-warning"><ShieldAlert size={17}/> Model-supplied source claims are research leads, not verified sold comparables or approved catalogue values.</p>
   {sourceAudit?.warning&&<p className="ci-page-meta"><strong>Source audit:</strong> {sourceAudit.warning}</p>}
-  <details className="ci-review-section ci-review-source" open>
+  <details className="ci-review-section ci-review-source">
    <summary>Market value and selling economics</summary>
    <div className="ci-research-value-wrap">
     <div className="valueSummary">
