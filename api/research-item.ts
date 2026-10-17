@@ -238,11 +238,13 @@ export default async function handler(req: any, res: any) {
   try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
-  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [], research_run_id } = req.body || {};
+  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [], research_run_id, depth = 'standard' } = req.body || {};
+  if(depth!=='standard' && depth!=='deep_dive')return res.status(400).json({error:'Unsupported research depth; no paid request.'});
   const draftMode=typeof draft_run_id==='string';
   const isUuid=(value:any)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
   let itemForResearch:any=item;
   let trustedComparableRows:any[]=[];
+  let ownerCorrections:any[]=[];
   if(draftMode){
     if(!isUuid(draft_run_id)||!Number.isInteger(draft_index)||draft_index<0)
       return res.status(400).json({error:'Invalid saved draft reference; no paid research run.'});
@@ -308,6 +310,33 @@ export default async function handler(req: any, res: any) {
       if(!Array.isArray(trustedComparableRows))return res.status(503).json({error:'Trusted comparable evidence invalid.'});
     }catch{return res.status(503).json({error:'Trusted comparable gate unavailable; no model invoked.'});}
   }
+  if(draftMode){
+    try {
+      const qp=new URLSearchParams({select:'id,source_object_index,feedback_type,corrected_material,owner_statement,created_at',
+        source_analysis_run_id:'eq.'+draft_run_id,order:'created_at.desc',limit:'100'});
+      const response=await fetch(supabaseUrl+'/rest/v1/ai_verdict_feedback?'+qp.toString(),{
+        headers:{apikey:supabaseKey,Authorization:'Bearer '+token}
+      });
+      if(!response.ok)throw Error('Correction records unavailable');
+      const all=await response.json();
+      if(!Array.isArray(all))throw Error('Invalid correction records');
+      ownerCorrections=all.filter((x:any)=>x.source_object_index==null
+        || Number(x.source_object_index)===draft_index
+        || (Array.isArray(pair_source_indices)&&pair_source_indices.includes(Number(x.source_object_index))));
+      const material=ownerCorrections.find((x:any)=>x.feedback_type==='MATERIAL_CORRECTION'&&x.corrected_material)?.corrected_material;
+      if(material){
+        const modelMaterial=itemForResearch.material;
+        itemForResearch={
+          ...itemForResearch,material,
+          previously_incorrect_model_material:modelMaterial,
+          material_evidence:'OWNER OBSERVATION — controlling for this investigation; original AI material claim rejected',
+          rejected_prior_market_assumption:'Do not reuse glass-specific comparables or estimate until this corrected material has been researched.'
+        };
+      }
+    }catch{
+      return res.status(503).json({error:'Cannot retrieve owner corrections before paid research. Nothing charged.'});
+    }
+  }
   if(!Array.isArray(images)||images.length>12||images.some((url:any)=>typeof url!=='string'||!url.startsWith(supabaseUrl+'/storage/v1/')))
     return res.status(400).json({error:'Invalid private image links for research; no paid research.'});
   if(!isUuid(research_run_id))return res.status(400).json({error:'Research must first be saved as an owner-scoped session. No paid AI run was made.'});
@@ -321,7 +350,8 @@ export default async function handler(req: any, res: any) {
      JSON.stringify(ctx.pair_source_indices||[])===JSON.stringify(pair_source_indices||[])
      :ctx.item_id===item.id;
   if(researchEnvelope.mode!=='research'||researchEnvelope.status!=='DRAFT'||
-     researchEnvelope.input_photo_count!==images.length||!correctSource)
+     researchEnvelope.input_photo_count!==images.length||!correctSource||
+     (ctx.research_depth||'standard')!==depth)
     return res.status(409).json({error:'Staged research does not match the source object, pair status or original photo count. No AI charged.'});
   if(researchEnvelope.result?.analysis_stage==='COMPLETE'&&researchEnvelope.result?.research_summary)
     return res.status(200).json({
@@ -336,9 +366,18 @@ export default async function handler(req: any, res: any) {
     if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
   }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
 
+  const deepInstructions=depth==='deep_dive'
+   ? `DEEP DIVE INVESTIGATION (not a repeat generic description):
+1. FIRST challenge the earlier material and object-type classification. Treat the owner's physical material correction as decisive observational evidence; earlier AI-generated glass claims and glass auction leads are rejected for this hypothesis.
+2. Independently inspect the supplied original image details—silhouette, decorative technique, rim/base construction, enamel versus paint, tooling, joins and finishes—and compare visible motifs against genuinely relevant PUBLIC REFERENCE IMAGES, illustrated catalogues, museum collections and auction photographs surfaced through live web search. Search using shape + motif + corrected material, not the old AI maker guess. Do not imply a live Google Lens reverse-image search was performed.
+3. Find several specific visually plausible alternatives. In identification_update.rationale say what supports and weakens EACH candidate, how close the reference really looks, and any unresolved manufacture/period possibilities. A resemblance alone does not authenticate the item.
+4. Verify every price lead class (HAMMER / buyer-premium-inclusive REALISED / dealer ASKING / marketplace ASKING). Use precise source URLs and dates; distinguish a pair lot from one physical piece, and exclude glass-only lots from metal-object valuation.
+5. Produce a short actionable research_summary that answers likely type, current best attribution with honest confidence, strongest reference images/sources, realistic provisional WHOLE-LOT value, and best next physical discriminator. Provide competing hypotheses as explicit contradictions when unresolved.
+6. Reuse ONLY independently approved knowledge and source-backed owner corrections; don't fabricate reviewed Knowledge Brain records.`
+   : '';
   const content: any[] = [{
     type: "input_text",
-    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
   }];
   for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
 
@@ -350,8 +389,8 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     reasoning: { effort: "high" },
-    instructions: instructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
-    tools: [{ type: "web_search", search_context_size: "medium" }],
+    instructions: instructions+"\\n\\n"+deepInstructions+"\\n\\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
+    tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }],
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
     max_output_tokens: 16000
@@ -375,6 +414,7 @@ export default async function handler(req: any, res: any) {
     source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
     const savedResult={
       ...result,source_audit,canonical_policy_hashes:canonical.hashes,
+      research_depth:depth,applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
       analysis_stage:'COMPLETE',response_id:payload.id||null
     };
     try{
