@@ -7,6 +7,7 @@ import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
+import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
 import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materialContradictsVisualGuess} from '../lib/ownerCorrections'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;owner_review_revision:number;user_context?:any}
@@ -315,39 +316,45 @@ export default function SavedDraft(){
       workingTitle={paired?(correctedPairTitle||'Matching pair'):run.result.objects?.[scopeIndex]?.working_title||'Collection object'}
      />}
 
-    <div className="panel researchLauncher">
-      <div><div className="eyebrow">ONLINE IDENTIFICATION & MARKET RESEARCH</div>
-       <h2>Research what we already know</h2>
-       <p>Search maker references, comparable sale leads, valuations and realistic selling routes before asking you for more photographs. This is an optional paid AI web-research request.</p>
-      </div>
-      {!paired&&(run.result?.objects||[]).length>1&&<label>Object to research
+    <WorkspaceActionPanel
+     eyebrow="RESEARCH OPTIONS"
+     title={paired?'Research this pair':'Research this object'}
+     description="Continue using the original photographs and your corrections. Earlier findings stay saved."
+     primary={{
+      label:researching?'Researching…':'Dive deeper',
+      onClick:()=>runDraftResearch('deep_dive'),
+      disabled:researching||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
+     }}
+     selector={!paired&&(run.result?.objects||[]).length>1?
+      <label>Choose object to research
        <select value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
         {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
-       </select></label>}
-      <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={()=>runDraftResearch('deep_dive')}>
-       {researching?'Investigating…':'Dive deeper · visual matches and sources'}
-      </button>
-      <p className="ci-page-meta">Paid deep dive searches visual reference leads and research sources using your corrected observations. This is not an automated Google Lens reverse-image search.</p>
-      <a href="https://lens.google.com/" className="ci-external-image-search" target="_blank" rel="noopener noreferrer">Open Google Lens for manual image comparison ↗</a>
-      {existingResearchObsolete&&<p className="note" role="alert"><strong>Old glass verdict contradicted.</strong> Previous glass attributions and glass-price leads are obsolete for this object.</p>}
-      {visibleResearch
-       ? <details className="ci-archive-section">
-          <summary>Run another online research search · paid</summary>
-          <p className="ci-page-meta">The saved result below is available without another model call. Only rerun when new evidence could change the decision.</p>
-          <button className="secondaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={()=>runDraftResearch('standard')}>
-           {researching?'Researching online…':'Start another paid investigation'}
-          </button>
-         </details>
-       : <button className="primaryButton inlineButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'} onClick={()=>runDraftResearch('standard')}>
-          {researching?'Researching online…':'Research & value online'}
-         </button>}
-      {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research investigation(s). Earlier results remain available without another charge.</p>}
-      {unfinishedResearch.length>0&&<details className="ci-archive-section">
-       <summary>{unfinishedResearch.length} interrupted or staged research request(s) · inspect before rerunning</summary>
-       <p className="ci-page-meta">These requests do not have a confirmed completed research report. A paid call may have been interrupted; do not automatically repeat it.</p>
-       {unfinishedResearch.map((x:any)=><p key={x.id} className="ci-page-meta">{new Date(x.created_at).toLocaleString()} · {x.result?.analysis_stage||'Unknown state'} · source object {x.user_context?.source_object_index??'Unknown'}</p>)}
-      </details>}
-    </div>
+       </select>
+      </label>:null}
+     secondary={<a className="ci-action-text-link" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">
+      Manual image search ↗</a>}
+     note="Dive deeper uses paid AI research. Museum image comparisons above are free; reverse-image search remains manual."
+    >
+     {existingResearchObsolete&&<p className="note" role="alert">
+      Your correction supersedes earlier glass conclusions. Check attribution and prices before selling.</p>}
+     {visibleResearch?
+      <details className="ci-archive-section">
+       <summary>Another standard online search · paid</summary>
+       <p className="ci-page-meta">Existing saved findings remain available without a repeat charge.</p>
+       <button className="secondaryButton" disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'}
+        onClick={()=>runDraftResearch('standard')}>Run standard research</button>
+      </details>:
+      <button className="secondaryButton ci-action-minor-button"
+       disabled={researching||!isPhotoManifestReady||run.status!=='DRAFT'}
+       onClick={()=>runDraftResearch('standard')}>Standard research instead</button>}
+     {researchHistory.length>0&&<p className="ci-page-meta">{researchHistory.length} saved research result(s). No new upload needed.</p>}
+     {unfinishedResearch.length>0&&<details className="ci-archive-section">
+      <summary>{unfinishedResearch.length} interrupted or staged investigation(s)</summary>
+      <p className="ci-page-meta">Inspect previous attempts before rerunning; a paid request may have been interrupted.</p>
+      {unfinishedResearch.map((x:any)=><p key={x.id} className="ci-page-meta">
+       {new Date(x.created_at).toLocaleString()} · {x.result?.analysis_stage||'Unknown state'}</p>)}
+     </details>}
+    </WorkspaceActionPanel>
     {!materialContradictsModel&&<div className="panel">
      <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
      <div className="valueSummary">
