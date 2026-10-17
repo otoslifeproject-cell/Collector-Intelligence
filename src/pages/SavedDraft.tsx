@@ -6,6 +6,7 @@ import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
+import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materialContradictsVisualGuess} from '../lib/ownerCorrections'
 
 type SavedRun={id:string;status:string;mode:string;created_at:string;result:any;input_photo_count:number;user_context?:any}
 export default function SavedDraft(){
@@ -126,22 +127,20 @@ export default function SavedDraft(){
     run.result?.analysis_stage==='COMPLETE'
  const scopeIndex=paired?0:researchIndex
  const scopeKey=String(scopeIndex)+':'+(paired?'pair':'single')
- const scopeFeedback=verdictFeedback.filter((x:any)=>x.source_object_index==null||
-   Number(x.source_object_index)===scopeIndex||(paired&&[0,1].includes(Number(x.source_object_index))))
- const correctedMaterial=scopeFeedback.find((x:any)=>x.feedback_type==='MATERIAL_CORRECTION')?.corrected_material||null
+ const scopeFeedback=feedbackForObject(verdictFeedback,scopeIndex,paired)
+ const correctedMaterial=currentOwnerMaterial(scopeFeedback)
  const matchedResearchRun=researchHistory.find((x:any)=>
    x.user_context?.source_object_index===scopeIndex &&
    (Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2)===paired)
  const visibleResearch=matchedResearchRun?.result || (lastResearchScope===scopeKey?researchResult:null)
  const visibleAudit=matchedResearchRun?.result?.source_audit || (lastResearchScope===scopeKey?researchAudit:null)
- const correctionAfterResearch=!!matchedResearchRun&&scopeFeedback.some((x:any)=>Date.parse(x.created_at)>Date.parse(matchedResearchRun.created_at))
+ const correctionAfterResearch=!!matchedResearchRun&&
+  researchPredatesCorrection(matchedResearchRun.created_at,scopeFeedback)
  const originalMaterial=String(run?.result?.objects?.[scopeIndex]?.material||'').toLowerCase()
  const correctedPairTitle=pairProposal?.title&&correctedMaterial
   ? pairProposal.title.replace(/\bglass\b/gi,correctedMaterial.toLowerCase())
   :pairProposal?.title
- const materialContradictsModel=!!correctedMaterial&&
-   ((correctedMaterial.toLowerCase()==='metal'&&/glass|ceramic|pottery/.test(originalMaterial))||
-    (correctedMaterial.toLowerCase()==='glass'&&/metal|ceramic|pottery/.test(originalMaterial)))
+ const materialContradictsModel=materialContradictsVisualGuess(correctedMaterial,originalMaterial)
  // Only research completed BEFORE the owner's correction is superseded.
  // New metal-informed deep dives must remain visible even while raw visual AI says glass.
  const existingResearchObsolete=correctionAfterResearch
