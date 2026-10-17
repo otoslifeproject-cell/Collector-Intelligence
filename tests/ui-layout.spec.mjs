@@ -117,3 +117,22 @@ test('dark and light have identical research component geometry with distinct, r
   expect(contrast(state.cardMuted,state.cardColor),'secondary text AA contrast').toBeGreaterThanOrEqual(4.5)
  }
 })
+
+test('quiet default view keeps detailed notes out of sight, while help stays accessible',async({page})=>{
+ await page.setViewportSize({width:390,height:844})
+ await page.goto(fixture)
+ const sourceHelp=page.locator('.ci-report-meta .ci-info-disclosure')
+ await expect(sourceHelp).toBeVisible()
+ await expect(sourceHelp.locator('.ci-info-disclosure-body')).not.toBeVisible()
+ const instruction=page.locator('.ci-action-hint')
+ await expect(instruction).toBeVisible()
+ await expect(instruction).toContainText('Search by material')
+ await sourceHelp.locator('summary').click()
+ await expect(sourceHelp.locator('.ci-info-disclosure-body')).toBeVisible()
+ await sourceHelp.locator('summary').click()
+ await expect(sourceHelp.locator('.ci-info-disclosure-body')).not.toBeVisible()
+ const nav=page.locator('.tabBar')
+ await expect(nav.getByText('Market')).toBeVisible()
+ const visualAction=page.locator('.ci-visual-workbench').getByRole('button',{name:'Find illustrated references'})
+ await expect(visualAction).toBeVisible()
+})
