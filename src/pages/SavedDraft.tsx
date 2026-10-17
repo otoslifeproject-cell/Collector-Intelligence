@@ -318,15 +318,20 @@ export default function SavedDraft(){
        {unfinishedResearch.map((x:any)=><p key={x.id} className="ci-page-meta">{new Date(x.created_at).toLocaleString()} · {x.result?.analysis_stage||'Unknown state'} · source object {x.user_context?.source_object_index??'Unknown'}</p>)}
       </details>}
     </div>
-    <div className="panel">
+    {!materialContradictsModel&&<div className="panel">
      <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
      <div className="valueSummary">
       <div><small>Fast cash indication</small><strong>{money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.quick_sale??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')}</strong></div>
       <div><small>Balanced range · provisional</small><strong>{money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_low??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')} – {money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_high??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')}</strong></div>
      </div>
      {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
-    </div>
-    {visibleResearch&&<ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Market research and valuation" />}
+    </div>}
+    {materialContradictsModel&&<p className="note" role="alert">Previous visual estimates have been suppressed because they assumed {originalMaterial||'another material'}. Your recorded material is {correctedMaterial}.</p>}
+    {visibleResearch&&(existingResearchObsolete
+     ? <details className="ci-archive-section"><summary>View superseded research · not valid for pricing</summary>
+        <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Superseded model research"/>
+       </details>
+     : <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Market research and valuation"/>)}
       </div>}
    {activeTab==='photos'&&<div className="panel"><div className="panelHeader"><h2>Original photographs</h2><span>{Object.values(images).filter(Boolean).length} accessible</span></div>
      <div className="photoGrid">{Object.entries(images).map(([index,url])=>url?<div className="photoTile" key={index}><img src={url} alt={'Original photograph '+(Number(index)+1)}/><span>Photo {Number(index)+1}</span></div>:null)}</div>
