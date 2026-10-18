@@ -127,7 +127,7 @@ function extractText(payload: any) {
 
 async function loadPricingCanon(url: string, key: string, token: string) {
  const names = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","03_COMPARABLE_RESEARCH.md"];
- const qp = new URLSearchParams({select:"document_key,content,content_sha256,ingested_at,source_version",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
+ const qp = new URLSearchParams({select:"document_key,content,content_sha256,ingested_at,source_version",is_current:"eq.true",document_key:"in.("+names.join(",")+")",order:"ingested_at.desc",limit:"100"});
  const response=await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
  if (!response.ok) throw new Error("CANONICAL_ACCESS_"+response.status);
  const rows=await response.json();
