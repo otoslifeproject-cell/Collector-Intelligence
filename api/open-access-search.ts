@@ -16,13 +16,14 @@ export default async function handler(req:any,res:any){
  if(raw.length<3||raw.length>100)return res.status(400).json({error:'Enter 3–100 characters of material, shape and decoration'})
  const base='https://collectionapi.metmuseum.org/public/collection/'
  try{
-  const searchUrl=new URL(base+'v1.1/search')
+  const searchUrl=new URL(base+'v1/search')
   searchUrl.searchParams.set('q',raw)
   searchUrl.searchParams.set('hasImages','true')
   searchUrl.searchParams.set('limit','24')
   const sr=await fetch(searchUrl.toString(),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(4800)})
   if(!sr.ok)return res.status(502).json({error:'Met Open Access search temporarily unavailable',upstream_status:sr.status})
   const j=await sr.json()
+  if(j.objectIDs===null)return res.status(200).json({query:raw,provider:'The Metropolitan Museum of Art',records:[],rights:'Only CC0 Met images permitted.',warning:'No museum results; no authentication is implied.'})
   if(!Array.isArray(j.objectIDs))return res.status(502).json({error:'Museum search format changed'})
   const ids=j.objectIDs.filter((id:any)=>Number.isSafeInteger(id)&&id>0&&id<=999999999).slice(0,7)
   const checked=await Promise.allSettled(ids.map(async(id:number)=>{
