@@ -1,3 +1,5 @@
+> **SOURCE-INTEGRITY ALERT (18 OCT 2026):** Several historical versions of the Master Brief and Source Policy, including 67-character placeholders, are all marked `is_current=true` in the archive. Their stored hashes match recomputation, but the current-marker is ambiguous. Fail closed if model retrieval cannot uniquely choose the validated v4.0 document; do not publish the revised skill until this is investigated. See `CI-NEW-20261018-01` in the improvement queue.
+
 # COLLECTOR INTELLIGENCE — NEW WINDOW START HERE
 Checkpoint: 2026-10-18 (UK) · operational continuity index · subordinate to canonical Master and Evidence Policy
 
