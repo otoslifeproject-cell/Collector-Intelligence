@@ -127,12 +127,22 @@ function extractText(payload: any) {
 
 async function loadPricingCanon(url: string, key: string, token: string) {
  const names = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","03_COMPARABLE_RESEARCH.md"];
- const qp = new URLSearchParams({select:"document_key,content,content_sha256,ingested_at",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
+ const qp = new URLSearchParams({select:"document_key,content,content_sha256,ingested_at,source_version",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
  const response=await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
  if (!response.ok) throw new Error("CANONICAL_ACCESS_"+response.status);
  const rows=await response.json();
  if (!Array.isArray(rows)) throw new Error("CANONICAL_INVALID");
- const selected=names.map(name=>rows.find((x:any)=>x.document_key===name && typeof x.content==="string" && x.content.length>=400 && !x.content.startsWith("No readable content")));
+ const expectedPolicyHashes: Record<string,string> = {
+    "02_MASTER_PROJECT_BRIEF.md":"4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2",
+    "03_SOURCE_AND_EVIDENCE_POLICY.md":"1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4"
+  };
+  const selected = names.map(k => {
+    const candidates = rows.filter((x:any)=>x.document_key===k && typeof x.content==="string" && x.content.length>=400 && !x.content.startsWith("No readable content"));
+    if (expectedPolicyHashes[k]) {
+      return candidates.find((x:any)=>x.source_version==="4.0" && x.content_sha256===expectedPolicyHashes[k]);
+    }
+    return candidates[0]; // Other current workflow instructions retain existing newest-first selection.
+  });
  if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
  return {instructions:selected.map((x:any,i:number)=>"SOURCE "+names[i]+" [SHA256 "+x.content_sha256+"]\n"+x.content).join("\n\n"),
  hashes:Object.fromEntries(names.map((n,i)=>[n,selected[i].content_sha256]))};
