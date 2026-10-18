@@ -631,3 +631,13 @@ IMPORTANT: no trusted source was promoted in this step. The existing view had 0 
 - Applied shared prominent CTA styling to Dashboard upload (`ed0caef`), AI Intake analyze (`5687183`) and Reports export (`30c304f`) without changing their behavior. No record/database changes or paid AI run triggered.
 - **Deploy warning:** Vercel combined status for Research commit `91eb292` is FAILURE target `https://vercel.com/otoss-projects?upgradeToPro=build-rate-limit` = build-rate-limit, NOT proof of TS/CSS failure. Latest separate commits might remain undeployed; verify new Vercel build status and user-visible test. Do not declare fully live until successful deployment verified.
 - UX review decision: use prominent controls selectively for primary operations, not every destructive action, form input or tiny utility button; preserve short labels and disclosure. Further site-wide migration must be assessed by workflow not blanket CSS changes. Visual signed-in acceptance pending.
+
+
+## 2026-10-18 — NEW WINDOW STARTUP / CONTINUITY RECONCILIATION
+- **User instruction:** maintain dependable new-window preflight and up-to-date instructions/skills without starting over or silently overwriting canonical policy.
+- GitHub startup skill `skills/00_STARTUP_CONTINUOUS_LEARNING.md` expanded to require actual current canonical Supabase retrieval, Git HEAD/Vercel check, review of the END of cumulative handover, reviewed Brain/corrections, and verified exit write-back. The unrelated OTOS CARD v34 does not govern Collector Intelligence.
+- New compact authority/running-state index: `docs/NEW_WINDOW_START_HERE.md`; read that early. More current than the 2026-10-09 opening in this cumulative file, not a replacement for Master/Policy.
+- **Checked**: canonical_documents current v4.0 Master and v4.0 Source Policy sha256 recorded in startup index; 2026-10-17 code HEAD `fefced2` has Vercel FAILURE due build rate limit, so deployment NOT VERIFIED; latest app CSS/UX changes require signed-in visual acceptance.
+- **Checked schema snapshot:** 1 item, 10 photos, 9 evidence, 12 AI analysis runs (10 drafts, 2 approved), 0 comparables; no unverified market source promoted.
+- Outstanding: full readback of all currently published canonical content hashes, authenticated UI/test, safe photo/draft approval and cross-window regression. GitHub startup updates do not auto-update Supabase canonical archive or ChatGPT Project settings; publish and verify separately where owner scope/approved publisher action permits.
+- **Next:** verify Vercel deployment, test draft persistence and idempotent catalogue approval, then cross-page visual regression with evidence/source-trust checks. Do not spend on repeat AI calls just for startup.
