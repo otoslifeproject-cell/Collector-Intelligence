@@ -92,3 +92,11 @@ Commit `732ead4` revises the intake and second-look instructions to distinguish 
 
 ## 2026-10-10 — Original image retention safeguard
 Supabase Storage `item-images` confirmed PRIVATE (`public=false`) with owner-path scoped SELECT/INSERT/UPDATE/DELETE policies. Found AIIntake approval was deleting original temporary uploaded photos after copying to a permanent item, which would invalidate historical intake evidence manifests. Commit `3f2c8ad` removes that automatic deletion; originals remain preserved alongside approved copies for evidential traceability. Requires Vercel deployment check and authenticated approval test before fully verified. Storage owner can still manually delete via authorized actions, so retention is an application workflow guarantee rather than WORM/immutable storage.
+
+
+## 2026-10-18 — New-window operating continuity update
+**Requested:** Bring project startup and continuity up to date for every new ChatGPT window.
+**Implemented and read back:** appended launch contract to `skills/00_STARTUP_CONTINUOUS_LEARNING.md` (commit `b524dcc`); created `docs/NEW_WINDOW_START_HERE.md` (commit `e1cba43`); appended checkpoint to `docs/CURRENT_HANDOVER.md` (commit `4843eaa`). Cross-file readback confirmed all three at exact repository paths.
+**Observed:** Supabase canonical current v4.0 Master SHA `4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2`; Policy SHA `1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4`. GitHub 17 Oct app head `fefced2` failed Vercel build status for build-rate-limit. No deployment acceptance and no new paid AI research. User-uploaded short policy/brief are older than current canonical copies.
+**Not yet done:** No Supabase canonical skill republication, no ChatGPT Project Instruction setting mutation, no authenticated fresh-window regression and no signed-in responsive UX test. Repository documentation is a manual, enforceable process only when read; it is not proof that future windows execute automatically. No app data or collection evidence was mutated.
+**Next verification:** restore deployment, exercise a fresh-window retrieval from canonical documents and new index, verify source hashes and owner scope, test draft image linking/save and idempotent approval; then record regression evidence.
