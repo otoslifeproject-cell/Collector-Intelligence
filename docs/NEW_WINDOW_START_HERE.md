@@ -35,3 +35,7 @@ E. Resume commercially useful research/listing flows with sold-source verificati
 
 ## Status of this runbook
 Created as a recovery/operational index, not a claim that all code, UI or learning has been tested. Future updates should be appended chronologically or superseded with a dated reference; preserve history.
+
+
+## 2026-10-18: External continuity index (Drive)
+Current recovery/continuity index (read back after creation): https://docs.google.com/document/d/11sHCYcDtyRX5PB6ze2Y_JkevocPA-P6C4ktCFnwOHqI/edit . It lists original conversation uploads and previously reported Drive dossiers, unresolved partial transcripts and read gates. A portable ZIP of 34 mounted source uploads was produced in the chat file workspace and saved to personal Library, not the authoritative Drive folder; its raw bytes have NOT been verified in Drive. This pointer does not replace the full Master/Policy, GitHub handover, full skill reading receipt or raw evidence. ChatGPT Project Settings and Supabase canonical skill still require separate publication. App development remains paused pending continuity review.
