@@ -284,7 +284,7 @@ function extractText(payload: any) {
 // Fail closed: never silently fall back to an out-of-date prompt.
 async function loadCanonicalContext(url: string, key: string, token: string) {
   const keys = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","01_PROJECT_INSTRUCTIONS.md","06_PHOTO_EXAMINATION.md"];
-  const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at,source_version",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
+  const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at,source_version",is_current:"eq.true",document_key:"in.("+keys.join(",")+")",order:"ingested_at.desc",limit:"100"});
   const resp = await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{
     headers:{apikey:key,Authorization:`Bearer ${token}`}
   });
