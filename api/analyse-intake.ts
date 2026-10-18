@@ -284,14 +284,24 @@ function extractText(payload: any) {
 // Fail closed: never silently fall back to an out-of-date prompt.
 async function loadCanonicalContext(url: string, key: string, token: string) {
   const keys = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","01_PROJECT_INSTRUCTIONS.md","06_PHOTO_EXAMINATION.md"];
-  const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
+  const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at,source_version",is_current:"eq.true",order:"ingested_at.desc",limit:"100"});
   const resp = await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{
     headers:{apikey:key,Authorization:`Bearer ${token}`}
   });
   if (!resp.ok) throw new Error("CANONICAL_ACCESS_" + resp.status);
   const rows = await resp.json();
   if (!Array.isArray(rows)) throw new Error("CANONICAL_INVALID");
-  const selected = keys.map(k=>rows.find((x:any)=>x.document_key===k && typeof x.content==="string" && x.content.length>=400 && !x.content.startsWith("No readable content")));
+  const expectedPolicyHashes: Record<string,string> = {
+    "02_MASTER_PROJECT_BRIEF.md":"4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2",
+    "03_SOURCE_AND_EVIDENCE_POLICY.md":"1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4"
+  };
+  const selected = keys.map(k => {
+    const candidates = rows.filter((x:any)=>x.document_key===k && typeof x.content==="string" && x.content.length>=400 && !x.content.startsWith("No readable content"));
+    if (expectedPolicyHashes[k]) {
+      return candidates.find((x:any)=>x.source_version==="4.0" && x.content_sha256===expectedPolicyHashes[k]);
+    }
+    return candidates[0]; // Other current workflow instructions retain existing newest-first selection.
+  });
   if (selected.some(x=>!x)) throw new Error("CANONICAL_MISSING");
   return {
     instructions: keys.map((k,i)=>"SOURCE DOCUMENT "+k+" [SHA256 "+selected[i].content_sha256+"]\n"+selected[i].content).join("\n\n"),
