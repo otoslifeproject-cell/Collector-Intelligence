@@ -1,6 +1,9 @@
 > **SOURCE-INTEGRITY ALERT (18 OCT 2026):** Several historical versions of the Master Brief and Source Policy, including 67-character placeholders, are all marked `is_current=true` in the archive. Their stored hashes match recomputation, but the current-marker is ambiguous. Fail closed if model retrieval cannot uniquely choose the validated v4.0 document; do not publish the revised skill until this is investigated. See `CI-NEW-20261018-01` in the improvement queue.
 
 # COLLECTOR INTELLIGENCE — NEW WINDOW START HERE
+
+> **Latest scoped development checkpoint — 20 October 2026:** resume draft PR #2 / branch `continuity/resolver-fixtures-20261020`, code `9223196`. [PostgreSQL acceptance and exact next gate](CONTINUITY_POSTGRES_ACCEPTANCE_20261020.md): actual PostgreSQL 17 tests PASS; unwired approved-source reader tested; production unchanged. [Verified private Drive copy](https://drive.google.com/file/d/1PO_L9Ads2NJchBPxkbr6YTrtXgGau1l7/view?usp=drivesdk). Auth/PostgREST staging access is next. Main 052a14d now has Vercel SUCCESS; older rate-limit snapshots below are historical. No exhaustive archival startup PASS or live source-gate cutover is claimed.
+
 Checkpoint: 2026-10-18 (UK) · operational continuity index · subordinate to canonical Master and Evidence Policy
 
 ## The first 60 seconds (mandatory actions, not just a greeting)
