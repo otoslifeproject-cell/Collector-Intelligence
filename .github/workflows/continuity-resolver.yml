@@ -4,6 +4,10 @@ on:
     paths:
       - 'tests/continuity/**'
       - 'tests/fixtures/governing-v4/**'
+      - 'tests/fixtures/source-archive/**'
+      - 'docs/source-reconciliation/**'
+      - 'scripts/check-source-review-bundle.mjs'
+      - 'scripts/continuity-kong-config.mjs'
       - 'src/lib/approvedCanonicalSources.ts'
       - 'src/lib/canonicalRuntime.ts'
       - 'api/analyse-intake.ts'
@@ -39,6 +43,8 @@ jobs:
           node tests/continuity/staging-target.test.mjs
           node --experimental-strip-types --test tests/continuity/approved-reader.test.mjs
           node --experimental-strip-types --test tests/continuity/runtime-gate.test.mjs tests/continuity/paid-route-gates.test.mjs
+          node --experimental-strip-types --test tests/continuity/source-review.test.mjs
+          node --experimental-strip-types scripts/check-source-review-bundle.mjs
           node scripts/staging-migration-spike.mjs
           node --check scripts/check-continuity-staging.mjs
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@remote.example.com/ci_staging_fake' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: remote host permitted'; exit 1; else echo 'PASS: remote host rejected'; fi
@@ -96,9 +102,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install isolated test driver
-        run: npm install --prefix /tmp/ci-http-driver --ignore-scripts --no-audit --no-fund --save-exact pg@8.13.1 && ln -s /tmp/ci-http-driver/node_modules node_modules
-      - name: Exercise genuine Auth accounts and approved reader over PostgREST
+      - name: Install locked SDK and test driver
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise genuine Auth accounts, Kong API keys, SDK and approved reader
         env:
           CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_http
           CI_ISOLATED_STAGING_CONFIRMED: 'yes'

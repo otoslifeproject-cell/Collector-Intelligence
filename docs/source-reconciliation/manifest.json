@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "purpose": "review-only",
+  "sources": [
+    {
+      "document_key": "02_MASTER_PROJECT_BRIEF.md",
+      "required_version": "4.0",
+      "review_state": "policy-pinned",
+      "candidate": {
+        "path": "tests/fixtures/governing-v4/02_MASTER_PROJECT_BRIEF.md",
+        "source_version": "4.0",
+        "sha256": "4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2",
+        "utf8_bytes": 13308
+      },
+      "preserved": []
+    },
+    {
+      "document_key": "03_SOURCE_AND_EVIDENCE_POLICY.md",
+      "required_version": "4.0",
+      "review_state": "policy-pinned",
+      "candidate": {
+        "path": "tests/fixtures/governing-v4/03_SOURCE_AND_EVIDENCE_POLICY.md",
+        "source_version": "4.0",
+        "sha256": "1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4",
+        "utf8_bytes": 5478
+      },
+      "preserved": []
+    },
+    {
+      "document_key": "01_PROJECT_INSTRUCTIONS.md",
+      "required_version": "4.3",
+      "review_state": "missing-exact-current",
+      "candidate": null,
+      "preserved": [
+        {
+          "path": "tests/fixtures/source-archive/01_PROJECT_INSTRUCTIONS_v4_1.md",
+          "source_version": "4.1",
+          "sha256": "c3901aa1d69b156fc686d8dccd8705e3db0f799bc58dca0d2c6ce94c4a5f67d7",
+          "utf8_bytes": 8917
+        }
+      ]
+    },
+    {
+      "document_key": "06_PHOTO_EXAMINATION.md",
+      "required_version": null,
+      "review_state": "needs-semantic-review",
+      "candidate": {
+        "path": "tests/fixtures/source-archive/06_PHOTO_EXAMINATION.md",
+        "source_version": "file_0000000009dc820c8f62440080973794",
+        "sha256": "7c5bae03c54d47a05f94ee7a46bc4e7a8c809006e9dc29f69baa4dd1ab550a3c",
+        "utf8_bytes": 1146
+      },
+      "preserved": []
+    },
+    {
+      "document_key": "03_COMPARABLE_RESEARCH.md",
+      "required_version": null,
+      "review_state": "needs-semantic-review",
+      "candidate": {
+        "path": "docs/source-reconciliation/proposed/03_COMPARABLE_RESEARCH.md",
+        "source_version": "4.0-aligned-draft-20261020",
+        "sha256": "bf1f55b11742007b7b4f6583a56800c8aac58c0070398919e3da471ba14c31f4",
+        "utf8_bytes": 3860
+      },
+      "preserved": [
+        {
+          "path": "tests/fixtures/source-archive/03_COMPARABLE_RESEARCH.md",
+          "source_version": "file_0000000053d481f6aa50633462e8a30f",
+          "sha256": "034f2674a7bfe5e30050c39b5a91ef426306596e95a1f9815123d15d49cbe0ed",
+          "utf8_bytes": 1597
+        }
+      ]
+    }
+  ]
+}

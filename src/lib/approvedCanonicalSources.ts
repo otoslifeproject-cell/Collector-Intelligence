@@ -1,5 +1,5 @@
-// Server-side candidate reader. Deliberately NOT wired to live paid routes yet.
-// Rollout requires approved publication, Auth/PostgREST acceptance and explicit cutover.
+// Server-side approved reader, available to paid handlers only via explicit opt-in.
+// Live rollout still requires reviewed publication and an authorised cutover.
 const governingHashes: Record<string,string> = {
   '02_MASTER_PROJECT_BRIEF.md':'4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2',
   '03_SOURCE_AND_EVIDENCE_POLICY.md':'1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4',

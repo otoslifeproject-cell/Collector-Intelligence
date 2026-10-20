@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 // DISPOSABLE LOCAL CI ONLY. Starts real GoTrue/PostgREST, never a hosted project.
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdtemp,writeFile,rm,chmod} from 'node:fs/promises';
 import {createHash,createHmac,randomBytes} from 'node:crypto';
-import {createServer} from 'node:http';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {createClient} from '@supabase/supabase-js';
 import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
+import {continuityKongConfig} from './continuity-kong-config.mjs';
 import {loadApprovedCanonicalContext,canonicalCallerKeys} from '../src/lib/approvedCanonicalSources.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall} from '../src/lib/canonicalRuntime.ts';
 import intakeHandler from '../api/analyse-intake.ts';
@@ -19,16 +22,18 @@ const admin=new pg.Client({connectionString:input,connectionTimeoutMillis:5000})
 const exec=promisify(execFile), containers=[], connections=[];
 const AUTH='http://127.0.0.1:19999', REST='http://127.0.0.1:13000', API='http://127.0.0.1:18000';
 const jwtSecret=randomBytes(32).toString('hex');
+const anonKey=token({role:'anon',aud:'authenticated',exp:Math.floor(Date.now()/1000)+3600});
+const publishableKey='sb_publishable_'+randomBytes(24).toString('base64url');
 const password='Ci-disposable-fixture-4826!';
 const read=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
 const sha=s=>createHash('sha256').update(s).digest('hex');
-let passed=0, gateway;
+let passed=0, gatewayDirectory;
 async function check(name,fn){await fn();passed++;console.log('PASS',name);}
 function databaseURL(user){const u=new URL(input);u.username=user;u.password='ci_fixture_only';return u.href;}
 async function docker(args){try{return await exec('docker',args,{timeout:180000,maxBuffer:2*1024*1024});}catch{throw Error('Disposable Docker operation failed; see service diagnostics');}}
-async function start(name,image,env){
+async function start(name,image,env,extra=[]){
   const container=`ci-continuity-${name}-${process.pid}`;containers.push(container);
-  await docker(['run','--detach','--name',container,'--network','host',...Object.entries(env).flatMap(([k,v])=>['--env',`${k}=${v}`]),image]);
+  await docker(['run','--detach','--name',container,'--network','host',...extra,...Object.entries(env).flatMap(([k,v])=>['--env',`${k}=${v}`]),image]);
 }
 async function waitFor(url,ready){
   for(let i=0;i<90;i++){
@@ -42,10 +47,10 @@ function token(payload){
   return parts.join('.')+'.'+createHmac('sha256',jwtSecret).update(parts.join('.')).digest('base64url');
 }
 async function rest(token,path='',init={}){
-  return fetch(`${API}/rest/v1/${path}`,{...init,headers:{Authorization:`Bearer ${token}`,apikey:'disposable-key','Content-Type':'application/json',...init.headers}});
+  return fetch(`${API}/rest/v1/${path}`,{...init,headers:{Authorization:`Bearer ${token}`,apikey:publishableKey,'Content-Type':'application/json',...init.headers}});
 }
 async function expectSourceFailure(token,code,mode='research'){
-  await assert.rejects(()=>loadApprovedCanonicalContext({url:API,key:'disposable-key',token},mode),e=>e.code===code);
+  await assert.rejects(()=>loadApprovedCanonicalContext({url:API,key:publishableKey,token},mode),e=>e.code===code);
 }
 async function publisher(actor){
   const c=new pg.Client({connectionString:databaseURL('ci_http_publisher'),connectionTimeoutMillis:5000});
@@ -101,39 +106,42 @@ try {
     PGRST_SERVER_HOST:'127.0.0.1',PGRST_SERVER_PORT:'13000',PGRST_DB_USE_LEGACY_GUCS:'false',
   });
   await waitFor(`${REST}/`,r=>r.status<500);
-  // Prefix routing only. Actual Auth/JWT validation and database RLS are upstream.
-  // This fixture is not a production API-key gateway (Kong/Envoy) acceptance test.
-  const upstreamTransport=globalThis.fetch;
-  gateway=createServer(async(req,res)=>{
-    try{
-      const base=req.url.startsWith('/auth/v1/')?AUTH:req.url.startsWith('/rest/v1/')?REST:null;
-      if(!base){res.writeHead(404).end();return;}
-      const chunks=[];let length=0;
-      for await(const chunk of req){length+=chunk.length;if(length>65536)throw Error('Fixture body too large');chunks.push(chunk);}
-      const headers={...req.headers};delete headers.host;delete headers['content-length'];delete headers.connection;
-      const upstream=await upstreamTransport(base+req.url.replace(/^\/(auth|rest)\/v1/,''),{
-        method:req.method,headers,body:chunks.length?Buffer.concat(chunks):undefined,redirect:'error',signal:AbortSignal.timeout(5000),
-      });
-      const returned=Object.fromEntries(upstream.headers);
-      for(const h of ['content-length','content-encoding','connection','transfer-encoding'])delete returned[h];
-      res.writeHead(upstream.status,returned);res.end(Buffer.from(await upstream.arrayBuffer()));
-    }catch{res.writeHead(502).end('Disposable upstream error');}
+  // Real key-auth/ACL gateway, using Supabase's supported Kong image. Only
+  // Auth/REST are configured; hosted Envoy, TLS, OAuth and browser are separate.
+  gatewayDirectory=await mkdtemp(join(tmpdir(),'ci-continuity-kong-'));
+  await chmod(gatewayDirectory,0o755);
+  await writeFile(join(gatewayDirectory,'kong.json'),JSON.stringify(continuityKongConfig(anonKey,publishableKey)),{mode:0o644});
+  await start('gateway','kong/kong:3.9.3',{
+    KONG_DATABASE:'off',KONG_DECLARATIVE_CONFIG:'/ci-fixture/kong.json',
+    KONG_PROXY_LISTEN:'127.0.0.1:18000',KONG_ADMIN_LISTEN:'off',KONG_STATUS_LISTEN:'off',
+    KONG_NGINX_WORKER_PROCESSES:'1',KONG_PROXY_ACCESS_LOG:'off',KONG_LOG_LEVEL:'warn',
+  },['--mount',`type=bind,source=${gatewayDirectory},target=/ci-fixture,readonly`]);
+  await waitFor(`${API}/auth/v1/health`,r=>r.status===401);
+  await check('gateway denies missing and invalid API keys before Auth/REST',async()=>{
+    for(const path of ['/auth/v1/user','/rest/v1/ci_canonical_approved_v1']){
+      assert.equal((await fetch(API+path)).status,401);
+      assert.equal((await fetch(API+path,{headers:{apikey:'invalid-fixture-key'}})).status,401);
+    }
   });
-  await new Promise(resolve=>gateway.listen(18000,'127.0.0.1',resolve));
   const users=[];
   for(const label of ['a','b']){
     const email=`collector-ci-${label}@example.test`;
-    const signup=await fetch(`${API}/auth/v1/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const signup=await fetch(`${API}/auth/v1/signup`,{method:'POST',headers:{apikey:publishableKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
     assert.equal(signup.status,200,'Real Auth signup failed');
-    const login=await fetch(`${API}/auth/v1/token?grant_type=password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const login=await fetch(`${API}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:publishableKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
     assert.equal(login.status,200,'Real Auth password login failed');
     const result=await login.json();assert.ok(result.access_token && result.user?.id);
     users.push({id:result.user.id,token:result.access_token});
   }
   const [A,B]=users;
+  await check('valid user JWT cannot bypass a missing or invalid gateway key',async()=>{
+    for(const path of ['/auth/v1/user','/rest/v1/ci_canonical_approved_v1']){
+      for(const headers of [{Authorization:'Bearer '+A.token},{Authorization:'Bearer '+A.token,apikey:'invalid-fixture-key'}])assert.equal((await fetch(API+path,{headers})).status,401);
+    }
+  });
   await check('two genuine Auth accounts sign in and resolve distinct principals',async()=>{
     assert.notEqual(A.id,B.id);
-    for(const user of users){const response=await fetch(`${API}/auth/v1/user`,{headers:{Authorization:`Bearer ${user.token}`}});assert.equal(response.status,200);assert.equal((await response.json()).id,user.id);}
+    for(const user of users){const response=await fetch(`${API}/auth/v1/user`,{headers:{apikey:publishableKey,Authorization:`Bearer ${user.token}`}});assert.equal(response.status,200);assert.equal((await response.json()).id,user.id);}
   });
   const keys=[...new Set([...canonicalCallerKeys.intake,...canonicalCallerKeys.research])];
   const documents={},events={};
@@ -154,15 +162,39 @@ try {
   let receiptA;
   let runtimeA;
   await check('real Auth and PostgREST return full research keyset and genuine v4 policy pins',async()=>{
-    receiptA=await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:A.token},'research');
-    runtimeA=await loadCanonicalForCaller({url:API,key:'disposable-key',token:A.token},'research','approved-v1',()=>{throw Error('Legacy fallback forbidden');});
+    receiptA=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'research');
+    runtimeA=await loadCanonicalForCaller({url:API,key:publishableKey,token:A.token},'research','approved-v1',()=>{throw Error('Legacy fallback forbidden');});
     assert.equal(receiptA.ownerId,A.id);assert.equal(receiptA.receipts.length,3);
     for(const source of receiptA.receipts)assert.equal(source.document_id,documents[A.id][source.document_key]);
   });
-  await check('intake caller loads its complete four-source set over HTTP',async()=>assert.equal((await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:A.token},'intake')).receipts.length,4));
+  await check('intake caller loads its complete four-source set over HTTP',async()=>assert.equal((await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'intake')).receipts.length,4));
   await check('owner B HTTP reader returns only B receipts',async()=>{
-    const result=await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:B.token},'research');
+    const result=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:B.token},'research');
     assert.equal(result.ownerId,B.id);assert.ok(result.receipts.every(r=>r.document_id===documents[B.id][r.document_key]));
+  });
+  await check('legacy signed anon API key retains genuine owner JWT and source receipts',async()=>{
+    const result=await loadApprovedCanonicalContext({url:API,key:anonKey,token:A.token},'research');
+    assert.equal(result.ownerId,A.id);assert.deepEqual(result.receipts,receiptA.receipts);
+  });
+  await check('Supabase SDK signs in through both key formats and enforces owner RLS',async()=>{
+    for(const [key,user,label] of [[anonKey,A,'a'],[publishableKey,B,'b']]){
+      const sdk=createClient(API,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+      const login=await sdk.auth.signInWithPassword({email:`collector-ci-${label}@example.test`,password});
+      assert.ok(!login.error,login.error?.message);assert.equal(login.data.user?.id,user.id);
+      const principal=await sdk.auth.getUser();assert.ok(!principal.error,principal.error?.message);assert.equal(principal.data.user?.id,user.id);
+      const result=await sdk.from('ci_canonical_approved_v1').select('owner_id,document_key',{count:'exact'}).in('document_key',canonicalCallerKeys.research);
+      assert.ok(!result.error,result.error?.message);assert.equal(result.count,3);assert.ok(result.data.every(row=>row.owner_id===user.id));
+      const other=await sdk.from('ci_canonical_approved_v1').select('id').eq('owner_id',user.id===A.id?B.id:A.id);
+      assert.ok(!other.error,other.error?.message);assert.deepEqual(other.data,[]);
+      const refreshed=await sdk.auth.refreshSession();assert.ok(!refreshed.error,refreshed.error?.message);
+      const sources=await loadApprovedCanonicalContext({url:API,key,token:refreshed.data.session.access_token},'research');assert.equal(sources.ownerId,user.id);
+    }
+  });
+  await check('opaque publishable key without a user session remains anonymous',async()=>{
+    const sdk=createClient(API,publishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const result=await sdk.from('ci_canonical_approved_v1').select('id');
+    assert.equal(result.status,401);assert.equal(result.error?.code,'42501');assert.equal(result.data,null);
+    await expectSourceFailure(publishableKey,'CANONICAL_ACCESS_DENIED');
   });
   await check('explicit other-owner filter cannot bypass RLS',async()=>{
     const response=await rest(A.token,`ci_canonical_approved_v1?owner_id=eq.${B.id}`);assert.equal(response.status,200);assert.deepEqual(await response.json(),[]);
@@ -184,29 +216,29 @@ try {
   await check('private publisher function is absent from public RPC',async()=>assert.equal((await rest(A.token,'rpc/publish_canonical',{method:'POST',body:'{}'})).status,404));
   await check('private schema cannot be selected via HTTP profile',async()=>assert.equal((await rest(A.token,'ci_canonical_active_approvals',{headers:{'Accept-Profile':'ci_private'}})).status,406));
   await check('user-editable metadata cannot change owner or publication access',async()=>{
-    const response=await fetch(`${API}/auth/v1/user`,{method:'PUT',headers:{Authorization:`Bearer ${A.token}`,'Content-Type':'application/json'},body:JSON.stringify({data:{role:'service_role',owner_id:B.id}})});
+    const response=await fetch(`${API}/auth/v1/user`,{method:'PUT',headers:{apikey:publishableKey,Authorization:`Bearer ${A.token}`,'Content-Type':'application/json'},body:JSON.stringify({data:{role:'service_role',owner_id:B.id}})});
     assert.equal(response.status,200);
-    const result=await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:A.token},'research');assert.equal(result.ownerId,A.id);
+    const result=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'research');assert.equal(result.ownerId,A.id);
     assert.equal((await rest(A.token,'rpc/publish_canonical',{method:'POST',body:'{}'})).status,404);
   });
   const workflowKey='03_COMPARABLE_RESEARCH.md';
   await check('newer imported workflow cannot replace approved exact version',async()=>{
     await admin.query(`insert into public.canonical_documents(owner_id,document_key,source_class,title,content,content_sha256,source_path,source_version)
-      values($1,$2,'WORKFLOW_SKILL',$2,$3,'computed-by-trigger','DISPOSABLE_HTTP_FIXTURE','fixture-999')`,[A.id,workflowKey,'NEWER UNAPPROVED '+ 'z'.repeat(500)]);
-    const result=await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:A.token},'research');
+      values($1,$2,'WORKFLOW_SKILL',$2,$3,'computed-by-trigger','DISPOSABLE_HTTP_FIXTURE','4.0-aligned-draft-20261020')`,[A.id,workflowKey,await read('docs/source-reconciliation/proposed/03_COMPARABLE_RESEARCH.md')]);
+    const result=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'research');
     assert.equal(result.receipts.find(r=>r.document_key===workflowKey).document_id,documents[A.id][workflowKey]);
   });
   await check('revocation fails required research set over real HTTP',async()=>{
     events[A.id][workflowKey]=await publish(pubA,documents[A.id][workflowKey],'REVOKE',events[A.id][workflowKey]);
     await expectSourceFailure(A.token,'CANONICAL_RESULT_INCOMPLETE');
     let paid=0;
-    await assert.rejects(async()=>{await revalidateCanonicalBeforePaidCall({url:API,key:'disposable-key',token:A.token},'research',runtimeA);paid++;},e=>e.code==='CANONICAL_RESULT_INCOMPLETE');
+    await assert.rejects(async()=>{await revalidateCanonicalBeforePaidCall({url:API,key:publishableKey,token:A.token},'research',runtimeA);paid++;},e=>e.code==='CANONICAL_RESULT_INCOMPLETE');
     assert.equal(paid,0);
-    assert.equal((await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:B.token},'research')).ownerId,B.id);
+    assert.equal((await loadApprovedCanonicalContext({url:API,key:publishableKey,token:B.token},'research')).ownerId,B.id);
   });
   await check('reviewed reapproval restores complete source set and new receipt',async()=>{
     events[A.id][workflowKey]=await publish(pubA,documents[A.id][workflowKey],'APPROVE',events[A.id][workflowKey]);
-    const result=await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:A.token},'research');
+    const result=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'research');
     assert.equal(result.receipts.find(r=>r.document_key===workflowKey).approval_event_id,events[A.id][workflowKey]);
   });
   await check('real missing base-table grant blocks HTTP loader',async()=>{
@@ -220,7 +252,7 @@ try {
     assert.equal((await admin.query('select count(*)::int as n from public.ci_canonical_publication_events')).rows[0].n,before);
   });
   await check('both real server handlers stop before provider dispatch with real Auth and disabled REST grants',async()=>{
-    const env={NEXT_PUBLIC_SUPABASE_URL:API,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'disposable-key',
+    const env={NEXT_PUBLIC_SUPABASE_URL:API,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:publishableKey,
       COLLECTOR_CANONICAL_SOURCE_MODE:'approved-v1',OPENAI_API_KEY:'disposable-no-provider',AI_GATEWAY_API_KEY:'',VERCEL_OIDC_TOKEN:''};
     const before=Object.fromEntries(Object.keys(env).map(k=>[k,process.env[k]])),transport=globalThis.fetch;
     let external=0;Object.assign(process.env,env);
@@ -234,12 +266,12 @@ try {
       assert.equal(external,0);
     }finally{globalThis.fetch=transport;for(const [key,value] of Object.entries(before)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
   });
-  console.log(`${passed} real Supabase Auth/PostgREST assertions passed. Disposable services only; no hosted project, API-key gateway, browser or paid AI acceptance claimed.`);
+  console.log(`${passed} real Supabase Auth/PostgREST assertions passed. Disposable services only; real Kong key-auth gateway tested; no hosted project, hosted Envoy, browser or paid AI acceptance claimed.`);
 } catch(error){
   for(const name of containers){try{const log=await exec('docker',['logs','--tail','35',name]);console.error(name,log.stdout,log.stderr);}catch{}}
   throw error;
 } finally {
-  if(gateway){gateway.closeAllConnections();await new Promise(resolve=>gateway.close(resolve));}
   await Promise.all(connections.map(c=>c.end().catch(()=>{})));await admin.end().catch(()=>{});
-  for(const name of containers)try{await docker(['rm','--force',name]);}catch{}
+  for(const name of containers.reverse())try{await docker(['rm','--force',name]);}catch{}
+  if(gatewayDirectory)await rm(gatewayDirectory,{recursive:true,force:true});
 }
