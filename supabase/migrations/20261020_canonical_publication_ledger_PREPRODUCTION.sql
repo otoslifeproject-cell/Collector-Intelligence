@@ -42,8 +42,37 @@ CREATE TABLE IF NOT EXISTS public.ci_canonical_active_approvals (
   REFERENCES public.ci_canonical_publication_events(id,owner_id,document_key) ON DELETE RESTRICT
 );
 -- Prevent activating a REVOKE event as an approved source pointer.
+-- Approval events must be bound to their exact immutable source bytes at INSERT.
+-- The canonical_documents hash trigger's own crypto schema must be checked in staging.
+CREATE OR REPLACE FUNCTION public.ci_validate_publication_event()
+RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,extensions AS $
+DECLARE actual_hash text;
+BEGIN
+ SELECT encode(digest(convert_to(d.content,'UTF8'),'sha256'),'hex')
+ INTO actual_hash FROM public.canonical_documents d
+ WHERE d.id=NEW.document_id AND d.owner_id=NEW.owner_id
+   AND d.document_key=NEW.document_key
+   AND d.source_version IS NOT DISTINCT FROM NEW.source_version
+   AND d.content_sha256=NEW.content_sha256
+   AND length(d.content)>=400 AND d.content NOT LIKE 'No readable content%';
+ IF actual_hash IS NULL OR actual_hash<>NEW.content_sha256
+ THEN RAISE EXCEPTION 'Publication event source mismatch'; END IF;
+ IF NEW.event_kind='REVOKE' AND NEW.supersedes_event_id IS NULL
+ THEN RAISE EXCEPTION 'Revocation requires predecessor'; END IF;
+ IF NEW.document_key='02_MASTER_PROJECT_BRIEF.md'
+ AND (NEW.source_version<>'4.0' OR NEW.content_sha256<>'4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2')
+ THEN RAISE EXCEPTION 'Unapproved Master policy'; END IF;
+ IF NEW.document_key='03_SOURCE_AND_EVIDENCE_POLICY.md'
+ AND (NEW.source_version<>'4.0' OR NEW.content_sha256<>'1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4')
+ THEN RAISE EXCEPTION 'Unapproved Evidence policy'; END IF;
+ RETURN NEW;
+END;$;
+DROP TRIGGER IF EXISTS ci_publication_event_valid ON public.ci_canonical_publication_events;
+CREATE TRIGGER ci_publication_event_valid BEFORE INSERT
+ ON public.ci_canonical_publication_events FOR EACH ROW
+ EXECUTE FUNCTION public.ci_validate_publication_event();
 CREATE OR REPLACE FUNCTION public.ci_validate_active_approval()
-RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,extensions AS $
 BEGIN
  IF NOT EXISTS (
    SELECT 1 FROM public.ci_canonical_publication_events e
@@ -52,7 +81,7 @@ BEGIN
      AND e.document_key=NEW.document_key AND e.event_kind='APPROVE'
      AND e.content_sha256=d.content_sha256
      AND e.source_version IS NOT DISTINCT FROM d.source_version
-     AND encode(extensions.digest(convert_to(d.content,'UTF8'),'sha256'),'hex')=e.content_sha256
+     AND encode(digest(convert_to(d.content,'UTF8'),'sha256'),'hex')=e.content_sha256
      AND length(d.content)>=400 AND d.content NOT LIKE 'No readable content%'
  ) THEN RAISE EXCEPTION 'Invalid approved document event'; END IF;
  RETURN NEW;
