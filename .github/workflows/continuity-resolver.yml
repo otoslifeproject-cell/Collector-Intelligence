@@ -3,11 +3,13 @@ on:
   pull_request:
     paths:
       - 'tests/continuity/**'
+      - 'tests/fixtures/governing-v4/**'
       - 'src/lib/approvedCanonicalSources.ts'
       - 'scripts/check-continuity-staging.mjs'
       - 'scripts/validate-staging-target.mjs'
       - 'scripts/staging-migration-spike.mjs'
       - 'scripts/test-continuity-postgres.mjs'
+      - 'scripts/test-continuity-http.mjs'
       - 'supabase/proposals/**'
       - 'supabase/migrations/20261010_canonical_archive_photo_manifests_security.sql'
       - 'supabase/migrations/20261020_canonical_publication_ledger_PREPRODUCTION.sql'
@@ -64,3 +66,33 @@ jobs:
           CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_ledger
           CI_ISOLATED_STAGING_CONFIRMED: 'yes'
         run: node scripts/test-continuity-postgres.mjs
+  supabase-http-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_fixture_only
+          POSTGRES_DB: ci_staging_http
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ci_staging_http"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated test driver
+        run: npm install --prefix /tmp/ci-http-driver --ignore-scripts --no-audit --no-fund --save-exact pg@8.13.1 && ln -s /tmp/ci-http-driver/node_modules node_modules
+      - name: Exercise genuine Auth accounts and approved reader over PostgREST
+        env:
+          CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_http
+          CI_ISOLATED_STAGING_CONFIRMED: 'yes'
+        run: node --experimental-strip-types scripts/test-continuity-http.mjs
