@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS public.ci_canonical_active_approvals (
 -- Approval events must be bound to their exact immutable source bytes at INSERT.
 -- The canonical_documents hash trigger's own crypto schema must be checked in staging.
 CREATE OR REPLACE FUNCTION public.ci_validate_publication_event()
-RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,extensions AS $
+RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,extensions AS $$
 DECLARE actual_hash text;
 BEGIN
  SELECT encode(digest(convert_to(d.content,'UTF8'),'sha256'),'hex')
@@ -73,13 +73,13 @@ BEGIN
  AND (NEW.source_version<>'4.0' OR NEW.content_sha256<>'1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4')
  THEN RAISE EXCEPTION 'Unapproved Evidence policy'; END IF;
  RETURN NEW;
-END;$;
+END;$$;
 DROP TRIGGER IF EXISTS ci_publication_event_valid ON public.ci_canonical_publication_events;
 CREATE TRIGGER ci_publication_event_valid BEFORE INSERT
  ON public.ci_canonical_publication_events FOR EACH ROW
  EXECUTE FUNCTION public.ci_validate_publication_event();
 CREATE OR REPLACE FUNCTION public.ci_validate_active_approval()
-RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,extensions AS $
+RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,extensions AS $$
 BEGIN
  IF NOT EXISTS (
    SELECT 1 FROM public.ci_canonical_publication_events e
