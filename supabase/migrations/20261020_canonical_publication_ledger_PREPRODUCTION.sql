@@ -59,6 +59,13 @@ BEGIN
  THEN RAISE EXCEPTION 'Publication event source mismatch'; END IF;
  IF NEW.event_kind='REVOKE' AND NEW.supersedes_event_id IS NULL
  THEN RAISE EXCEPTION 'Revocation requires predecessor'; END IF;
+ IF NEW.supersedes_event_id IS NOT NULL AND NOT EXISTS (
+  SELECT 1 FROM public.ci_canonical_publication_events previous
+  WHERE previous.id=NEW.supersedes_event_id AND previous.owner_id=NEW.owner_id
+    AND previous.document_key=NEW.document_key
+    AND previous.event_kind='APPROVE'
+    AND previous.document_id=NEW.document_id
+ ) THEN RAISE EXCEPTION 'Invalid predecessor approval'; END IF;
  IF NEW.document_key='02_MASTER_PROJECT_BRIEF.md'
  AND (NEW.source_version<>'4.0' OR NEW.content_sha256<>'4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2')
  THEN RAISE EXCEPTION 'Unapproved Master policy'; END IF;
