@@ -19,3 +19,4 @@ jobs:
         run: |
           node tests/continuity/test.mjs
           node tests/continuity/multi-document.test.mjs
+          node tests/continuity/migration-guards.test.mjs
