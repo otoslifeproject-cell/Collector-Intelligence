@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'tests/continuity/**'
+      - 'src/lib/approvedCanonicalSources.ts'
       - 'scripts/check-continuity-staging.mjs'
       - 'scripts/validate-staging-target.mjs'
       - 'scripts/staging-migration-spike.mjs'
@@ -28,6 +29,7 @@ jobs:
           node tests/continuity/multi-document.test.mjs
           node tests/continuity/migration-guards.test.mjs
           node tests/continuity/staging-target.test.mjs
+          node --experimental-strip-types --test tests/continuity/approved-reader.test.mjs
           node scripts/staging-migration-spike.mjs
           node --check scripts/check-continuity-staging.mjs
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@remote.example.com/ci_staging_fake' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: remote host permitted'; exit 1; else echo 'PASS: remote host rejected'; fi
@@ -46,7 +48,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d ci_staging_ledger"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10

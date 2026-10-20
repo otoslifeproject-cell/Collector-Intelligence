@@ -69,6 +69,7 @@ try {
    [A,'02_MASTER_PROJECT_BRIEF.md','4.0','Synthetic policy, never approved. '],
    [A,'placeholder.md','1','No readable content'],
    [A,'03_SOURCE_AND_EVIDENCE_POLICY.md','4.0','Synthetic evidence policy. '],
+   [A,'first-race.md','1','First concurrent publication. '],
  ]){
    const content=text+'x'.repeat(500);
    const result=await admin.query(`insert into public.canonical_documents
@@ -93,7 +94,7 @@ try {
  await check('non-superuser owner role really exercises RLS',async()=>{
    const m=(await ownerA.query('select r.rolsuper,r.rolbypassrls from pg_roles r where rolname=current_user')).rows[0];
    assert.deepEqual(m,{rolsuper:false,rolbypassrls:false});
-   assert.equal((await ownerA.query('select * from public.canonical_documents')).rows.length,5);
+   assert.equal((await ownerA.query('select * from public.canonical_documents')).rows.length,6);
    assert.equal((await ownerB.query('select * from public.canonical_documents')).rows.length,1);
  });
  await check('no initial approvals or recency fallback',async()=>assert.equal((await ownerA.query(view)).rows.length,0));
@@ -113,6 +114,10 @@ try {
    const rows=(await ownerA.query(view)).rows;assert.equal(rows.length,1);assert.equal(rows[0].id,docs[0]);
  });
  await check('owner B sees own approval only',async()=>assert.deepEqual((await ownerB.query(view)).rows.map(x=>x.id),[docs[2]]));
+ await check('missing base-table grant fails security-invoker view closed',async()=>{
+   await admin.query('REVOKE SELECT ON public.canonical_documents FROM authenticated');
+   try{await denied(ownerA,view,[],'42501');}finally{await admin.query('GRANT SELECT ON public.canonical_documents TO authenticated');}
+ });
  await check('owner cannot read other owner ledger',async()=>assert.equal((await ownerA.query('select * from public.ci_canonical_publication_events where owner_id=$1',[B])).rows.length,0));
  await check('owner cannot insert event',()=>denied(ownerA,"insert into public.ci_canonical_publication_events default values",[],'42501'));
  await check('owner cannot update pointer',()=>denied(ownerA,'update public.ci_canonical_active_approvals set event_id=event_id',[],'42501'));
@@ -135,6 +140,21 @@ try {
    try{await publish(pubA,docs[0],'APPROVE',second);assert.equal((await ownerA.query(view)).rows[0].approval_event_id,second);}finally{await pubA.query('ROLLBACK');}
    assert.equal((await ownerA.query(view)).rows[0].approval_event_id,second);
  });
+ await check('pointer-write failure rolls inserted audit event back atomically',async()=>{
+   const countBefore=(await admin.query('select count(*)::int as n from public.ci_canonical_publication_events')).rows[0].n;
+   await admin.query(`CREATE FUNCTION public.ci_fixture_reject_pointer() RETURNS trigger LANGUAGE plpgsql AS
+     $$BEGIN RAISE EXCEPTION 'Synthetic pointer failure'; END;$$;
+     CREATE TRIGGER ci_fixture_reject_pointer BEFORE INSERT OR UPDATE ON public.ci_canonical_active_approvals
+     FOR EACH ROW EXECUTE FUNCTION public.ci_fixture_reject_pointer();`);
+   try{await assert.rejects(()=>publish(pubA,docs[0],'APPROVE',second),/Synthetic pointer failure/);}
+   finally{await admin.query('DROP TRIGGER ci_fixture_reject_pointer ON public.ci_canonical_active_approvals; DROP FUNCTION public.ci_fixture_reject_pointer();');}
+   assert.equal((await admin.query('select count(*)::int as n from public.ci_canonical_publication_events')).rows[0].n,countBefore);
+   assert.equal((await ownerA.query(view)).rows[0].approval_event_id,second);
+ });
+ await check('revoke of a different source fails without audit mutation',async()=>{
+   await assert.rejects(()=>publish(pubA,docs[0],'REVOKE',second),e=>e.code==='22023');
+   assert.equal((await ownerA.query(view)).rows[0].approval_event_id,second);
+ });
  const revoked=await publish(pubA,docs[1],'REVOKE',second);
  await check('revocation removes pointer and retains audit',async()=>{
    assert.equal((await ownerA.query(view)).rows.length,0);
@@ -150,6 +170,12 @@ try {
    const rejected=results.find(x=>x.status==='rejected');assert.equal(rejected.reason.code,'40001');
    assert.equal((await ownerA.query(view)).rows.length,1);
  });
+ await check('first publication race is serialized even without a pointer row',async()=>{
+   const results=await Promise.allSettled([publish(pubA,docs[6]),publish(competitor,docs[6])]);
+   assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+   assert.equal(results.find(x=>x.status==='rejected').reason.code,'40001');
+   assert.equal((await ownerA.query(view)).rows.filter(x=>x.document_key==='first-race.md').length,1);
+ });
  const eventsBefore=(await admin.query('select * from public.ci_canonical_publication_events order by publication_sequence')).rows;
  const pointersBefore=(await admin.query('select * from public.ci_canonical_active_approvals order by owner_id,document_key')).rows;
  await check('safety disable removes reader and publisher access',async()=>{
@@ -164,7 +190,7 @@ try {
  });
  await check('workflow replay restores access without reseeding evidence',async()=>{
    await admin.query(workflow);
-   assert.equal((await ownerA.query(view)).rows.length,1);
+   assert.equal((await ownerA.query(view)).rows.length,2);
    assert.deepEqual((await admin.query('select * from public.ci_canonical_publication_events order by publication_sequence')).rows,eventsBefore);
  });
  console.log(`${passed} PostgreSQL integration assertions passed. Synthetic DB claims; NOT Supabase Auth/HTTP or production acceptance.`);

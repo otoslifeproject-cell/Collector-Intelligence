@@ -12,6 +12,9 @@ BEGIN
  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='ci_canonical_publisher') THEN
    CREATE ROLE ci_canonical_publisher NOLOGIN NOSUPERUSER NOBYPASSRLS;
  END IF;
+ IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='ci_canonical_publisher'
+   AND (rolcanlogin OR rolsuper OR rolbypassrls))
+ THEN RAISE EXCEPTION 'Publisher role must be non-login and unprivileged'; END IF;
 END $guard$;
 ALTER TABLE public.ci_canonical_publication_events
  ADD COLUMN IF NOT EXISTS publication_sequence bigint GENERATED ALWAYS AS IDENTITY;
