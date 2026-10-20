@@ -2,7 +2,10 @@
 
 # COLLECTOR INTELLIGENCE — NEW WINDOW START HERE
 
-> **Latest scoped development checkpoint — 20 October 2026:** resume draft PR #2 / branch `continuity/resolver-fixtures-20261020`, code `9223196`. [PostgreSQL acceptance and exact next gate](CONTINUITY_POSTGRES_ACCEPTANCE_20261020.md): actual PostgreSQL 17 tests PASS; unwired approved-source reader tested; production unchanged. [Verified private Drive copy](https://drive.google.com/file/d/1PO_L9Ads2NJchBPxkbr6YTrtXgGau1l7/view?usp=drivesdk). Auth/PostgREST staging access is next. Main 052a14d now has Vercel SUCCESS; older rate-limit snapshots below are historical. No exhaustive archival startup PASS or live source-gate cutover is claimed.
+> **Latest engineering checkpoint — 20 October 2026:** [Real Auth/PostgREST and opt-in paid-route acceptance](CONTINUITY_AUTH_REST_ACCEPTANCE_20261020.md), code `518f3a1`, same draft PR #2 / development branch. All four CI jobs PASS (193 checks). The Auth/PostgREST access blocker is resolved using disposable CI. Production remains unchanged; exact source versions and rollout need separate review. [Verified private Drive handover](https://drive.google.com/file/d/1Da3W-IFsTnw1PeVcxynk5MDp0OsfpPv0/view?usp=drivesdk).
+
+
+> **Previous scoped development checkpoint — 20 October 2026:** resume draft PR #2 / branch `continuity/resolver-fixtures-20261020`, code `9223196`. [PostgreSQL acceptance and exact next gate](CONTINUITY_POSTGRES_ACCEPTANCE_20261020.md): actual PostgreSQL 17 tests PASS; unwired approved-source reader tested; production unchanged. [Verified private Drive copy](https://drive.google.com/file/d/1PO_L9Ads2NJchBPxkbr6YTrtXgGau1l7/view?usp=drivesdk). Auth/PostgREST staging access is next. Main 052a14d now has Vercel SUCCESS; older rate-limit snapshots below are historical. No exhaustive archival startup PASS or live source-gate cutover is claimed.
 
 Checkpoint: 2026-10-18 (UK) · operational continuity index · subordinate to canonical Master and Evidence Policy
 
