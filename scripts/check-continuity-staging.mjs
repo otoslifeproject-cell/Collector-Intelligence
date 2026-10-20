@@ -7,13 +7,16 @@ const input=process.env.CI_STAGING_DATABASE_URL;
 if(!input)throw new Error('CI_STAGING_DATABASE_URL required: no connection attempted');
 let uri;try{uri=new URL(input)}catch{throw new Error('Invalid database URL')}
 if(!['postgres:','postgresql:'].includes(uri.protocol))throw new Error('Expected PostgreSQL URL');
-if(uri.hostname.includes(prod))throw new Error('REFUSED production Supabase project');
+const host=uri.hostname.toLowerCase();
+if(host.includes(prod))throw new Error('REFUSED production Supabase project');
+if(!['localhost','127.0.0.1','::1'].includes(host))throw new Error('Only local isolated PostgreSQL is permitted; remote staging requires a separately reviewed runner');
 if(process.env.CI_ISOLATED_STAGING_CONFIRMED!=='yes')throw new Error('Explicit isolated staging confirmation required');
 const {default:pg}=await import('pg');
 const client=new pg.Client({connectionString:input,connectionTimeoutMillis:5000});
 try {
  await client.connect();
  const db=(await client.query('select current_database() as name')).rows[0].name;
+ if(!db.startsWith('ci_staging_'))throw new Error('REFUSED non-staging database name');
  const sql=await readFile(resolve('tests/continuity/staging-ledger-catalog-check.sql'),'utf8');
  await client.query('BEGIN READ ONLY');
  try{await client.query(sql)}finally{await client.query('ROLLBACK')}
