@@ -14,6 +14,12 @@ rejects('unconfirmed isolated database','postgresql://u:p@localhost/ci_staging_a
 rejects('default postgres database','postgresql://u:p@localhost/postgres');
 rejects('lookalike database name','postgresql://u:p@localhost/ci_staging');
 rejects('path traversal name','postgresql://u:p@localhost/ci_staging_a%2Fb');
+rejects('query host override','postgresql://u:p@localhost/ci_staging_a?host=remote.example.com');
+rejects('query database override','postgresql://u:p@localhost/ci_staging_a?dbname=postgres');
+rejects('query socket override','postgresql://u:p@localhost/ci_staging_a?host=/tmp');
+rejects('query connection options','postgresql://u:p@localhost/ci_staging_a?options=-csearch_path=public');
+rejects('fragment','postgresql://u:p@localhost/ci_staging_a#ignored');
 accepts('localhost isolated','postgresql://u:p@localhost/ci_staging_a');
 accepts('loopback isolated','postgresql://u:p@127.0.0.1/ci_staging_test');
+accepts('IPv6 loopback isolated','postgresql://u:p@[::1]/ci_staging_test');
 console.log(`${passed} staging-target assertions passed; no connections opened`);

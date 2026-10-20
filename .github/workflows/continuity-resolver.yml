@@ -6,6 +6,9 @@ on:
       - 'scripts/check-continuity-staging.mjs'
       - 'scripts/validate-staging-target.mjs'
       - 'scripts/staging-migration-spike.mjs'
+      - 'scripts/test-continuity-postgres.mjs'
+      - 'supabase/proposals/**'
+      - 'supabase/migrations/20261010_canonical_archive_photo_manifests_security.sql'
       - 'supabase/migrations/20261020_canonical_publication_ledger_PREPRODUCTION.sql'
       - '.github/workflows/continuity-resolver.yml'
   workflow_dispatch:
@@ -29,3 +32,33 @@ jobs:
           node --check scripts/check-continuity-staging.mjs
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@remote.example.com/ci_staging_fake' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: remote host permitted'; exit 1; else echo 'PASS: remote host rejected'; fi
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@db.bwdafrwkimjvwfoqomot.supabase.co/postgres' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: production guard allowed URL'; exit 1; else echo 'PASS: production URL rejected'; fi
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_fixture_only
+          POSTGRES_DB: ci_staging_ledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated test driver
+        run: npm install --prefix /tmp/ci-ledger-driver --ignore-scripts --no-audit --no-fund --save-exact pg@8.13.1 && ln -s /tmp/ci-ledger-driver/node_modules node_modules
+      - name: Test DDL, owner RLS, publication, revocation, races and safety reversal
+        env:
+          CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_ledger
+          CI_ISOLATED_STAGING_CONFIRMED: 'yes'
+        run: node scripts/test-continuity-postgres.mjs
