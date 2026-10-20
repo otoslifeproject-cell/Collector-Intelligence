@@ -3,6 +3,7 @@ import { Link,useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import InfoDisclosure from '../components/InfoDisclosure'
+import CanonicalArchivePanel from '../components/CanonicalArchivePanel'
 
 type KnowledgeRow = {
   id: string
@@ -42,12 +43,9 @@ export default function Research() {
   const [museumLoading,setMuseumLoading] = useState(false)
   const [tasks,setTasks] = useState<any[]>([])
   const [knowledge,setKnowledge] = useState<KnowledgeRow[]>([])
-  const [canonicalDocs,setCanonicalDocs] = useState<any[]>([])
   const [photoSessions,setPhotoSessions] = useState<any[]>([])
   const [conversationSources,setConversationSources] = useState<any[]>([])
   const [conversationClaims,setConversationClaims] = useState<any[]>([])
-  const [openDoc,setOpenDoc] = useState<any>(null)
-  const [loadingDoc,setLoadingDoc] = useState(false)
   const [entityKey,setEntityKey] = useState('')
   const [claim,setClaim] = useState('')
   const [sourceUrl,setSourceUrl] = useState('')
@@ -153,10 +151,9 @@ export default function Research() {
   }
 
   const load = async () => {
-    const [t,k,c,p,cs,cc,trusted,allComps,approvedComps,sourceResult] = await Promise.all([
+    const [t,k,p,cs,cc,trusted,allComps,approvedComps,sourceResult] = await Promise.all([
       supabase.from('research_tasks').select('*,items(item_code,title,current_attribution)').order('information_value',{ascending:false}),
       supabase.from('knowledge_records').select('*').order('created_at',{ascending:false}).limit(50),
-      supabase.from('canonical_documents').select('id,document_key,source_class,authority_rank,content_sha256,ingested_at').order('ingested_at',{ascending:false}).limit(100),
       supabase.from('intake_photo_sessions').select('session_key,photo_count,linked_analysis_run,link_method,first_uploaded_at').order('first_uploaded_at',{ascending:false}).limit(50),
       supabase.from('conversation_sources').select('id,source_title,source_format,source_sha256,extraction_status,captured_at').order('captured_at',{ascending:false}).limit(50),
       supabase.from('conversation_claims').select('id,source_id,source_locator,subject_key,claim_text,claim_type,certainty,created_at').order('created_at',{ascending:false}).limit(150),
@@ -174,12 +171,10 @@ export default function Research() {
     setTrustedIds((trusted.data||[]).map((x:any)=>x.id))
     if (trusted.error) setMessage('Trusted-only knowledge view unavailable: '+trusted.error.message)
     setKnowledge((k.data||[]) as KnowledgeRow[])
-    setCanonicalDocs(c.data||[])
     setPhotoSessions(p.data||[])
     setConversationSources(cs.data||[])
     setConversationClaims(cc.data||[])
     if (cs.error || cc.error) setMessage('Historical learning ledger could not be read: '+(cs.error?.message||cc.error?.message))
-    if (c.error) setMessage('Canonical source archive unavailable: '+c.error.message)
     if (k.error) setMessage('Knowledge Brain could not be read: '+k.error.message)
   }
   useEffect(()=>{void load()},[])
@@ -220,15 +215,6 @@ export default function Research() {
     setMessage('Source lead saved as UNVERIFIED. This does not confirm an attribution.')
     await load()
   }
-
-  const viewCanonical = async (id:string) => {
-    setLoadingDoc(true)
-    const {data,error} = await supabase.from('canonical_documents').select('document_key,content,content_sha256,source_path,ingested_at').eq('id',id).single()
-    setLoadingDoc(false)
-    if (error) { setMessage('Cannot read canonical document: '+error.message);return }
-    setOpenDoc(data)
-  }
-  const latestCanonical = canonicalDocs.filter((d:any,i:number,a:any[]) => a.findIndex(x=>x.document_key===d.document_key)===i)
 
   const current = knowledge.filter(k=>!knowledge.some(newer=>newer.supersedes_id===k.id))
   const selected = knowledge.find(k=>k.id===reviewId)
@@ -542,22 +528,7 @@ export default function Research() {
           <button className="primaryButton inlineButton" disabled={saving||!compChecked||compNote.trim().length<30||!compLocator.trim()} onClick={saveComparableReview}>Record evidence review</button></div>
       </div>}
     </details>
-    <details className="panel">
-      <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Project governance & source archive — details</summary>
-      <div>
-      <div className="panelHeader"><h2>Canonical project archive</h2><span>{latestCanonical.length} documents · exact stored versions</span></div>
-      <p>These are the controlling instructions, research rules, skills and project logs stored in the Collector Intelligence Supabase database. They are read-only and content-hashed.</p>
-      {canonicalDocs.length===0 ? <div className="empty">Canonical documents not available — do not rely on AI results until this is resolved.</div> :
-        <div className="tableWrap"><table><thead><tr><th>Document</th><th>Authority class</th><th>Stored SHA-256</th><th>Read</th></tr></thead><tbody>
-        {latestCanonical.map((d:any)=><tr key={d.id}><td>{d.document_key}</td><td>{d.source_class}</td><td><code>{String(d.content_sha256).slice(0,16)}…</code></td><td><button className="secondaryButton" disabled={loadingDoc} onClick={()=>viewCanonical(d.id)}>Read</button></td></tr>)}
-        </tbody></table></div>}
-      {openDoc && <div className="note">
-        <div><strong>{openDoc.document_key}</strong> · SHA-256 {openDoc.content_sha256}</div>
-        <button className="secondaryButton" onClick={()=>setOpenDoc(null)}>Close document</button>
-        <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:440,overflow:'auto'}}>{openDoc.content}</pre>
-      </div>}
-    </div>
-    </details>
+    <CanonicalArchivePanel client={supabase}/>
 
     <details className="panel">
       <summary style={{cursor:'pointer',fontWeight:700,padding:'8px 0'}}>Historical research archive — details</summary>

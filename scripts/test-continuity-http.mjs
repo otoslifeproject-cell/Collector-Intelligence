@@ -12,6 +12,7 @@ import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {continuityKongConfig} from './continuity-kong-config.mjs';
 import {loadApprovedCanonicalContext,canonicalCallerKeys} from '../src/lib/approvedCanonicalSources.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall} from '../src/lib/canonicalRuntime.ts';
+import {loadCanonicalArchive,readCanonicalArchiveVersion} from '../src/lib/canonicalArchive.ts';
 import intakeHandler from '../api/analyse-intake.ts';
 import researchHandler from '../api/research-item.ts';
 
@@ -228,6 +229,39 @@ try {
     const result=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'research');
     assert.equal(result.receipts.find(r=>r.document_key===workflowKey).document_id,documents[A.id][workflowKey]);
   });
+  // More than the platform's old 100-row UI cap, all explicitly unapproved.
+  // Ordinary reads must preserve these without promoting the latest import.
+  await admin.query(`insert into public.canonical_documents(owner_id,document_key,source_class,title,content,content_sha256,source_path,source_version,ingested_at)
+    select $1,$2,'WORKFLOW_SKILL',$2,'ARCHIVE PAGE FIXTURE '||n||repeat('x',500),'computed-by-trigger','DISPOSABLE_HTTP_FIXTURE','archive-page-'||n,
+      '2026-01-01'::timestamptz+n*interval '1 second' from generate_series(1,103) n`,[A.id,workflowKey]);
+  await admin.query(`insert into public.canonical_documents(owner_id,document_key,source_class,title,content,content_sha256,source_path,source_version)
+    values($1,'06_PHOTO_EXAMINATION.md','WORKFLOW_SKILL','Preserved placeholder','No readable content was returned for this fixture source','computed-by-trigger','DISPOSABLE_HTTP_FIXTURE','placeholder-fixture')`,[A.id]);
+  const archiveSDK=createClient(API,publishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  assert.ok(!(await archiveSDK.auth.signInWithPassword({email:'collector-ci-a@example.test',password})).error);
+  let archiveRows;
+  await check('actual SDK archive reader paginates all 110 owner versions without changing approved selection',async()=>{
+    archiveRows=await loadCanonicalArchive(archiveSDK);assert.equal(archiveRows.length,110);assert.ok(archiveRows.every(row=>row.owner_id===A.id));
+    assert.equal(archiveRows.filter(row=>row.document_key===workflowKey).length,105);
+    const approved=await loadApprovedCanonicalContext({url:API,key:publishableKey,token:A.token},'research');
+    assert.equal(approved.receipts.find(row=>row.document_key===workflowKey).document_id,documents[A.id][workflowKey]);
+  });
+  await check('actual SDK exact-version reads verify source bytes and retain unusable placeholders',async()=>{
+    const policy=archiveRows.find(row=>row.document_key==='03_SOURCE_AND_EVIDENCE_POLICY.md');
+    const result=await readCanonicalArchiveVersion(archiveSDK,policy);assert.equal(result.integrity,'MATCH');assert.equal(result.content,await read('tests/fixtures/governing-v4/03_SOURCE_AND_EVIDENCE_POLICY.md'));
+    const placeholder=await readCanonicalArchiveVersion(archiveSDK,archiveRows.find(row=>row.source_version==='placeholder-fixture'));
+    assert.equal(placeholder.integrity,'MATCH');assert.equal(placeholder.contentWarning,'placeholder');
+  });
+  await check('actual SDK archive content cannot cross owner boundaries through forged selection metadata',async()=>{
+    const foreign={...archiveRows[0],owner_id:B.id,id:documents[B.id][keys[0]]};
+    await assert.rejects(readCanonicalArchiveVersion(archiveSDK,foreign),/not available for your account/);
+    await assert.rejects(readCanonicalArchiveVersion(archiveSDK,{...foreign,owner_id:A.id}),/could not be read/);
+  });
+  // Runs the actual React component and SDK against these real disposable
+  // services in Chromium; never loads the production application or account.
+  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/archive-browser.config.mjs','--reporter=line'],{
+    env:{...process.env,CI_ARCHIVE_DISPOSABLE_CONFIRMED:'yes',CI_ARCHIVE_PUBLIC_KEY:publishableKey},timeout:300000,maxBuffer:4*1024*1024,
+  }).catch(error=>{console.error(error.stdout,error.stderr);throw Error('Disposable authenticated browser acceptance failed. See browser output.');});
+  console.log(browser.stdout,browser.stderr);
   await check('revocation fails required research set over real HTTP',async()=>{
     events[A.id][workflowKey]=await publish(pubA,documents[A.id][workflowKey],'REVOKE',events[A.id][workflowKey]);
     await expectSourceFailure(A.token,'CANONICAL_RESULT_INCOMPLETE');
@@ -266,7 +300,7 @@ try {
       assert.equal(external,0);
     }finally{globalThis.fetch=transport;for(const [key,value] of Object.entries(before)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
   });
-  console.log(`${passed} real Supabase Auth/PostgREST assertions passed. Disposable services only; real Kong key-auth gateway tested; no hosted project, hosted Envoy, browser or paid AI acceptance claimed.`);
+  console.log(`${passed} real Supabase Auth/PostgREST assertions passed. Disposable services and authenticated component browser tests only; hosted deployment and paid AI acceptance not claimed.`);
 } catch(error){
   for(const name of containers){try{const log=await exec('docker',['logs','--tail','35',name]);console.error(name,log.stdout,log.stderr);}catch{}}
   throw error;

@@ -13,7 +13,8 @@ export function continuityKongConfig(anonKey,publishableKey){
     services:[['auth','http://127.0.0.1:19999/','/auth/v1/'],['rest','http://127.0.0.1:13000/','/rest/v1/']].map(([name,url,path])=>({
       name,url,routes:[{name:name+'-all',strip_path:true,paths:[path]}],
       plugins:[
-        {name:'cors'},
+        {name:'cors',config:{origins:['http://127.0.0.1:15173'],exposed_headers:['Content-Range'],
+          headers:['apikey','Authorization','Content-Type','Prefer','Range','Range-Unit','Accept-Profile','X-Client-Info','X-Supabase-Api-Version','X-Supabase-Client-Platform','X-Supabase-Client-Platform-Version','X-Supabase-Client-Runtime','X-Supabase-Client-Runtime-Version']}},
         {name:'key-auth',config:{hide_credentials:false,key_names:['apikey'],key_in_header:true,key_in_query:false,key_in_body:false}},
         {name:'request-transformer',config:{add:{headers:['Authorization: '+authorization]},replace:{headers:['Authorization: '+authorization]}}},
         {name:'acl',config:{hide_groups_header:true,allow:['anon']}},
