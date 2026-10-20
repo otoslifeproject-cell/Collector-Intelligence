@@ -4,12 +4,12 @@ const governingHashes: Record<string,string> = {
   '02_MASTER_PROJECT_BRIEF.md':'4237146b7142b62f9bc423fcbbb42d3205899eef67ca8135cf7dc066904292a2',
   '03_SOURCE_AND_EVIDENCE_POLICY.md':'1eeab79c9ac903ff7ca69b6dcf15f9c38a9e2a273698e910c7926dd60e74b7e4',
 };
-export const canonicalCallerKeys = {
-  intake:['02_MASTER_PROJECT_BRIEF.md','03_SOURCE_AND_EVIDENCE_POLICY.md','01_PROJECT_INSTRUCTIONS.md','06_PHOTO_EXAMINATION.md'],
-  research:['02_MASTER_PROJECT_BRIEF.md','03_SOURCE_AND_EVIDENCE_POLICY.md','03_COMPARABLE_RESEARCH.md'],
-} as const;
-type Caller = keyof typeof canonicalCallerKeys;
-type Config = {url:string;key:string;token:string};
+export const canonicalCallerKeys = Object.freeze({
+  intake:Object.freeze(['02_MASTER_PROJECT_BRIEF.md','03_SOURCE_AND_EVIDENCE_POLICY.md','01_PROJECT_INSTRUCTIONS.md','06_PHOTO_EXAMINATION.md'] as const),
+  research:Object.freeze(['02_MASTER_PROJECT_BRIEF.md','03_SOURCE_AND_EVIDENCE_POLICY.md','03_COMPARABLE_RESEARCH.md'] as const),
+});
+export type CanonicalCaller = keyof typeof canonicalCallerKeys;
+export type CanonicalSourceConfig = {url:string;key:string;token:string};
 type Source = {id:string;owner_id:string;document_key:string;source_version:string;content_sha256:string;content:string;approval_event_id:string};
 export class CanonicalSourceError extends Error {
   code:string;
@@ -22,7 +22,7 @@ async function sha256(content:string){
   return Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
 }
 
-export async function loadApprovedCanonicalContext(config:Config,caller:Caller,fetcher:typeof fetch=fetch){
+export async function loadApprovedCanonicalContext(config:CanonicalSourceConfig,caller:CanonicalCaller,fetcher:typeof fetch=fetch){
   if(!config.token || !config.key || !config.url)fail('CANONICAL_CONFIG_MISSING');
   if(!Object.hasOwn(canonicalCallerKeys,caller))fail('CANONICAL_CALLER_INVALID');
   const keys:readonly string[]=canonicalCallerKeys[caller];

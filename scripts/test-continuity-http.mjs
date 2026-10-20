@@ -8,6 +8,9 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {loadApprovedCanonicalContext,canonicalCallerKeys} from '../src/lib/approvedCanonicalSources.ts';
+import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall} from '../src/lib/canonicalRuntime.ts';
+import intakeHandler from '../api/analyse-intake.ts';
+import researchHandler from '../api/research-item.ts';
 
 const input=process.env.CI_STAGING_DATABASE_URL;
 const target=assertIsolatedDatabaseConfig(input,process.env.CI_ISOLATED_STAGING_CONFIRMED);
@@ -148,8 +151,10 @@ try {
   await check('unpublished keyset stops reader before inference',()=>expectSourceFailure(A.token,'CANONICAL_RESULT_INCOMPLETE'));
   for(const [user,pub] of [[A,pubA],[B,pubB]])for(const key of keys)events[user.id][key]=await publish(pub,documents[user.id][key]);
   let receiptA;
+  let runtimeA;
   await check('real Auth and PostgREST return full research keyset and genuine v4 policy pins',async()=>{
     receiptA=await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:A.token},'research');
+    runtimeA=await loadCanonicalForCaller({url:API,key:'disposable-key',token:A.token},'research','approved-v1',()=>{throw Error('Legacy fallback forbidden');});
     assert.equal(receiptA.ownerId,A.id);assert.equal(receiptA.receipts.length,3);
     for(const source of receiptA.receipts)assert.equal(source.document_id,documents[A.id][source.document_key]);
   });
@@ -193,6 +198,9 @@ try {
   await check('revocation fails required research set over real HTTP',async()=>{
     events[A.id][workflowKey]=await publish(pubA,documents[A.id][workflowKey],'REVOKE',events[A.id][workflowKey]);
     await expectSourceFailure(A.token,'CANONICAL_RESULT_INCOMPLETE');
+    let paid=0;
+    await assert.rejects(async()=>{await revalidateCanonicalBeforePaidCall({url:API,key:'disposable-key',token:A.token},'research',runtimeA);paid++;},e=>e.code==='CANONICAL_RESULT_INCOMPLETE');
+    assert.equal(paid,0);
     assert.equal((await loadApprovedCanonicalContext({url:API,key:'disposable-key',token:B.token},'research')).ownerId,B.id);
   });
   await check('reviewed reapproval restores complete source set and new receipt',async()=>{
@@ -209,6 +217,21 @@ try {
     await admin.query(await read('supabase/proposals/canonical-publication-disable.sql'));
     await expectSourceFailure(A.token,'CANONICAL_APPROVED_ACCESS_FAILED');
     assert.equal((await admin.query('select count(*)::int as n from public.ci_canonical_publication_events')).rows[0].n,before);
+  });
+  await check('both real server handlers stop before provider dispatch with real Auth and disabled REST grants',async()=>{
+    const env={NEXT_PUBLIC_SUPABASE_URL:API,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'disposable-key',
+      COLLECTOR_CANONICAL_SOURCE_MODE:'approved-v1',OPENAI_API_KEY:'disposable-no-provider',AI_GATEWAY_API_KEY:'',VERCEL_OIDC_TOKEN:''};
+    const before=Object.fromEntries(Object.keys(env).map(k=>[k,process.env[k]])),transport=globalThis.fetch;
+    let external=0;Object.assign(process.env,env);
+    globalThis.fetch=(url,init)=>{if(new URL(url).origin!==API){external++;throw Error('External call blocked by disposable test');}return transport(url,init);};
+    try{
+      for(const handler of [intakeHandler,researchHandler]){
+        const res={code:0,body:null,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
+        await handler({method:'POST',headers:{authorization:'Bearer '+A.token},body:{}},res);
+        assert.equal(res.code,503);assert.equal(res.body.code,'CANONICAL_APPROVED_ACCESS_FAILED');
+      }
+      assert.equal(external,0);
+    }finally{globalThis.fetch=transport;for(const [key,value] of Object.entries(before)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
   });
   console.log(`${passed} real Supabase Auth/PostgREST assertions passed. Disposable services only; no hosted project, API-key gateway, browser or paid AI acceptance claimed.`);
 } catch(error){

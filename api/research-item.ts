@@ -1,3 +1,6 @@
+import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
+import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
+
 const researchSchema = {
   type: "object",
   additionalProperties: false,
@@ -126,6 +129,10 @@ function extractText(payload: any) {
 }
 
 async function loadPricingCanon(url: string, key: string, token: string) {
+ return loadCanonicalForCaller({url,key,token},'research',process.env.COLLECTOR_CANONICAL_SOURCE_MODE,
+   ()=>loadLegacyPricingCanon(url,key,token));
+}
+async function loadLegacyPricingCanon(url: string, key: string, token: string) {
  const names = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","03_COMPARABLE_RESEARCH.md"];
  const qp = new URLSearchParams({select:"document_key,content,content_sha256,ingested_at,source_version",is_current:"eq.true",document_key:"in.("+names.join(",")+")",order:"ingested_at.desc",limit:"100"});
  const response=await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
@@ -173,6 +180,7 @@ function checkResearchEvidence(result:any) {
    }
  }
  const audited={model_claimed_sold_candidates:sold.length,verified_sold_results:0,all_comparables:comps.length,independent_source_verification:false,
+   trusted_database_comparables:0,trusted_comparable_ids:[] as string[],
    warning:"The AI has supplied source classifications; direct source verification must be carried out separately."};
  // Even two AI-labelled sold candidates do not establish externally verified realisations.
  if(true){
@@ -241,7 +249,7 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
-  let canonical:{instructions:string,hashes:Record<string,string>};
+  let canonical:CanonicalRuntimeContext;
   try {canonical=await loadPricingCanon(supabaseUrl,supabaseKey,token);}
   catch(e){return res.status(503).json({error:"Collector Intelligence source policy unavailable; research stopped to prevent drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"});}
   let trustedKnowledge:any[];
@@ -398,13 +406,9 @@ export default async function handler(req: any, res: any) {
       result:researchEnvelope.result,
       source_audit:researchEnvelope.result.source_audit||null,
       canonical_policy_hashes:researchEnvelope.result.canonical_policy_hashes||null,
+      canonical_source_audit:researchEnvelope.result.canonical_source_audit||null,
       reused_saved_result:true
     });
-  try{
-    const claim=await claimResearchRun(supabaseUrl,supabaseKey,token,research_run_id);
-    if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
-  }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
-
   if(!draftMode){
     try{
       const qp=new URLSearchParams({
@@ -533,6 +537,15 @@ export default async function handler(req: any, res: any) {
     ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
     : configuredModel.replace(/^openai\//, "");
 
+  // Finish all fallible preflight reads before claiming a paid run. In approved
+  // mode, a revocation/republication stops dispatch and leaves the run STAGED.
+  try{canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'research',canonical);}
+  catch(e){return res.status(503).json({error:'Approved source set changed or became unavailable before research dispatch. No AI request made.',code:e instanceof Error?e.message:'CANONICAL_RECHECK_FAILED'});}
+  try{
+    const claim=await claimResearchRun(supabaseUrl,supabaseKey,token,research_run_id);
+    if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
+  }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
+
   const body = {
     model,
     reasoning: { effort: "high" },
@@ -560,7 +573,7 @@ export default async function handler(req: any, res: any) {
     source_audit.trusted_database_comparables=trustedComparableRows.length;
     source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
     const savedResult={
-      ...result,source_audit,canonical_policy_hashes:canonical.hashes,
+      ...result,source_audit,canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
       research_depth:depth,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
       analysis_stage:'COMPLETE',response_id:payload.id||null
     };
@@ -576,7 +589,8 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       saved_run_id:research_run_id,model:payload.model||body.model,
       response_id:payload.id||null,result:savedResult,source_audit,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     });
   } catch {
     return res.status(502).json({error:"Could not parse structured research output",raw:text.slice(0,2000)});

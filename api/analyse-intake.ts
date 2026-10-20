@@ -1,3 +1,7 @@
+import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
+import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
+import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
+
 const schema = {
   type: "object",
   additionalProperties: false,
@@ -211,7 +215,7 @@ async function loadOwnerMaterialLessons(url:string,key:string,token:string){
 // to verified attribution without corroborating its original source.
 async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userToken: string, result: any) {
   const objects = Array.isArray(result?.objects) ? result.objects : [];
-  const terms = [...new Set(objects.flatMap((o: any) =>
+  const terms = [...new Set<string>(objects.flatMap((o: any) =>
     [o.object_type, o.maker, o.current_attribution, o.marks_signatures_labels]
       .filter((v: any) => typeof v === "string")
       .flatMap((v: string) => v.toLowerCase().match(/[a-zÀ-ÿ]{4,}/g) || [])
@@ -283,6 +287,10 @@ function extractText(payload: any) {
 // Owner-scoped, versioned canonical policy retrieval before paid inference.
 // Fail closed: never silently fall back to an out-of-date prompt.
 async function loadCanonicalContext(url: string, key: string, token: string) {
+  return loadCanonicalForCaller({url,key,token},'intake',process.env.COLLECTOR_CANONICAL_SOURCE_MODE,
+    ()=>loadLegacyCanonicalContext(url,key,token));
+}
+async function loadLegacyCanonicalContext(url: string, key: string, token: string) {
   const keys = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","01_PROJECT_INSTRUCTIONS.md","06_PHOTO_EXAMINATION.md"];
   const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at,source_version",is_current:"eq.true",document_key:"in.("+keys.join(",")+")",order:"ingested_at.desc",limit:"100"});
   const resp = await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{
@@ -356,7 +364,7 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
-  let canonical: {instructions:string,hashes:Record<string,string>};
+  let canonical: CanonicalRuntimeContext;
   try { canonical = await loadCanonicalContext(supabaseUrl,supabaseKey,token); }
   catch (e) { return res.status(503).json({error:"Required Collector Intelligence policy cannot be loaded; AI analysis stopped to prevent policy drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"}); }
 
@@ -415,6 +423,10 @@ export default async function handler(req: any, res: any) {
   const model = useGateway
     ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
     : configuredModel.replace(/^openai\//, "");
+
+  // A publication change during photo/knowledge preflight must stop this dispatch.
+  try { canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical); }
+  catch(e){return res.status(503).json({error:'Approved source set changed or became unavailable before AI dispatch. No AI request made.',code:e instanceof Error?e.message:'CANONICAL_RECHECK_FAILED'});}
 
   const body = {
     model,
@@ -481,6 +493,7 @@ export default async function handler(req: any, res: any) {
         initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
         image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
         canonical_policy_hashes:canonical.hashes,
+        canonical_source_audit:canonicalSourceAudit(canonical),
         knowledge_lookup:{status:'PENDING',matches:[]},
         material_correction_lessons_consulted:ownerMaterialLessons.length
       });
@@ -508,6 +521,9 @@ export default async function handler(req: any, res: any) {
         detailContent.push({type:"input_image",image_url:image.url,detail:"original"});
       }
       try {
+        // The first answer is already saved. A revoked/changed source blocks
+        // this additional paid pass while preserving that original answer.
+        canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical);
         const markResponse = await fetch(
           useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
           {
@@ -542,7 +558,7 @@ export default async function handler(req: any, res: any) {
           console.warn("Inscription review unavailable", markResponse.status);
         }
       } catch (err) {
-        inscription_review_status = 'REVIEW_ERROR';
+        inscription_review_status = err instanceof CanonicalSourceError?'SOURCE_GATE_'+err.code:'REVIEW_ERROR';
         console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
       }
     }
@@ -552,7 +568,8 @@ export default async function handler(req: any, res: any) {
       initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
       image_manifest_version:1,analysis_stage:'COMPLETE',
       inscription_review,inscription_review_status,knowledge_lookup,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     };
     try{
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,savedResult);
@@ -567,7 +584,8 @@ export default async function handler(req: any, res: any) {
       inscription_review,
       inscription_review_status,
       knowledge_lookup,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     });
   } catch {
     return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
