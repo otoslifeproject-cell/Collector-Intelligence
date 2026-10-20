@@ -69,9 +69,6 @@ try {
     CREATE SCHEMA extensions; CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
     GRANT USAGE ON SCHEMA extensions TO supabase_auth_admin,authenticated,anon;
     ALTER ROLE supabase_auth_admin SET search_path TO auth,public,extensions;
-    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
-    $$SELECT coalesce(nullif(current_setting('request.jwt.claim.sub',true),''),
-       (nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub'))::uuid$$;
     GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);
   // Versions verified from the official self-hosted compose on 20 Oct 2026.
   await start('auth','supabase/gotrue:v2.197.0',{
@@ -84,6 +81,11 @@ try {
     GOTRUE_EXTERNAL_PHONE_ENABLED:'false',GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED:'false',
   });
   await waitFor(`${AUTH}/health`,r=>r.ok);
+  // GoTrue owns/creates its historical auth helper during its own migrations.
+  // Only after startup, install the platform-compatible PostgREST claims helper.
+  await admin.query(`CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
+    $$SELECT coalesce(nullif(current_setting('request.jwt.claim.sub',true),''),
+      (nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub'))::uuid$$;`);
   const original=await read('supabase/migrations/20261010_canonical_archive_photo_manifests_security.sql');
   await admin.query(original.slice(0,original.indexOf('create table if not exists public.intake_photo_sessions')));
   await admin.query('REVOKE ALL ON public.canonical_documents FROM PUBLIC,anon,authenticated; GRANT SELECT ON public.canonical_documents TO authenticated;');
