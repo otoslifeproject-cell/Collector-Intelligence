@@ -5,6 +5,7 @@ on:
       - 'tests/continuity/**'
       - 'scripts/check-continuity-staging.mjs'
       - 'scripts/validate-staging-target.mjs'
+      - 'scripts/staging-migration-spike.mjs'
       - 'supabase/migrations/20261020_canonical_publication_ledger_PREPRODUCTION.sql'
       - '.github/workflows/continuity-resolver.yml'
   workflow_dispatch:
@@ -24,6 +25,7 @@ jobs:
           node tests/continuity/multi-document.test.mjs
           node tests/continuity/migration-guards.test.mjs
           node tests/continuity/staging-target.test.mjs
+          node scripts/staging-migration-spike.mjs
           node --check scripts/check-continuity-staging.mjs
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@remote.example.com/ci_staging_fake' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: remote host permitted'; exit 1; else echo 'PASS: remote host rejected'; fi
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@db.bwdafrwkimjvwfoqomot.supabase.co/postgres' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: production guard allowed URL'; exit 1; else echo 'PASS: production URL rejected'; fi
