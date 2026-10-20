@@ -2,15 +2,9 @@
 // STAGING ONLY. Refuses production Collector Intelligence database by project reference.
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-const prod='bwdafrwkimjvwfoqomot';
+import { assertIsolatedDatabaseConfig } from './validate-staging-target.mjs';
 const input=process.env.CI_STAGING_DATABASE_URL;
-if(!input)throw new Error('CI_STAGING_DATABASE_URL required: no connection attempted');
-let uri;try{uri=new URL(input)}catch{throw new Error('Invalid database URL')}
-if(!['postgres:','postgresql:'].includes(uri.protocol))throw new Error('Expected PostgreSQL URL');
-const host=uri.hostname.toLowerCase();
-if(host.includes(prod))throw new Error('REFUSED production Supabase project');
-if(!['localhost','127.0.0.1','::1'].includes(host))throw new Error('Only local isolated PostgreSQL is permitted; remote staging requires a separately reviewed runner');
-if(process.env.CI_ISOLATED_STAGING_CONFIRMED!=='yes')throw new Error('Explicit isolated staging confirmation required');
+assertIsolatedDatabaseConfig(input,process.env.CI_ISOLATED_STAGING_CONFIRMED);
 const {default:pg}=await import('pg');
 const client=new pg.Client({connectionString:input,connectionTimeoutMillis:5000});
 try {
