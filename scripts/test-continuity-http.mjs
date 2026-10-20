@@ -103,6 +103,7 @@ try {
   await waitFor(`${REST}/`,r=>r.status<500);
   // Prefix routing only. Actual Auth/JWT validation and database RLS are upstream.
   // This fixture is not a production API-key gateway (Kong/Envoy) acceptance test.
+  const upstreamTransport=globalThis.fetch;
   gateway=createServer(async(req,res)=>{
     try{
       const base=req.url.startsWith('/auth/v1/')?AUTH:req.url.startsWith('/rest/v1/')?REST:null;
@@ -110,7 +111,7 @@ try {
       const chunks=[];let length=0;
       for await(const chunk of req){length+=chunk.length;if(length>65536)throw Error('Fixture body too large');chunks.push(chunk);}
       const headers={...req.headers};delete headers.host;delete headers['content-length'];delete headers.connection;
-      const upstream=await fetch(base+req.url.replace(/^\/(auth|rest)\/v1/,''),{
+      const upstream=await upstreamTransport(base+req.url.replace(/^\/(auth|rest)\/v1/,''),{
         method:req.method,headers,body:chunks.length?Buffer.concat(chunks):undefined,redirect:'error',signal:AbortSignal.timeout(5000),
       });
       const returned=Object.fromEntries(upstream.headers);
