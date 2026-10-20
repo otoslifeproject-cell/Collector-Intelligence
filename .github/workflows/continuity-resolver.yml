@@ -20,3 +20,5 @@ jobs:
           node tests/continuity/test.mjs
           node tests/continuity/multi-document.test.mjs
           node tests/continuity/migration-guards.test.mjs
+          node --check scripts/check-continuity-staging.mjs
+          if CI_STAGING_DATABASE_URL='postgresql://fake:fake@db.bwdafrwkimjvwfoqomot.supabase.co/postgres' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: production guard allowed URL'; exit 1; else echo 'PASS: production URL rejected'; fi
