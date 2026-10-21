@@ -85,6 +85,10 @@ try{
  for(const path of ['001_core_schema.sql','002_rls_and_storage.sql','004_ai_intake.sql','20261017_append_only_owner_verdict_feedback.sql',
   '20261016_atomic_photo_first_approval_v1.sql','20261017_reviewed_material_evidence_on_catalogue_v6.sql','20261016_block_partial_analysis_catalogue_approval.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/catalogue-approval-input-guards.sql'));
+ // Install every application RPC before PostgREST builds its schema cache.
+ for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
+ await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));
+ await admin.query('GRANT SELECT ON public.comparables TO authenticated; GRANT SELECT,INSERT,UPDATE ON public.sale_outcomes,public.listings TO authenticated');
  await admin.query(`GRANT SELECT,INSERT,UPDATE ON public.items,public.item_photos,public.item_evidence,public.attribution_history,public.research_tasks,public.ai_analysis_runs TO authenticated;
   GRANT USAGE,SELECT ON SEQUENCE public.item_code_seq TO authenticated`);
  await start('rest','postgrest/postgrest:v14.18',{
@@ -109,15 +113,12 @@ try{
   users.push({id:login.data.user.id,token:login.data.session.access_token,client});
  }
  const [A,B]=users,anon=createClient(API,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
- for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
- await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));
- await admin.query('GRANT SELECT ON public.comparables TO authenticated; GRANT SELECT,INSERT,UPDATE ON public.sale_outcomes,public.listings TO authenticated');
  await exercisePhotoStorage({admin,check,A,B,anon,API});
  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
   env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:300000,maxBuffer:4*1024*1024,
  }).catch(error=>{console.error(error.stdout,error.stderr);throw Error('Disposable photo application browser acceptance failed. See browser output.');});
  console.log(browser.stdout,browser.stderr);
- console.log(`${passed} real Supabase Storage byte assertions passed. Disposable file backend, genuine Auth/Kong/REST/SDK only; hosted S3/CDN/full application UI not claimed.`);
+ console.log(`${passed} real Supabase Storage byte assertions passed. Disposable file backend with genuine Auth/Kong/REST/SDK; browser output covers the exercised full-application routes, not hosted S3/CDN or untested flows.`);
 }catch(error){
  for(const container of containers){try{const log=await exec('docker',['logs','--tail','45',container],{maxBuffer:2*1024*1024});console.error(container,log.stdout,log.stderr);}catch{}}
  throw error;

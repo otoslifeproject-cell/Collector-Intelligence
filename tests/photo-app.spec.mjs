@@ -61,6 +61,15 @@ test('unavailable saved-link readback stays uncertain until deliberate retry, wi
  await choose(page,[40]);await expect(panel(page).getByRole('status')).toContainText('1 still need confirmation');expect(await rows(item.id)).toHaveLength(1);
  await page.unroute(metadata);await panel(page).getByRole('button',{name:'Retry pending photographs',exact:true}).click();await confirmed(page);expect(requests.posts).toHaveLength(1);expect(requests.uploads).toHaveLength(1);
 });
+test('partial batch retry keeps original positions and retries only the unconfirmed link',async({page})=>{
+ const item=await seed();const requests=await visit(page,item.id);let denied=false;
+ await page.route(metadata,route=>{if(route.request().method()!=='POST'||denied)return route.fallback();denied=true;return route.fulfill({status:403,json:{code:'42501',message:'Synthetic first link denial'}});});
+ const files=await choose(page);await expect(panel(page).getByRole('status')).toContainText('1 original photographs confirmed; 1 still need confirmation');await decoded(page,1);
+ const partial=await rows(item.id);expect(partial.map(row=>row.position)).toEqual([1]);expect(requests.uploads).toHaveLength(2);expect(requests.posts).toHaveLength(2);await original(requests.posts[0].storage_path,files[0].buffer);
+ await page.unroute(metadata);await panel(page).getByRole('button',{name:'Retry pending photographs',exact:true}).click();await confirmed(page);await decoded(page,2);
+ const saved=await rows(item.id);expect(saved.map(row=>row.position)).toEqual([0,1]);expect(saved.map(row=>row.file_name)).toEqual(files.map(file=>file.name));expect(requests.uploads).toHaveLength(2);expect(requests.posts).toHaveLength(3);expect(requests.posts[2]).toEqual(requests.posts[0]);expect(saved[1].id).toBe(partial[0].id);
+ for(let index=0;index<saved.length;index++)await original(saved[index].storage_path,files[index].buffer);
+});
 test('lost Storage acknowledgement recovers exact committed original before linking it',async({page})=>{
  const item=await seed();const requests=await visit(page,item.id);
  await page.route(objects,async route=>{if(route.request().method()!=='POST')return route.fallback();const response=await route.fetch();expect(response.ok()).toBe(true);return route.abort('connectionreset');});
