@@ -51,7 +51,7 @@ async function reauthenticate(page,letter){await page.evaluate(async letter=>{co
 for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(`actual catalogue route ${width}px ${theme}: review, original links and refresh`,async({page})=>{
  await page.setViewportSize({width,height:900});const run=await seed(),requests=await visit(page,run.id,theme);expect(await children(run.id)).toHaveLength(0);expect(requests.requests).toHaveLength(0);
  await expect(page.locator('.ci-record-card .itemCardImage img')).toHaveCount(2);await expect.poll(()=>page.locator('.ci-record-card .itemCardImage img').evaluateAll(images=>images.every(image=>image.complete&&image.naturalWidth===2))).toBe(true);
- const form=await review(page);await form.getByLabel('Object title',{exact:true}).fill('Owner reviewed title');await form.getByLabel('Your condition notes',{exact:true}).fill('Owner observed condition retained');
+ const form=await review(page);await form.getByLabel('Object title',{exact:true}).fill('Owner reviewed title');await form.getByRole('textbox',{name:'Your condition notes',exact:true}).fill('Owner observed condition retained');
  await page.screenshot({path:`test-artifacts/catalogue-app-${width}-${theme}-review.png`,fullPage:true});await action(page).click();await saved(page);
  const items=await intact(run);expect(items[0].title).toBe('Owner reviewed title');expect(items[0].condition_summary).toBe('Owner observed condition retained');
  for(const item of items){const photos=await links(item.id);expect(photos.map(p=>p.position)).toEqual(run.original.objects[item.source_object_index].image_indices);expect(photos[0].storage_path).toBe(run.manifest[item.source_object_index].storage_path);}

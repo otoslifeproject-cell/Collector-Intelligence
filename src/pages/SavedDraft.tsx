@@ -70,6 +70,8 @@ function SavedDraftRecord({id}:{id:string}){
  const changeView=(v:'tiles'|'list'|'compact')=>{setView(v);try{window.localStorage.setItem('ci-inventory-view',v)}catch{}}
  useEffect(()=>{
   alive.current=true
+  let active=true
+  const current=()=>active&&alive.current
   async function load(){
    try{
    setBusy(true);setError('');setRun(null);setImages({})
@@ -91,7 +93,7 @@ function SavedDraftRecord({id}:{id:string}){
    }
    const {data:feedbackRows,error:feedbackError,count:feedbackCount}=await supabase.from('ai_verdict_feedback')
     .select('id,source_object_index,feedback_type,corrected_material,owner_statement,created_at',{count:'exact'})
-    .eq('owner_id',report.owner_id).eq('source_analysis_run_id',report.id).order('created_at',{ascending:false}).limit(501)
+    .eq('owner_id',report.owner_id).eq('source_analysis_run_id',report.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(501)
    if(!current())return
    if(feedbackError||!feedbackRows||feedbackCount===null||feedbackCount>500||feedbackCount!==feedbackRows.length){setError('Complete owner corrections unavailable; reload this report before further actions.');setRun(null);setBusy(false);return}
    setVerdictFeedback(feedbackRows||[])
@@ -114,7 +116,7 @@ function SavedDraftRecord({id}:{id:string}){
    finally{if(current())setBusy(false)}
   }
   void load()
-  return ()=>{alive.current=false}
+  return ()=>{active=false;alive.current=false}
  },[id])
  useEffect(()=>{if(!approving&&saveStatus)approvalStatus.current?.focus()},[approving,saveStatus])
  const save=async()=>{
@@ -259,7 +261,7 @@ function SavedDraftRecord({id}:{id:string}){
   finally{approvalBusy.current=false;if(current())setApproving(false)}
  }
  const approveSaved=async()=>{
-  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approvalBusy.current||saving||pendingApproval||busy||error)return
+  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approvalBusy.current||saving||researching||savingDisagreement||pendingApproval||busy||error)return
   if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
   if(needsPhotoCorrection&&!confirmedPhotoCorrection){setSaveStatus('Confirm the valid source photo mapping before approval.');return}
   approvalBusy.current=true;setApproving(true);setSaveStatus('Saving catalogue and linking original photographs…')
@@ -369,7 +371,7 @@ function SavedDraftRecord({id}:{id:string}){
    </label>}
    {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&!pendingApproval&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={busy||!!error||saving||approving} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
-    <button className="primaryButton" disabled={busy||!!error||approving||saving||!isPhotoManifestReady||!selectedIndices.length||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={approveSaved}>
+    <button className="primaryButton" disabled={busy||!!error||approving||saving||researching||savingDisagreement||!isPhotoManifestReady||!selectedIndices.length||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={approveSaved}>
      {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
     </button>
    </div>}
@@ -377,7 +379,7 @@ function SavedDraftRecord({id}:{id:string}){
     <button className="primaryButton" disabled={approving} onClick={()=>void recoverApproval(false)}>Check catalogue result</button>
     <button className="secondaryButton" disabled={approving} onClick={()=>void recoverApproval(true)}>Retry same catalogue approval</button>
    </div>}
-   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&<p className="ci-action-hint">Select the objects to catalogue.</p>}
+   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&!pendingApproval&&<p className="ci-action-hint">Select the objects to catalogue.</p>}
    {catalogued.length>0&&<div className="panel ci-catalogued-result" role="region" aria-label="Saved catalogue records">
     <h2>Objects safely catalogued</h2>
     <div className="ci-catalogued-links">{catalogued.map(item=><Link key={item.item_id} to={'/item/'+item.item_id} className="secondaryButton inlineButton">{item.item_code} · {item.title||'Object'}</Link>)}</div>
