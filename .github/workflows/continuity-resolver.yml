@@ -37,6 +37,8 @@ on:
       - 'scripts/test-research-sessions.mjs'
       - 'scripts/test-catalogue-approval.mjs'
       - 'scripts/test-sale-capture.mjs'
+      - 'scripts/test-photo-storage.mjs'
+      - 'scripts/test-photo-storage-cases.mjs'
       - 'tests/fixtures/research-session-support.sql'
       - 'tests/fixtures/catalogue-storage-metadata.sql'
       - 'supabase/migrations/001_core_schema.sql'
@@ -165,3 +167,34 @@ jobs:
       - run: npm run check:api
       - run: node --experimental-strip-types --test tests/*.test.mjs tests/continuity/archive-reader.test.mjs
       - run: npm run build
+
+  photo-storage-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_fixture_only
+          POSTGRES_DB: ci_staging_storage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ci_staging_storage"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked SDK and PostgreSQL driver
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test actual private Storage bytes and original-photo catalogue retention
+        env:
+          CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_storage
+          CI_ISOLATED_STAGING_CONFIRMED: 'yes'
+        run: node scripts/test-photo-storage.mjs
