@@ -39,6 +39,8 @@ on:
       - 'scripts/test-sale-capture.mjs'
       - 'scripts/test-photo-storage.mjs'
       - 'scripts/test-photo-storage-cases.mjs'
+      - 'tests/photo-app-browser.config.mjs'
+      - 'tests/photo-app.spec.mjs'
       - 'tests/fixtures/research-session-support.sql'
       - 'tests/fixtures/catalogue-storage-metadata.sql'
       - 'supabase/migrations/001_core_schema.sql'
@@ -193,8 +195,19 @@ jobs:
           node-version: '22'
       - name: Install locked SDK and PostgreSQL driver
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium for actual photo application acceptance
+        run: npx playwright install --with-deps chromium
       - name: Test actual private Storage bytes and original-photo catalogue retention
         env:
           CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_storage
           CI_ISOLATED_STAGING_CONFIRMED: 'yes'
         run: node scripts/test-photo-storage.mjs
+
+      - name: Preserve actual photo application screenshots and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-photo-application-browser
+          path: test-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

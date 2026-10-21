@@ -94,7 +94,8 @@ try{
  // Like the official Storage route: the service validates JWT/RLS; signed
  // download capabilities must work without API keys. No privileged API key is
  // registered. Owner clients already send genuine user JWTs, passed untouched.
- config.services.push({name:'storage',url:STORAGE+'/',routes:[{name:'storage-all',strip_path:true,paths:['/storage/v1/']}],plugins:[config.services[0].plugins.find(p=>p.name==='cors')]});
+ config.services.push({name:'storage',url:STORAGE+'/',routes:[{name:'storage-all',strip_path:true,paths:['/storage/v1/']}],plugins:[{name:'cors',config:{...config.services[0].plugins.find(p=>p.name==='cors').config,headers:[...config.services[0].plugins.find(p=>p.name==='cors').config.headers,'x-upsert','cache-control','x-metadata']}}]});
+ for(const service of config.services)service.plugins.find(plugin=>plugin.name==='cors').config.origins=['http://127.0.0.1:15173','http://127.0.0.1:15174'];
  directory=await mkdtemp(join(tmpdir(),'ci-photo-gateway-'));await chmod(directory,0o755);
  await writeFile(join(directory,'kong.json'),JSON.stringify(config),{mode:0o644});
  await start('gateway','kong/kong:3.9.3',{KONG_DATABASE:'off',KONG_DECLARATIVE_CONFIG:'/ci-fixture/kong.json',KONG_PROXY_LISTEN:'127.0.0.1:18000',KONG_ADMIN_LISTEN:'off',KONG_STATUS_LISTEN:'off',KONG_NGINX_WORKER_PROCESSES:'1',KONG_PROXY_ACCESS_LOG:'off',KONG_LOG_LEVEL:'warn'},['--mount',`type=bind,source=${directory},target=/ci-fixture,readonly`]);
@@ -108,7 +109,12 @@ try{
   users.push({id:login.data.user.id,token:login.data.session.access_token,client});
  }
  const [A,B]=users,anon=createClient(API,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+ await admin.query('GRANT SELECT ON public.comparables TO authenticated');
  await exercisePhotoStorage({admin,check,A,B,anon,API});
+ const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
+  env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:300000,maxBuffer:4*1024*1024,
+ }).catch(error=>{console.error(error.stdout,error.stderr);throw Error('Disposable photo application browser acceptance failed. See browser output.');});
+ console.log(browser.stdout,browser.stderr);
  console.log(`${passed} real Supabase Storage byte assertions passed. Disposable file backend, genuine Auth/Kong/REST/SDK only; hosted S3/CDN/full application UI not claimed.`);
 }catch(error){
  for(const container of containers){try{const log=await exec('docker',['logs','--tail','45',container],{maxBuffer:2*1024*1024});console.error(container,log.stdout,log.stderr);}catch{}}

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-function png(value){
+export function syntheticStoragePNG(value){
  const crc=bytes=>{let n=0xffffffff;for(const byte of bytes){n^=byte;for(let i=0;i<8;i++)n=(n>>>1)^((n&1)?0xedb88320:0);}return(n^0xffffffff)>>>0;};
  const chunk=(type,body)=>{const content=Buffer.concat([Buffer.from(type),body]),size=Buffer.alloc(4),checksum=Buffer.alloc(4);size.writeUInt32BE(body.length);checksum.writeUInt32BE(crc(content));return Buffer.concat([size,content,checksum]);};
  const header=Buffer.alloc(13);header.writeUInt32BE(2,0);header.writeUInt32BE(2,4);header[8]=8;header[9]=6;
@@ -15,7 +15,7 @@ function png(value){
 export async function exercisePhotoStorage({admin,check,A,B,anon,API}){
  const a=A.client.storage.from('item-images'),b=B.client.storage.from('item-images'),unowned=anon.storage.from('item-images');
  const folder=`${A.id}/intake/storage-byte-${randomUUID()}`,foreignFolder=`${B.id}/intake/storage-byte-${randomUUID()}`;
- const images=[png(30),png(180)],paths=images.map((_,i)=>`${folder}/source-${i}.png`);
+ const images=[syntheticStoragePNG(30),syntheticStoragePNG(180)],paths=images.map((_,i)=>`${folder}/source-${i}.png`);
  const hash=images.map(digest),copies=`${A.id}/storage-tests`,scratch=`${copies}/copied-${randomUUID()}.png`;
  const upload=(bucket,path,bytes=images[0],extra={})=>bucket.upload(path,bytes,{contentType:'image/png',upsert:false,...extra});
  const bytes=async(bucket,path)=>{const r=await bucket.download(path);assert.equal(r.error,null);assert.ok(r.data);return Buffer.from(await r.data.arrayBuffer());};
