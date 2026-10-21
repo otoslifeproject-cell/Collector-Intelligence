@@ -10,6 +10,7 @@ import {promisify} from 'node:util';
 import {createClient} from '@supabase/supabase-js';
 import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {continuityKongConfig} from './continuity-kong-config.mjs';
+import {installResearchSessionFixtures,exerciseResearchSessions} from './test-research-sessions.mjs';
 import {loadApprovedCanonicalContext,canonicalCallerKeys} from '../src/lib/approvedCanonicalSources.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall} from '../src/lib/canonicalRuntime.ts';
 import {loadCanonicalArchive,readCanonicalArchiveVersion} from '../src/lib/canonicalArchive.ts';
@@ -101,6 +102,7 @@ try {
   await admin.query(await read('supabase/migrations/20261020_canonical_publication_ledger_PREPRODUCTION.sql'));
   await admin.query(await read('supabase/proposals/canonical-publication-workflow.sql'));
   await admin.query("CREATE ROLE ci_http_publisher LOGIN PASSWORD 'ci_fixture_only' IN ROLE ci_canonical_publisher;");
+  await installResearchSessionFixtures(admin,read);
   await start('rest','postgrest/postgrest:v14.18',{
     PGRST_DB_URI:databaseURL('authenticator'),PGRST_DB_SCHEMAS:'public',PGRST_DB_ANON_ROLE:'anon',
     PGRST_JWT_SECRET:jwtSecret,PGRST_JWT_AUD:'authenticated',
@@ -256,6 +258,7 @@ try {
     await assert.rejects(readCanonicalArchiveVersion(archiveSDK,foreign),/not available for your account/);
     await assert.rejects(readCanonicalArchiveVersion(archiveSDK,{...foreign,owner_id:A.id}),/could not be read/);
   });
+  await exerciseResearchSessions({admin,rest,check,A,B,anon,API,key:publishableKey});
   // Runs the actual React component and SDK against these real disposable
   // services in Chromium; never loads the production application or account.
   const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/archive-browser.config.mjs','--reporter=line'],{

@@ -28,6 +28,11 @@ async function setup(t,caller,options={}){
     const url=new URL(input);state.urls.push(url.pathname);
     if(url.hostname==='ai-gateway.vercel.sh'||url.hostname==='api.openai.com'){
       state.paid++;
+      if(options.providerFailure==='connection')throw Error('Injected lost connection');
+      if(options.providerFailure==='non-json')return new Response('fixture outage',{status:502});
+      if(options.providerFailure==='error')return json({error:{message:'Fixture outage'}},503);
+      if(options.providerFailure==='output')return json({output_text:'not JSON'});
+      if(options.providerFailure==='null')return json(null);
       const result=caller==='intake'?{batch_summary:'synthetic',objects:[{image_indices:[0],working_title:'Synthetic object',marks_signatures_labels:options.inscription?'engraved candidate':'none',evidence:[],next_evidence:[]}]}
         :{identification_update:{},comparables:[],valuation:{},routing:{},research_summary:'synthetic'};
       return json({id:'fake-provider-response',output_text:JSON.stringify(result)});
@@ -46,9 +51,10 @@ async function setup(t,caller,options={}){
     if(url.pathname==='/rest/v1/ai_visual_reference_reviews')return json([],options.visualUnavailable?503:200);
     if(url.pathname==='/rest/v1/rpc/ci_claim_paid_research_v1'){state.claims++;return json('CLAIMED');}
     if(url.pathname==='/rest/v1/ai_analysis_runs'){
-      if(init.method==='PATCH'){const body=JSON.parse(init.body);state.saves.push(body.result);return json([{id:D,...body}]);}
+      if(init.method==='PATCH'){const body=JSON.parse(init.body);state.saves.push(body.result);return json([{id:D,...body}],options.saveUnavailable?503:200);}
       if(caller==='intake')return json([{id:D,status:'DRAFT',mode:'single',input_photo_count:1,result:{image_manifest:[{index:0,file_name:'fixture.jpg',storage_path:'SYNTHETIC_ONLY'}]}}]);
-      return json([{id:D,status:'DRAFT',mode:'research',input_photo_count:0,result:{analysis_stage:'STAGED'},user_context:{item_id:I}}]);
+      const result=options.savedComplete?{analysis_stage:'COMPLETE',research_summary:'Saved fixture',response_id:'saved-response'}:{analysis_stage:'STAGED'};
+      return json([{id:D,status:'DRAFT',mode:'research',...(url.searchParams.get('select').split(',').includes('model')?{model:'saved-model'}:{}),input_photo_count:0,result,user_context:{item_id:I}}]);
     }
     throw Error('Unhandled synthetic request: '+url.pathname);
   };
@@ -92,4 +98,18 @@ test('intake: revocation after first report blocks second paid pass and retains 
 });
 test('research: failed visual preflight does not consume a paid-run claim',async t=>{
   const r=await setup(t,'research',{visualUnavailable:true});assert.equal(r.res.code,503);assert.equal(r.claims,0);assert.equal(r.paid,0);
+});
+test('research: saved result replay retains model and response identity without a paid call',async t=>{
+  const r=await setup(t,'research',{savedComplete:true});assert.equal(r.res.code,200);assert.equal(r.paid,0);assert.equal(r.claims,0);
+  assert.equal(r.res.body.model,'saved-model');assert.equal(r.res.body.response_id,'saved-response');assert.equal(r.res.body.reused_saved_result,true);
+});
+for(const [failure,code] of [['connection','PAID_RESEARCH_OUTCOME_UNCONFIRMED'],['non-json','PAID_RESEARCH_OUTCOME_UNCONFIRMED'],['error','PAID_RESEARCH_PROVIDER_ERROR'],['output','PAID_RESEARCH_OUTPUT_INVALID'],['null','PAID_RESEARCH_OUTPUT_INVALID']]){
+  test('research: '+failure+' returns an explicit claimed-run recovery response',async t=>{
+    const r=await setup(t,'research',{providerFailure:failure});assert.ok(r.res.code>=500);assert.equal(r.res.body.code,code);
+    assert.equal(r.res.body.research_run_id,D);assert.match(r.res.body.error,/do not repeat paid research/i);assert.equal(r.claims,1);assert.equal(r.paid,1);assert.equal(r.saves.length,0);
+  });
+}
+test('research: failed save retains complete output and identifies the claimed run',async t=>{
+  const r=await setup(t,'research',{saveUnavailable:true});assert.equal(r.res.code,503);assert.equal(r.res.body.code,'PAID_RESEARCH_SAVE_NOT_CONFIRMED');
+  assert.equal(r.res.body.research_run_id,D);assert.equal(r.res.body.result.analysis_stage,'COMPLETE');assert.equal(r.res.body.result.research_summary,'synthetic');assert.equal(r.paid,1);
 });

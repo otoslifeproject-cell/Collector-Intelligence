@@ -121,9 +121,9 @@ Non-negotiable rules:
 - Return no prose outside the required structured output.`;
 
 function extractText(payload: any) {
-  if (typeof payload.output_text === "string" && payload.output_text) return payload.output_text;
-  for (const item of payload.output || []) {
-    if (item.type === "message") for (const part of item.content || []) if (part.type === "output_text" && part.text) return part.text;
+  if (typeof payload?.output_text === "string" && payload.output_text) return payload.output_text;
+  for (const item of Array.isArray(payload?.output) ? payload.output : []) {
+    if (item?.type === "message") for (const part of Array.isArray(item.content) ? item.content : []) if (part?.type === "output_text" && part.text) return part.text;
   }
   return "";
 }
@@ -203,7 +203,7 @@ async function verifyUser(token: string, supabaseUrl: string, supabaseKey: strin
 }
 
 async function ownerScopedResearchRun(url:string,key:string,token:string,runId:string){
- const qp=new URLSearchParams({select:'id,status,mode,input_photo_count,result,user_context',id:'eq.'+runId,limit:'1'});
+ const qp=new URLSearchParams({select:'id,status,mode,model,input_photo_count,result,user_context',id:'eq.'+runId,limit:'1'});
  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+qp.toString(),{
   headers:{apikey:key,Authorization:'Bearer '+token}
  });
@@ -403,6 +403,7 @@ export default async function handler(req: any, res: any) {
   if(researchEnvelope.result?.analysis_stage==='COMPLETE'&&researchEnvelope.result?.research_summary)
     return res.status(200).json({
       saved_run_id:research_run_id,model:researchEnvelope.model||null,
+      response_id:researchEnvelope.result.response_id||null,
       result:researchEnvelope.result,
       source_audit:researchEnvelope.result.source_audit||null,
       canonical_policy_hashes:researchEnvelope.result.canonical_policy_hashes||null,
@@ -556,16 +557,30 @@ export default async function handler(req: any, res: any) {
     max_output_tokens: 16000
   };
 
-  const response = await fetch(
+  let response:Response;
+  let payload:any;
+  try {
+    response = await fetch(
     useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
     {
     method:"POST",
     headers:{ "Content-Type":"application/json", Authorization:`Bearer ${apiKey}` },
       body:JSON.stringify(body)
     }
-  );
-  const payload = await response.json();
-  if (!response.ok) return res.status(response.status).json({error:payload?.error?.message || "Research failed",details:payload?.error || null});
+    );
+    payload = await response.json();
+  } catch {
+    // Once claimed, a lost response does not prove the provider did no work.
+    // Keep PROCESSING; never reset STAGED or retry a potentially paid request.
+    return res.status(503).json({
+      code:'PAID_RESEARCH_OUTCOME_UNCONFIRMED',research_run_id,
+      error:'The research provider response could not be confirmed. The saved run remains claimed; do not repeat paid research to recover it.'
+    });
+  }
+  if (!response.ok) return res.status(response.status).json({
+    code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id,
+    error:(payload?.error?.message || 'Research failed')+'. The saved run remains claimed; do not repeat paid research to recover it.'
+  });
   const text = extractText(payload);
   try {
     const result=JSON.parse(text);
@@ -582,6 +597,7 @@ export default async function handler(req: any, res: any) {
     }catch(e:any){
       return res.status(503).json({
         code:'PAID_RESEARCH_SAVE_NOT_CONFIRMED',
+        research_run_id,
         error:e?.message||'The paid research result was not confirmed in storage. Do not launch another paid run to recover it.',
         result:savedResult,source_audit
       });
@@ -593,6 +609,7 @@ export default async function handler(req: any, res: any) {
       canonical_source_audit:canonicalSourceAudit(canonical)
     });
   } catch {
-    return res.status(502).json({error:"Could not parse structured research output",raw:text.slice(0,2000)});
+    return res.status(502).json({code:'PAID_RESEARCH_OUTPUT_INVALID',research_run_id,
+      error:'Could not parse structured research output. The saved run remains claimed; do not repeat paid research to recover it.',raw:text.slice(0,2000)});
   }
 }
