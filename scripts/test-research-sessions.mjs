@@ -20,6 +20,11 @@ export async function installResearchSessionFixtures(admin,read){
   await admin.query(await read('supabase/migrations/20261016_atomic_photo_first_approval_v1.sql'));
   await admin.query(await read('supabase/migrations/20261017_reviewed_material_evidence_on_catalogue_v6.sql'));
   await admin.query(await read('supabase/migrations/20261016_block_partial_analysis_catalogue_approval.sql'));
+  await admin.query(`GRANT SELECT,INSERT,UPDATE ON public.sale_outcomes,public.listings TO authenticated;
+    GRANT UPDATE ON public.items TO authenticated`);
+  for(const file of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql',
+    '20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])
+    await admin.query(await read('supabase/migrations/'+file));
 }
 
 export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,key}){

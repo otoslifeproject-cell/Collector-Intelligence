@@ -12,6 +12,7 @@ import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {continuityKongConfig} from './continuity-kong-config.mjs';
 import {installResearchSessionFixtures,exerciseResearchSessions} from './test-research-sessions.mjs';
 import {exerciseCatalogueApproval} from './test-catalogue-approval.mjs';
+import {exerciseSaleCapture} from './test-sale-capture.mjs';
 import {loadApprovedCanonicalContext,canonicalCallerKeys} from '../src/lib/approvedCanonicalSources.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall} from '../src/lib/canonicalRuntime.ts';
 import {loadCanonicalArchive,readCanonicalArchiveVersion} from '../src/lib/canonicalArchive.ts';
@@ -261,6 +262,7 @@ try {
   });
   await exerciseResearchSessions({admin,rest,check,A,B,anon,API,key:publishableKey});
   await exerciseCatalogueApproval({admin,rest,check,A,B,anon,read});
+  await exerciseSaleCapture({admin,rest,check,A,B,anon,read});
   // Runs the actual React component and SDK against these real disposable
   // services in Chromium; never loads the production application or account.
   const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/archive-browser.config.mjs','--reporter=line'],{
