@@ -37,6 +37,12 @@ for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(
   await expect(document.getByRole('status')).toHaveText('SHA-256 matches stored text.');
   await expect(document.locator('pre')).toContainText('REVIEW CANDIDATE');
   await expect(document).toContainText('approval is not established here');
+  await expect(document).toContainText('Imported');
+  if(width<=620){
+    const table=await group.locator('.tableWrap').evaluate(element=>({scroll:element.scrollWidth,width:element.clientWidth,left:element.scrollLeft}));
+    expect(table.scroll).toBeLessThanOrEqual(table.width+1);expect(table.left).toBe(0);
+    const version=await group.locator('tbody tr').first().locator('td').first().boundingBox();expect(version.x).toBeGreaterThanOrEqual(0);
+  }
   const geometry=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   expect(geometry.scroll).toBeLessThanOrEqual(geometry.width+1);expect(errors).toEqual([]);
   await page.screenshot({path:`test-artifacts/archive-${width}-${theme}.png`,fullPage:true});

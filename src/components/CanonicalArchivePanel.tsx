@@ -51,11 +51,11 @@ export default function CanonicalArchivePanel({client}:{client:SupabaseClient}){
       <summary><strong>{group.documentKey}</strong><span>{group.versions.length} stored {group.versions.length===1?'version':'versions'}</span></summary>
       <div className="tableWrap"><table>
         <caption className="ci-visually-hidden">Stored versions of {group.documentKey}</caption>
-        <thead><tr><th scope="col">Version</th><th scope="col">Imported</th><th scope="col">Stored SHA-256</th><th scope="col">Read</th></tr></thead>
+        <thead><tr><th scope="col">Version</th><th scope="col" className="ci-archive-imported">Imported</th><th scope="col" className="ci-archive-stored-hash">Stored SHA-256</th><th scope="col">Read</th></tr></thead>
         <tbody>{group.versions.map(version=><tr key={version.id}>
           <td>{version.source_version||'Not recorded'}</td>
-          <td><time dateTime={version.ingested_at}>{new Date(version.ingested_at).toLocaleDateString('en-GB')}</time></td>
-          <td><code title={version.content_sha256}>{version.content_sha256.slice(0,16)}…</code></td>
+          <td className="ci-archive-imported"><time dateTime={version.ingested_at}>{new Date(version.ingested_at).toLocaleDateString('en-GB')}</time></td>
+          <td className="ci-archive-stored-hash"><code title={version.content_sha256}>{version.content_sha256.slice(0,16)}…</code></td>
           <td><button className="secondaryButton" disabled={reading} aria-label={`Read ${group.documentKey}, version ${version.source_version||'not recorded'}`} onClick={event=>{readButton.current=event.currentTarget;void read(version);}}>Read</button></td>
         </tr>)}</tbody>
       </table></div>
@@ -63,6 +63,7 @@ export default function CanonicalArchivePanel({client}:{client:SupabaseClient}){
     {document&&<section className="note ci-archive-document" aria-label="Stored source text" tabIndex={-1} ref={documentElement}>
       <h3>{document.document_key}</h3>
       <p>Version {document.source_version||'not recorded'} · Archived text; approval is not established here.</p>
+      <p>Imported <time dateTime={document.ingested_at}>{new Date(document.ingested_at).toLocaleDateString('en-GB')}</time></p>
       <p role="status">{document.integrity==='MATCH'?'SHA-256 matches stored text.':'SHA-256 mismatch. This text must not be relied on as an instruction source.'}</p>
       {document.contentWarning&&<p role="alert">{document.contentWarning==='placeholder'?'This is an unreadable-content placeholder.':'This is a short import.'} It is preserved for review, not usable as an instruction source.</p>}
       <p><code>{document.content_sha256}</code></p>
