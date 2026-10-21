@@ -133,12 +133,13 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
       const callsBefore=providerCalls;let release,entered;
       const waiting=new Promise(resolve=>{entered=resolve;});const hold=new Promise(resolve=>{release=resolve;});
       providerReply=async()=>{entered();await hold;return reply();};
-      const first=invoke(concurrent.id);
+      const first=invoke(concurrent.id);let timer;
       try{
-        await Promise.race([waiting,new Promise((_,reject)=>{const timer=setTimeout(()=>reject(Error('Handler did not reach fixture provider')),10000);timer.unref();})]);
+        await Promise.race([waiting,first.then(res=>{throw Error('Handler stopped before fixture provider: '+JSON.stringify(res));}),
+          new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Handler did not reach fixture provider')),10000);timer.unref();})]);
         assert.equal((await row(concurrent.id)).result.analysis_stage,'PROCESSING');
         const duplicate=await invoke(concurrent.id);assert.equal(duplicate.code,409);assert.equal(providerCalls-callsBefore,1);
-      }finally{release();successful=await first;providerReply=null;}
+      }finally{clearTimeout(timer);release();successful=await first;providerReply=null;}
       assert.equal(successful.code,200,JSON.stringify(successful.body));assert.equal(successful.body.saved_run_id,concurrent.id);
       const saved=await row(concurrent.id);assert.equal(saved.result.analysis_stage,'COMPLETE');assert.equal(saved.model,'fixture-research-model');
       assert.equal(saved.result.canonical_source_audit.resolution_mode,'APPROVED_V1');assert.equal(saved.result.canonical_source_audit.publication_receipts.length,3);

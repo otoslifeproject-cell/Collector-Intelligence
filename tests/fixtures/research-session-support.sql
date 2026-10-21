@@ -4,7 +4,8 @@
 -- exercise persistence. These views do not certify production evidence rules.
 CREATE TABLE public.items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_id uuid NOT NULL DEFAULT auth.uid()
+  owner_id uuid NOT NULL DEFAULT auth.uid(),
+  source_object_index integer
 );
 ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY fixture_item_owner ON public.items FOR ALL TO authenticated
