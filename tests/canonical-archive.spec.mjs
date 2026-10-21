@@ -85,9 +85,22 @@ test('tampered HTTP body is visibly flagged; no database row is altered',async({
   await group.getByRole('button',{name:'Read 02_MASTER_PROJECT_BRIEF.md, version 4.0',exact:true}).click();
   await expect(page.getByRole('region',{name:'Stored source text'}).getByRole('status')).toContainText('SHA-256 mismatch');
 });
-test('signing out clears previously displayed owner text and inventory',async({page})=>{
+test('same-owner reauthentication preserves review; account switches and sign-out clear private state',async({page})=>{
   await visit(page);await openArchive(page);const group=await openGroup(page,'02_MASTER_PROJECT_BRIEF.md');
   await group.getByRole('button',{name:'Read 02_MASTER_PROJECT_BRIEF.md, version 4.0',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Stored source text'})).toBeVisible();
+  const reauthenticate=async email=>page.evaluate(async email=>{
+    const result=await window.__CI_ARCHIVE_CLIENT__.auth.signInWithPassword({email,password:'Ci-disposable-fixture-4826!'});
+    if(result.error)throw Error('Disposable reauthentication failed');
+  },email);
+  await reauthenticate('collector-ci-a@example.test');
+  await expect(page.getByRole('region',{name:'Stored source text'})).toBeVisible();
+  await expect(page.getByText('5 documents · 110 stored versions',{exact:true})).toBeVisible();
+  await reauthenticate('collector-ci-b@example.test');
+  await expect(page.getByRole('region',{name:'Stored source text'})).toHaveCount(0);await expect(page.locator('.ci-archive-group')).toHaveCount(0);
+  await page.getByRole('button',{name:'Reload archive'}).click();await expect(page.getByText('5 documents · 5 stored versions',{exact:true})).toBeVisible();
+  const otherGroup=await openGroup(page,'02_MASTER_PROJECT_BRIEF.md');
+  await otherGroup.getByRole('button',{name:'Read 02_MASTER_PROJECT_BRIEF.md, version 4.0',exact:true}).click();
   await expect(page.getByRole('region',{name:'Stored source text'})).toBeVisible();
   await page.evaluate(()=>window.__CI_ARCHIVE_CLIENT__.auth.signOut({scope:'local'}));
   await expect(page.getByRole('region',{name:'Stored source text'})).toHaveCount(0);await expect(page.locator('.ci-archive-group')).toHaveCount(0);

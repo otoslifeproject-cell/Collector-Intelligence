@@ -10,13 +10,16 @@ export default function CanonicalArchivePanel({client}:{client:SupabaseClient}){
   const request=useRef<AbortController|null>(null);
   const documentElement=useRef<HTMLElement|null>(null),readButton=useRef<HTMLButtonElement|null>(null);
   const attempted=useRef(false);
+  const sessionOwner=useRef<string|null>(null);
   useEffect(()=>{if(document)documentElement.current?.focus();},[document]);
   useEffect(()=>{
-    const {data:{subscription}}=client.auth.onAuthStateChange(event=>{
-      if(event==='SIGNED_OUT'||event==='SIGNED_IN'){
+    const {data:{subscription}}=client.auth.onAuthStateChange((event,session)=>{
+      const nextOwner=session?.user.id??null;
+      if(event==='SIGNED_OUT'||(sessionOwner.current!==null&&nextOwner!==sessionOwner.current)){
         request.current?.abort();attempted.current=false;setRows(null);setDocument(null);setBusy(false);setReading(false);
         setError('Your sign-in changed. Reload the archive to continue.');
       }
+      sessionOwner.current=nextOwner;
     });
     return ()=>{request.current?.abort();subscription.unsubscribe();};
   },[client]);
