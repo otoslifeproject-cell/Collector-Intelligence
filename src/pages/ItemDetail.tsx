@@ -8,6 +8,7 @@ import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
+import {applyConfirmedSaleStatus} from '../lib/actualSale'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
 
@@ -184,7 +185,7 @@ export default function ItemDetail() {
           <div className="eyebrow">{item.item_code}</div>
           <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
-          <div className="pillRow"><span className="pill accent">{(item.sale_readiness || item.status).replaceAll('_',' ')}</span></div>
+          <div className="pillRow"><span className="pill accent">{(item.status==='SOLD'?'SOLD':item.sale_readiness || item.status).replaceAll('_',' ')}</span></div>
         </div>
         <div className="heroActions">
           <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
@@ -373,7 +374,7 @@ export default function ItemDetail() {
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
-       <RecordSaleOutcome client={supabase} itemId={item.id}/>
+       <RecordSaleOutcome client={supabase} itemId={item.id} onSold={(soldId,ownerId)=>setItem(current=>applyConfirmedSaleStatus(current,soldId,ownerId))}/>
       </div>}
 
       {tab==='catalogue' && <div className="cataloguePreview">

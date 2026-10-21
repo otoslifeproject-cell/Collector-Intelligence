@@ -41,6 +41,7 @@ for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(
  expect((await page.locator('.ci-record-selection').boundingBox()).height).toBeGreaterThanOrEqual(44);
  await page.screenshot({path:`test-artifacts/sale-${width}-${theme}.png`,fullPage:true});
  await submit(page).click();await saved(page);
+ await expect(page.getByTestId('collection-status')).toHaveText('Editor status: SOLD · Unsaved private edit');
  await expect(page.getByLabel('Saved sale history')).toContainText('Gross £100.25 · Net £99.20 · Profit £78.70');
  expect((await rows(page)).length).toBe(1);expect(errors).toEqual([]);
  await page.screenshot({path:`test-artifacts/sale-saved-${width}-${theme}.png`,fullPage:true});

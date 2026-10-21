@@ -1,5 +1,6 @@
 export type Item = {
   id: string
+  owner_id: string
   item_code: string
   title: string | null
   category: string | null

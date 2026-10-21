@@ -6,6 +6,11 @@ export type SaleContext={ownerId:string;item:SaleItem;outcomes:SaleOutcome[]}
 export type SalePayload={owner_confirmed:true;sale_date:string;venue:string;currency:string;gross_sale:number;platform_fees:number;payment_fees:number;shipping_cost:number;packing_cost:number;insurance_cost:number;acquisition_cost?:number;source_reference:string;notes:string}
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Update only the status of the still-selected owner object; retain unsaved
+// edits and never apply a delayed notification to another object/account.
+export function applyConfirmedSaleStatus<T extends {id:string;owner_id:string;status:string}>(current:T|null,itemId:string,ownerId:string):T|null{
+ return current?.id===itemId&&current.owner_id===ownerId&&current.status!=='SOLD'?{...current,status:'SOLD'}:current
+}
 export function saleAmount(value:string,blank:number|null=null):number|null{
  const text=value.trim()
  if(!text)return blank

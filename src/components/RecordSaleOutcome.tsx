@@ -6,10 +6,11 @@ import type {SaleContext,SalePayload} from '../lib/actualSale'
 type Attempt={id:string;ownerId:string;payload:SalePayload}
 const empty={date:'',venue:'',gross:'',platform:'',payment:'',shipping:'',packing:'',insurance:'',acquisition:'',source:'',notes:''}
 type Fields=typeof empty
-export default function RecordSaleOutcome(props:{client:SupabaseClient;itemId:string}){
+type Props={client:SupabaseClient;itemId:string;onSold?:(itemId:string,ownerId:string)=>void}
+export default function RecordSaleOutcome(props:Props){
  return <SaleForm key={props.itemId} {...props}/>
 }
-function SaleForm({client,itemId}:{client:SupabaseClient;itemId:string}){
+function SaleForm({client,itemId,onSold}:Props){
  const [context,setContext]=useState<SaleContext|null>(null)
  const [fields,setFields]=useState<Fields>(empty)
  const [confirmed,setConfirmed]=useState(false)
@@ -21,6 +22,7 @@ function SaleForm({client,itemId}:{client:SupabaseClient;itemId:string}){
  const attemptRef=useRef<Attempt|null>(null),statusRef=useRef<HTMLParagraphElement|null>(null)
  const scope=useRef(0),readNumber=useRef(0),owner=useRef<string|null|undefined>(undefined)
  const controller=useRef<AbortController|null>(null),active=useRef(false)
+ const notified=useRef<string|null>(null)
  const setPending=(value:Attempt|null)=>{attemptRef.current=value;setAttempt(value)}
  const matched=(data:SaleContext,pending:Attempt)=>data.ownerId===pending.ownerId&&data.outcomes.some(row=>
   row.client_event_id===pending.id&&row.currency===pending.payload.currency&&row.gross_sale===pending.payload.gross_sale&&
@@ -63,6 +65,12 @@ function SaleForm({client,itemId}:{client:SupabaseClient;itemId:string}){
   return ()=>{active.current=false;scope.current++;controller.current?.abort();subscription.data.subscription.unsubscribe()}
  },[client,itemId])
  useEffect(()=>{if(!saving&&message)statusRef.current?.focus()},[message,saving])
+ useEffect(()=>{
+  if(!context||context.item.status!=='SOLD'||owner.current!==context.ownerId||!active.current||!onSold)return
+  const identity=context.ownerId+':'+itemId
+  if(notified.current===identity)return
+  notified.current=identity;onSold(itemId,context.ownerId)
+ },[context,itemId,onSold])
  const currency=context?.item.currency||'GBP'
  const knownCost=context?.item.all_in_cost??context?.item.acquisition_price??null
  const crossCurrency=knownCost!==null&&context?.item.acquisition_currency!==currency
