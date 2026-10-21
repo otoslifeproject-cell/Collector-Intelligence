@@ -256,7 +256,7 @@ function ItemDetailRecord({id}:{id:string}) {
             <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
             <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
             <div><small>Fast cash · provisional</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
-            <div><small>Next action</small><strong>{(item.sale_readiness||'RESEARCH_FIRST').replaceAll('_',' ')}</strong></div>
+            <div><small>Next action</small><strong>{item.status==='SOLD'?'Review sale history':(item.sale_readiness||'RESEARCH_FIRST').replaceAll('_',' ')}</strong></div>
           </div>
           <p>{item.condition_summary ? item.condition_summary.slice(0,180) : 'Condition not yet recorded.'}</p>
           <details><summary>Show identification and valuation confidence</summary>
