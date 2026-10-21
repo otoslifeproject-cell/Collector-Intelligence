@@ -109,7 +109,9 @@ try{
   users.push({id:login.data.user.id,token:login.data.session.access_token,client});
  }
  const [A,B]=users,anon=createClient(API,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
- await admin.query('GRANT SELECT ON public.comparables TO authenticated');
+ for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
+ await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));
+ await admin.query('GRANT SELECT ON public.comparables TO authenticated; GRANT SELECT,INSERT,UPDATE ON public.sale_outcomes,public.listings TO authenticated');
  await exercisePhotoStorage({admin,check,A,B,anon,API});
  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
   env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:300000,maxBuffer:4*1024*1024,

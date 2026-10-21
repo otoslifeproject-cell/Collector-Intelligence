@@ -32,7 +32,7 @@ export default function App() {
   if (!session) return <Login/>
 
   return (
-    <div className="appShell">
+    <div className="appShell" key={session.user.id}>
       <Sidebar appearance={appearance} onToggleAppearance={()=>setAppearance(v=>v==='dark'?'light':'dark')}/>
       <main className="mainContent">
         <Routes>

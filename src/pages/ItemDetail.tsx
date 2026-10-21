@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useState } from 'react'
+import { ChangeEvent, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { Camera, Check, ExternalLink, LoaderCircle, Save, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -9,11 +9,17 @@ import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
 import {applyConfirmedSaleStatus} from '../lib/actualSale'
+import {PhotographError,preparePhotographAttempts,readItemPhotographs,settlePhotographAttempt} from '../lib/itemPhotographs'
+import type {PhotographAttempt} from '../lib/itemPhotographs'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
 
 export default function ItemDetail() {
-  const {id} = useParams()
+  const {id}=useParams()
+  if(!id)return <div role="alert">This collection object could not be identified.</div>
+  return <ItemDetailRecord key={id} id={id}/>
+}
+function ItemDetailRecord({id}:{id:string}) {
   const location = useLocation()
   const [item,setItem] = useState<Item|null>(null)
   const [photos,setPhotos] = useState<ItemPhoto[]>([])
@@ -31,6 +37,53 @@ export default function ItemDetail() {
   const [message,setMessage] = useState('')
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
+  const [photographsLoaded,setPhotographsLoaded]=useState(false)
+  const [photographsLoading,setPhotographsLoading]=useState(true)
+  const [photographError,setPhotographError]=useState('')
+  const [photographMessage,setPhotographMessage]=useState('')
+  const [pendingPhotographs,setPendingPhotographs]=useState<PhotographAttempt[]>([])
+  const [loadError,setLoadError]=useState('')
+  const alive=useRef(false),photoRead=useRef(0),itemRead=useRef(0),photoBusy=useRef(false)
+  const photoInput=useRef<HTMLInputElement|null>(null),photoStatus=useRef<HTMLParagraphElement|null>(null)
+  const current=()=>alive.current
+  const loadPhotographs=async()=>{
+    const serial=++photoRead.current
+    setPhotographsLoading(true);setPhotographsLoaded(false);setPhotographError('');setPhotoUrls({})
+    try{
+      const {rows}=await readItemPhotographs(supabase,id,current)
+      const urls=await Promise.all(rows.map(async photo=>{
+        const signed=await supabase.storage.from('item-images').createSignedUrl(photo.storage_path,3600)
+        return [photo.id,signed.error?'':signed.data?.signedUrl||''] as const
+      }))
+      if(!current()||serial!==photoRead.current)return
+      setPhotos(rows);setPhotoUrls(Object.fromEntries(urls));setPhotographsLoaded(true)
+      if(urls.some(([,url])=>!url))setPhotographError('Some original photographs need a new secure preview. Reload photographs to try again.')
+    }catch(error){
+      if(!current()||serial!==photoRead.current)return
+      setPhotos([]);setPhotoUrls({});setPhotographError(error instanceof PhotographError?error.message:'Photographs could not be loaded. Reload before uploading.')
+    }finally{if(current()&&serial===photoRead.current)setPhotographsLoading(false)}
+  }
+  const processPhotographs=async(attempts:PhotographAttempt[])=>{
+    const pending:PhotographAttempt[]=[];let confirmed=0
+    for(const attempt of attempts){
+      if(!current())return
+      try{await settlePhotographAttempt(supabase,attempt,current);confirmed++}
+      catch{if(!current())return;pending.push(attempt)}
+    }
+    if(!current())return
+    setPendingPhotographs(pending)
+    await loadPhotographs()
+    if(!current())return
+    setPhotographMessage(pending.length?
+      `${confirmed} original photographs confirmed; ${pending.length} still need confirmation. Files that reached private storage are retained. Keep this page open and retry the pending photographs.`:
+      `${confirmed} original photographs saved and linked to this item.`)
+  }
+  useEffect(()=>{if(!uploading&&photographMessage)photoStatus.current?.focus()},[uploading,photographMessage])
+  const retryPhotographs=async()=>{
+    if(photoBusy.current||!pendingPhotographs.length)return
+    photoBusy.current=true;setUploading(true);setPhotographMessage('Checking the same pending photographs…')
+    try{await processPhotographs(pendingPhotographs)}finally{photoBusy.current=false;if(current())setUploading(false)}
+  }
   const [originalReportPaired,setOriginalReportPaired] = useState(false)
   const [researching,setResearching] = useState(false)
   const [researchDraft,setResearchDraft] = useState<any|null>(null)
@@ -41,16 +94,24 @@ export default function ItemDetail() {
 
   const load = async () => {
     if (!id) return
-    const [{data:itemData},{data:photoData},{data:compData}] = await Promise.all([
-      supabase.from('items').select('*').eq('id',id).single(),
-      supabase.from('item_photos').select('*').eq('item_id',id).order('position'),
-      supabase.from('comparables').select('*').eq('item_id',id).order('sale_date',{ascending:false})
+    const serial=++itemRead.current
+    setLoadError('')
+    const auth=await supabase.auth.getUser()
+    if(!current()||serial!==itemRead.current)return
+    if(auth.error||!auth.data.user){setItem(null);setLoadError('Sign in again to open this collection object.');return}
+    const ownerId=auth.data.user.id
+    const [{data:itemData,error:itemError},{data:compData}] = await Promise.all([
+      supabase.from('items').select('*').eq('id',id).eq('owner_id',ownerId).maybeSingle(),
+      supabase.from('comparables').select('*').eq('item_id',id).eq('owner_id',ownerId).order('sale_date',{ascending:false})
     ])
-    setItem(itemData as Item); setPhotos((photoData||[]) as ItemPhoto[]); setComps((compData||[]) as Comparable[])
+    if(!current()||serial!==itemRead.current)return
+    if(itemError||!itemData||itemData.owner_id!==ownerId){setItem(null);setLoadError('This collection object is unavailable for the signed-in account.');return}
+    setItem(itemData as Item); setComps((compData||[]) as Comparable[])
     const [ev,ah] = await Promise.all([
       supabase.from('item_evidence').select('*').eq('item_id',id).order('created_at',{ascending:false}),
       supabase.from('attribution_history').select('*').eq('item_id',id).order('created_at',{ascending:false})
     ])
+    if(!current()||serial!==itemRead.current)return
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
     const originalItem=itemData as any
@@ -60,6 +121,7 @@ export default function ItemDetail() {
       supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100),
       parentId?supabase.from('ai_analysis_runs').select('result').eq('id',parentId).single():Promise.resolve({data:null})
     ])
+    if(!current()||serial!==itemRead.current)return
     const snapshot=(parentQuery.data as any)?.result?.owner_review?.approved_snapshot?.[String(originalIndex)]
     const wasPair=Array.isArray(snapshot?.pair_source_indices)&&snapshot.pair_source_indices.length===2
     setOriginalReportPaired(wasPair)
@@ -73,18 +135,11 @@ export default function ItemDetail() {
     })
     setSavedResearchRuns(itemRuns.filter((x:any)=>x.status==='APPROVED'))
     setPendingResearchRuns(itemRuns.filter((x:any)=>x.status==='DRAFT'))
-    const rows = (photoData || []) as ItemPhoto[]
-    if (rows.length) {
-      const signed = await Promise.all(rows.map(async p => {
-        const {data} = await supabase.storage.from('item-images').createSignedUrl(p.storage_path, 3600)
-        return [p.id, data?.signedUrl || ''] as const
-      }))
-      setPhotoUrls(Object.fromEntries(signed))
-    } else {
-      setPhotoUrls({})
-    }
   }
-  useEffect(()=>{load()},[id])
+  useEffect(()=>{
+    alive.current=true;void load();void loadPhotographs()
+    return ()=>{alive.current=false;photoRead.current++;itemRead.current++}
+  },[id])
 
   const update = (k:keyof Item,v:any)=> item && setItem({...item,[k]:v})
   const save = async () => {
@@ -95,20 +150,16 @@ export default function ItemDetail() {
     if (!error) setTimeout(()=>setMessage(''),1600)
   }
 
-  const upload = async (e:ChangeEvent<HTMLInputElement>) => {
-    if (!item || !e.target.files?.length) return
-    setUploading(true)
-    const {data:{user}} = await supabase.auth.getUser()
-    if (!user) return
-    for (const file of Array.from(e.target.files)) {
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_')
-      const path = `${user.id}/${item.item_code}/${Date.now()}-${safe}`
-      const {error} = await supabase.storage.from('item-images').upload(path,file)
-      if (!error) await supabase.from('item_photos').insert({item_id:item.id,storage_path:path,file_name:file.name,position:photos.length})
-    }
-    setUploading(false); await load()
+  const upload = async (event:ChangeEvent<HTMLInputElement>) => {
+    const files=Array.from(event.target.files||[]);event.target.value=''
+    if(!item||!files.length||photoBusy.current||!photographsLoaded||pendingPhotographs.length)return
+    photoBusy.current=true;setUploading(true);setPhotographMessage('Saving original photographs and checking their links…')
+    try{
+      const attempts=await preparePhotographAttempts(supabase,item.id,files,current)
+      await processPhotographs(attempts)
+    }catch(error){if(current())setPhotographMessage(error instanceof PhotographError?error.message:'The photographs could not be confirmed. Please retry.')}
+    finally{photoBusy.current=false;if(current())setUploading(false)}
   }
-
 
   const runResearch = async () => {
     if (!item) return
@@ -176,7 +227,7 @@ export default function ItemDetail() {
     } finally {setResearching(false)}
   }
 
-  if (!item) return <div className="empty">Loading object record…</div>
+  if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
 
   return (
     <div>
@@ -271,14 +322,24 @@ export default function ItemDetail() {
         </details>
       </div>}
 
-      {tab==='photos' && <div className="panel">
-        <div className="panelHeader"><div><h2>Photographs</h2><span>Original object evidence and listing imagery</span></div><label className="primaryButton inlineButton uploadButton"><Camera size={17}/>{uploading?'Uploading…':'Upload photos'}<input type="file" accept="image/*" multiple hidden onChange={upload}/></label></div>
-        <div className="photoGrid">
-          {photos.length===0 && <div className="empty">No photographs uploaded yet.</div>}
-          {photos.map(p=><div className="photoTile" key={p.id}>{photoUrls[p.id] ? <img src={photoUrls[p.id]} alt={p.caption||p.file_name||item.item_code}/> : <div className="photoPending">Generating secure preview…</div>}<div><strong>{p.photo_role||'Object photo'}</strong><span>{p.file_name}</span></div></div>)}
+      {tab==='photos' && <section className="panel" aria-label="Original photographs">
+        <div className="panelHeader ci-photo-header"><div><h2>Photographs</h2><span>Original object evidence and listing imagery</span></div>
+          <button type="button" className="primaryButton inlineButton" disabled={uploading||(!pendingPhotographs.length&&!photographsLoaded)} onClick={()=>pendingPhotographs.length?void retryPhotographs():photoInput.current?.click()}><Camera size={17}/>{uploading?'Checking photographs…':pendingPhotographs.length?'Retry pending photographs':'Upload photos'}</button>
+          <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple hidden disabled={uploading||!photographsLoaded||!!pendingPhotographs.length} onChange={upload}/>
         </div>
+        {photographsLoading&&<p>Loading private photographs…</p>}
+        {photographError&&<p className="note" role="alert">{photographError}</p>}
+        {photographError&&!uploading&&<button className="secondaryButton inlineButton" onClick={()=>void loadPhotographs()}>Reload photographs</button>}
+        <div className="photoGrid">
+          {photographsLoaded&&photos.length===0&&!photographError&&<div className="empty">No photographs linked to this item yet.</div>}
+          {photos.map(photo=><div className="photoTile" key={photo.id}>{photoUrls[photo.id]?<img src={photoUrls[photo.id]} alt={photo.caption||photo.file_name||item.item_code} onError={()=>{
+            if(!current())return
+            setPhotoUrls(previous=>({...previous,[photo.id]:''}));setPhotographError('A secure preview could not be displayed. Reload photographs to try again; the original is retained.')
+          }}/>:<div className="photoPending">{photographsLoading?'Loading secure preview…':'Preview unavailable'}</div>}<div><strong>{photo.photo_role||'Object photo'}</strong><span>{photo.file_name}</span></div></div>)}
+        </div>
+        {photographMessage&&<p className="note" role="status" tabIndex={-1} ref={photoStatus}>{photographMessage}</p>}
         <div className="note">Image previews use short-lived signed URLs from the private Supabase bucket.</div>
-      </div>}
+      </section>}
 
       {tab==='identification' && <div className="marketStack">
         <div className="panel">

@@ -817,3 +817,12 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-sale-outcome button{max-width:100%;white-space:normal}
 .ci-sale-outcome .ci-record-selection{display:flex;min-height:44px;line-height:1.45}
 .ci-sale-outcome .ci-record-selection input{flex:0 0 20px;min-width:20px;width:20px;height:20px}
+
+/* Original photograph action stays separate from its heading on narrow screens. */
+.ci-photo-header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}
+.ci-photo-header button{max-width:100%;white-space:normal}
+@media(max-width:650px){.ci-photo-header{grid-template-columns:minmax(0,1fr)}.ci-photo-header button{justify-self:start}}
+
+.photoGrid .photoTile>div{background:var(--panel);color:var(--text)}
+.photoGrid .photoTile>div span{color:var(--muted)}
+.photoGrid .photoTile strong,.photoGrid .photoTile span{font-size:var(--ci-support-size,.875rem);line-height:1.45}
