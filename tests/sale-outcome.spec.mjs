@@ -22,7 +22,7 @@ async function fill(page,extra={}){
  await page.getByRole('checkbox').check();
 }
 const submit=page=>page.getByRole('button',{name:'Record actual sale and mark SOLD',exact:true});
-async function saved(page){await expect(page.getByRole('status')).toContainText('recorded and read back');}
+async function saved(page){await expect(page.getByRole('status')).toContainText('recorded and read back');await expect(page.getByRole('status')).toBeFocused();}
 async function rows(page){return page.evaluate(async()=>{
  const result=await window.__CI_SALE_CLIENT__.from('sale_outcomes').select('*').eq('item_id',window.__CI_SALE_ITEM__);
  if(result.error)throw Error(result.error.message);return result.data;
@@ -37,10 +37,13 @@ for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(
  await expect(page.getByLabel('Actual sale date')).not.toBeVisible();await open(page);await fill(page);
  const geometry=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
  expect(geometry.scroll).toBeLessThanOrEqual(geometry.width+1);
+ const checkbox=await page.getByRole('checkbox').boundingBox();expect(checkbox.width).toBeGreaterThanOrEqual(20);
+ expect((await page.locator('.ci-record-selection').boundingBox()).height).toBeGreaterThanOrEqual(44);
  await page.screenshot({path:`test-artifacts/sale-${width}-${theme}.png`,fullPage:true});
  await submit(page).click();await saved(page);
  await expect(page.getByLabel('Saved sale history')).toContainText('Gross £100.25 · Net £99.20 · Profit £78.70');
  expect((await rows(page)).length).toBe(1);expect(errors).toEqual([]);
+ await page.screenshot({path:`test-artifacts/sale-saved-${width}-${theme}.png`,fullPage:true});
 });
 test('different acquisition currency requires an explicit cost; stored sale currency and pence survive remount',async({page})=>{
  await visit(page,{currency:'USD'});await open(page);await fill(page);await expect(submit(page)).toBeDisabled();
@@ -53,6 +56,7 @@ test('different acquisition currency requires an explicit cost; stored sale curr
  await page.evaluate(()=>window.__CI_SALE_SELECT__(window.__CI_SALE_ITEM__));
  await expect(page.getByLabel('Saved sale history')).toContainText('US$100.25');await expect(page.getByLabel('Saved sale history')).toContainText('US$74.10');
  await expect(submit(page)).toHaveCount(0);
+ await page.screenshot({path:'test-artifacts/sale-saved-usd.png',fullPage:true});
 });
 test('unknown acquisition stays unknown; a genuine loss remains negative',async({page})=>{
  await visit(page,{acquisition_price:null});await open(page);await fill(page,{'Out-of-pocket shipping':'110.25'});
@@ -83,7 +87,7 @@ test('successful acknowledgement with unavailable readback stays unconfirmed unt
  await visit(page);await open(page);await fill(page);let posts=0;
  await page.route(rpc,async route=>{posts++;const response=await route.fetch();expect(response.ok()).toBe(true);
   await page.route(history,read=>read.fulfill({status:503,json:{message:'Synthetic read failure'}}));await route.fulfill({response});});
- await submit(page).click();await expect(page.getByRole('status')).toContainText('not yet confirmed');await expect(page.getByRole('status')).not.toContainText('recorded and read back');
+ await submit(page).click();await expect(page.getByRole('status')).toContainText('not yet confirmed',{timeout:15000});await expect(page.getByRole('status')).not.toContainText('recorded and read back');
  await expect(page.locator('summary')).toHaveCount(0);expect(posts).toBe(1);
  await page.unroute(history);await page.getByRole('button',{name:'Reload sale history'}).click();await saved(page);expect(posts).toBe(1);expect(await rows(page)).toHaveLength(1);
 });

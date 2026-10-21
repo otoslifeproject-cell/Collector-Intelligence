@@ -18,7 +18,7 @@ function SaleForm({client,itemId}:{client:SupabaseClient;itemId:string}){
  const [error,setError]=useState('')
  const [message,setMessage]=useState('')
  const [attempt,setAttempt]=useState<Attempt|null>(null)
- const attemptRef=useRef<Attempt|null>(null)
+ const attemptRef=useRef<Attempt|null>(null),statusRef=useRef<HTMLParagraphElement|null>(null)
  const scope=useRef(0),readNumber=useRef(0),owner=useRef<string|null|undefined>(undefined)
  const controller=useRef<AbortController|null>(null),active=useRef(false)
  const setPending=(value:Attempt|null)=>{attemptRef.current=value;setAttempt(value)}
@@ -62,6 +62,7 @@ function SaleForm({client,itemId}:{client:SupabaseClient;itemId:string}){
   void load()
   return ()=>{active.current=false;scope.current++;controller.current?.abort();subscription.data.subscription.unsubscribe()}
  },[client,itemId])
+ useEffect(()=>{if(!saving&&message)statusRef.current?.focus()},[message,saving])
  const currency=context?.item.currency||'GBP'
  const knownCost=context?.item.all_in_cost??context?.item.acquisition_price??null
  const crossCurrency=knownCost!==null&&context?.item.acquisition_currency!==currency
@@ -142,7 +143,7 @@ function SaleForm({client,itemId}:{client:SupabaseClient;itemId:string}){
   {sold&&<p className="ci-page-meta">This item is already recorded as sold. Its existing outcomes are preserved.</p>}
   {loading&&<p className="ci-page-meta">Loading private sale records…</p>}
   {error&&<p role="alert" className="note">{error}</p>}
-  {message&&<p className="note" role="status">{message}</p>}
+  {message&&<p className="note" role="status" tabIndex={-1} ref={statusRef}>{message}</p>}
   {(!loading&&!saving&&(error||attempt))&&<button className="secondaryButton inlineButton" onClick={()=>void load()}>Reload sale history</button>}
  </section>
 }

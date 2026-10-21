@@ -815,3 +815,5 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-sale-outcome .ci-outcome-row{display:grid;gap:8px;padding:12px 0}
 .ci-sale-outcome .ci-outcome-row small{color:var(--muted)}
 .ci-sale-outcome button{max-width:100%;white-space:normal}
+.ci-sale-outcome .ci-record-selection{display:flex;min-height:44px;line-height:1.45}
+.ci-sale-outcome .ci-record-selection input{flex:0 0 20px;min-width:20px;width:20px;height:20px}
