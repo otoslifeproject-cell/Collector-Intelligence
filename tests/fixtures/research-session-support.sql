@@ -1,17 +1,7 @@
--- DISPOSABLE TEST SUPPORT ONLY. This is not a production migration.
--- The exact checked-in AI-run, claim and review migrations are installed next.
--- Minimal item/RLS fixture and EMPTY research-context views let the real handler
--- exercise persistence. These views do not certify production evidence rules.
-CREATE TABLE public.items (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_id uuid NOT NULL DEFAULT auth.uid(),
-  source_object_index integer
-);
-ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY fixture_item_owner ON public.items FOR ALL TO authenticated
-  USING (owner_id=auth.uid()) WITH CHECK (owner_id=auth.uid());
-GRANT SELECT,INSERT ON public.items TO authenticated;
-
+-- DISPOSABLE TEST SUPPORT ONLY. Not a production migration.
+-- Core items/RLS/AI tables now come from their unchanged original migrations.
+-- EMPTY research-context views let the real handler exercise persistence;
+-- they do not certify the production evidence-view definitions.
 CREATE VIEW public.trusted_knowledge_v1 AS SELECT
   null::uuid id,null::text entity_key,null::text claim,null::text source_url,
   null::text source_reference,null::timestamptz last_verified,null::text certainty_class

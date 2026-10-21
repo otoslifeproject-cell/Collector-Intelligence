@@ -5,11 +5,21 @@ import assert from 'node:assert/strict';
 import researchHandler from '../api/research-item.ts';
 
 export async function installResearchSessionFixtures(admin,read){
+  await admin.query(await read('tests/fixtures/catalogue-storage-metadata.sql'));
+  await admin.query(await read('supabase/migrations/001_core_schema.sql'));
+  await admin.query(await read('supabase/migrations/002_rls_and_storage.sql'));
+  await admin.query(`GRANT SELECT,INSERT ON public.items,public.item_photos,public.item_evidence,
+    public.attribution_history,public.research_tasks TO authenticated;
+    GRANT USAGE,SELECT ON SEQUENCE public.item_code_seq TO authenticated`);
   await admin.query(await read('tests/fixtures/research-session-support.sql'));
   await admin.query(await read('supabase/migrations/004_ai_intake.sql'));
   await admin.query('GRANT SELECT,INSERT,UPDATE ON public.ai_analysis_runs TO authenticated');
   await admin.query(await read('supabase/migrations/20261017_paid_research_claim_gate_v1.sql'));
   await admin.query(await read('supabase/migrations/20261017_owner_review_revision_cas_v1.sql'));
+  await admin.query(await read('supabase/migrations/20261017_append_only_owner_verdict_feedback.sql'));
+  await admin.query(await read('supabase/migrations/20261016_atomic_photo_first_approval_v1.sql'));
+  await admin.query(await read('supabase/migrations/20261017_reviewed_material_evidence_on_catalogue_v6.sql'));
+  await admin.query(await read('supabase/migrations/20261016_block_partial_analysis_catalogue_approval.sql'));
 }
 
 export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,key}){
