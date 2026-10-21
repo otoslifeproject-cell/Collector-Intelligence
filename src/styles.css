@@ -807,3 +807,11 @@ body{font-size:var(--ci-body-size);line-height:1.5}
  .ci-canonical-archive .ci-archive-imported,.ci-canonical-archive .ci-archive-stored-hash{display:none}
  .ci-canonical-archive th:last-child,.ci-canonical-archive td:last-child{width:90px}
 }
+
+/* Actual receipt entry and read-back share existing form and theme tokens. */
+.ci-sale-fields{border:0;padding:0;margin:0;min-width:0}
+.ci-sale-outcome,.ci-sale-outcome .ci-outcome-row{min-width:0;overflow-wrap:anywhere}
+.ci-sale-outcome .ci-economics-fields textarea{min-width:0;width:100%}
+.ci-sale-outcome .ci-outcome-row{display:grid;gap:8px;padding:12px 0}
+.ci-sale-outcome .ci-outcome-row small{color:var(--muted)}
+.ci-sale-outcome button{max-width:100%;white-space:normal}

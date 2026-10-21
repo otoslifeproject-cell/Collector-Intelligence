@@ -373,7 +373,7 @@ export default function ItemDetail() {
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
-       <RecordSaleOutcome itemId={item.id} currency={item.currency||'GBP'} itemStatus={item.status}/>
+       <RecordSaleOutcome client={supabase} itemId={item.id}/>
       </div>}
 
       {tab==='catalogue' && <div className="cataloguePreview">

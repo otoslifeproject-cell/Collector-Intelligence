@@ -16,6 +16,11 @@ on:
       - 'src/styles.css'
       - 'tests/archive-browser.config.mjs'
       - 'tests/canonical-archive.spec.mjs'
+      - 'tests/sale-outcome.spec.mjs'
+      - 'tests/fixtures/sale-outcome.*'
+      - 'src/lib/actualSale.ts'
+      - 'src/components/RecordSaleOutcome.tsx'
+      - 'src/pages/ItemDetail.tsx'
       - 'tests/ui-layout.spec.mjs'
       - 'tests/fixtures/canonical-archive.*'
       - 'tests/fixtures/appearance-layout.html'
@@ -131,14 +136,14 @@ jobs:
           node-version: '22'
       - name: Install locked SDK and test driver
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Install Chromium for authenticated archive acceptance
+      - name: Install Chromium for authenticated archive and sale acceptance
         run: npx playwright install --with-deps chromium
       - name: Exercise Auth, research, catalogue, sale transactions and source integrity
         env:
           CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_http
           CI_ISOLATED_STAGING_CONFIRMED: 'yes'
         run: node --experimental-strip-types scripts/test-continuity-http.mjs
-      - name: Preserve actual archive and existing layout screenshots
+      - name: Preserve actual archive, sale and existing layout screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
