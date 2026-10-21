@@ -3,6 +3,9 @@
 # COLLECTOR INTELLIGENCE — NEW WINDOW START HERE
 
 
+> **Latest consolidated engineering checkpoint — 21 October 2026:** [Catalogue and sale transaction acceptance](CONTINUITY_SALE_CAPTURE_ACCEPTANCE_20261021.md), final tested code `4153231`, same draft PR #2. **398 checks PASS across all four jobs**; 95 new real-service cases across catalogue and sales. Original defects reproduced; separate unapplied SQL candidates guard photo/pair/confidence and finite/currency/retry sale inputs. Loss/unknown-cost/idempotence/RLS/late rollback/reversal verified. **Production unchanged.** [Verified Drive handover](https://drive.google.com/file/d/13wmvjPHci6NS0BMpuSAl8-Rb__7oT4I-/view?usp=drivesdk) · [verified sale review/log ZIP](https://drive.google.com/file/d/11I7LGJliLtjjOQ9n4eWbHBP0fmPDwn0o/view?usp=drivesdk). Source publication, actual Storage bytes, complete hosted/form UX and cross-currency acquisition entry remain separate gates.
+
+
 > **Latest engineering checkpoint — 21 October 2026:** [Catalogue approval acceptance and source guards](CONTINUITY_CATALOGUE_APPROVAL_ACCEPTANCE_20261021.md), tested code `7ff2d30`, same draft PR #2. **354 checks PASS across all four jobs**. Real core schema/Auth/REST approval transactions now cover photo metadata preservation, batch/pair mapping, duplicates, contention and rollback. Three original defects reproduced; separate strict-input/confidence-reset SQL candidate tested, **unapplied to production**. [Verified Drive handover](https://drive.google.com/file/d/119crl2kDhQapi43jdHJKyCX-UNdWSlq9/view?usp=drivesdk) · [verified review/log ZIP](https://drive.google.com/file/d/1WmSqPEqjmEqDVrTfry0LQef74VKAXZd9/view?usp=drivesdk). Actual Storage bytes, full hosted/form acceptance and exact current Instructions/source publication remain separate gates.
 
 
