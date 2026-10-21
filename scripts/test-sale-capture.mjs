@@ -106,8 +106,14 @@ export async function exerciseSaleCapture({admin,rest,check,A,B,anon,read}){
   try{await rejected(i,sale,{status:403});}finally{await admin.query('GRANT INSERT ON public.sale_outcomes TO authenticated');}
  });
  await check('failed item status update rolls back an already attempted outcome insertion',async()=>{
-  const i=await item();await admin.query('REVOKE UPDATE ON public.items FROM authenticated');
-  try{await rejected(i,sale,{status:403});}finally{await admin.query('GRANT UPDATE ON public.items TO authenticated');}
+  const i=await item();
+  // Revoking UPDATE would fail at SELECT FOR UPDATE before the insert. A real
+  // late trigger exception proves that the preceding sale row rolls back too.
+  await admin.query(`CREATE FUNCTION public.ci_fixture_reject_sold() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.status='SOLD' THEN RAISE EXCEPTION 'DISPOSABLE late status failure'; END IF; RETURN NEW; END $$;
+    CREATE TRIGGER ci_fixture_reject_sold BEFORE UPDATE OF status ON public.items
+      FOR EACH ROW EXECUTE FUNCTION public.ci_fixture_reject_sold()`);
+  try{await rejected(i,sale);}finally{await admin.query('DROP TRIGGER ci_fixture_reject_sold ON public.items; DROP FUNCTION public.ci_fixture_reject_sold()');}
  });
  await check('owner sale does not become a trusted comparable or Knowledge Brain claim',async()=>{
   assert.equal((await admin.query('select count(*)::int n from public.comparables')).rows[0].n,0);assert.equal((await admin.query('select count(*)::int n from public.knowledge_records')).rows[0].n,0);
