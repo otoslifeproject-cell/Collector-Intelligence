@@ -3,7 +3,7 @@ import {mkdirSync} from 'node:fs';
 mkdirSync('test-artifacts',{recursive:true});
 const history='**/rest/v1/sale_outcomes?*',rpc='**/rest/v1/rpc/ci_record_actual_sale_v1';
 async function visit(page,item={}){
- await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort('blockedbyclient'));
+ await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.fallback():route.abort('blockedbyclient'));
  await page.addInitScript(config=>{window.__CI_SALE_FIXTURE__=config;},{key:process.env.CI_ARCHIVE_PUBLIC_KEY,item});
  await page.goto('/tests/fixtures/sale-outcome.html');
  await expect(page.locator('.ci-sale-outcome')).toBeVisible();
@@ -114,4 +114,26 @@ test('late private history response cannot appear after an account switch',async
 });
 test('keyboard opens the form and reaches a labelled date input',async({page})=>{
  await visit(page);await page.locator('summary').focus();await page.keyboard.press('Enter');await page.keyboard.press('Tab');await expect(page.getByLabel('Actual sale date')).toBeFocused();
+});
+test('late committed sale response stays hidden after the signed-in owner changes',async({page})=>{
+ await visit(page);await open(page);await fill(page);
+ let release,started;const gate=new Promise(resolve=>release=resolve),seen=new Promise(resolve=>started=resolve);
+ await page.route(rpc,async route=>{const response=await route.fetch();expect(response.ok()).toBe(true);started();await gate;await route.fulfill({response});});
+ await submit(page).click();await seen;await switchAccount(page,'b');release();
+ await expect(page.getByRole('alert')).toContainText('unavailable');await expect(page.getByRole('status')).toHaveCount(0);await expect(page.getByLabel('Saved sale history')).toHaveCount(0);
+ await switchAccount(page,'a');await expect(page.getByLabel('Saved sale history')).toContainText('£100.25');expect(await rows(page)).toHaveLength(1);
+});
+test('switching collection objects clears the draft and pending event before a new sale',async({page})=>{
+ await visit(page);await open(page);await fill(page);let first;
+ await page.route(rpc,route=>{first=route.request().postDataJSON();return route.abort('connectionreset');});
+ await submit(page).click();await expect(page.getByRole('status')).toContainText('not yet confirmed');await page.unroute(rpc);
+ await page.evaluate(async()=>{
+  const client=window.__CI_SALE_CLIENT__,identity=await client.auth.getUser();
+  const result=await client.from('items').insert({owner_id:identity.data.user.id,title:'Second synthetic object',currency:'GBP',acquisition_currency:'GBP',acquisition_price:0}).select('id').single();
+  if(result.error)throw Error(result.error.message);window.__CI_SALE_ITEM__=result.data.id;window.__CI_SALE_SELECT__(result.data.id);
+ });
+ await open(page);await expect(page.getByLabel('Gross amount received')).toHaveValue('');await expect(page.getByRole('checkbox')).not.toBeChecked();
+ await fill(page);let second;await page.route(rpc,route=>{second=route.request().postDataJSON();return route.continue();});
+ await submit(page).click();await saved(page);expect(second.p_client_event_id).not.toBe(first.p_client_event_id);expect(second.p_item_id).not.toBe(first.p_item_id);
+ const outcome=(await rows(page))[0];expect(outcome.net_profit).toBe(99.20);expect(outcome.return_on_cash).toBeNull();
 });
