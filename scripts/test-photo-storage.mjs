@@ -82,7 +82,7 @@ try{
   DATABASE_MAX_CONNECTIONS:'10',DB_ALLOW_MIGRATION_REFRESH:'false',LOG_LEVEL:'warn',
  });
  await ready(STORAGE+'/status');
- for(const path of ['001_core_schema.sql','002_rls_and_storage.sql','004_ai_intake.sql','20261017_append_only_owner_verdict_feedback.sql',
+ for(const path of ['001_core_schema.sql','002_rls_and_storage.sql','004_ai_intake.sql','20261017_append_only_owner_verdict_feedback.sql','20261017_owner_review_revision_cas_v1.sql',
   '20261016_atomic_photo_first_approval_v1.sql','20261017_reviewed_material_evidence_on_catalogue_v6.sql','20261016_block_partial_analysis_catalogue_approval.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/catalogue-approval-input-guards.sql'));
  // Install every application RPC before PostgREST builds its schema cache.
