@@ -3,6 +3,9 @@
 # COLLECTOR INTELLIGENCE — NEW WINDOW START HERE
 
 
+> **Latest real-Storage checkpoint — 21 October 2026:** [Private Storage byte acceptance](CONTINUITY_REAL_STORAGE_ACCEPTANCE_20261021.md), tested code `2f93ac1`, same draft PR #2. **450 checks PASS / all five jobs SUCCESS**, Actions 39656056319. 32 new real SDK/Storage byte/RLS/signed-link/copy/limit/catalogue-original-retention cases, no metadata stand-in in the new job. [Verified Drive handover](https://drive.google.com/file/d/1LX8rRxG1OENkmwE0oFFCe-wn2aJYUe-d/view?usp=drivesdk) · [verified five-log/source evidence](https://drive.google.com/file/d/1eWxCMVKeqeonV6XpH41Ziqb70r50OL3S/view?usp=drivesdk). Production unchanged; both SQL candidates unapplied. Actual photo UI/full hosted routes, S3/CDN/TLS and current Instructions/source publication remain separate; signed URLs are time-limited bearer capabilities.
+
+
 > **Latest integration checkpoint — 21 October 2026:** [Confirmed sale/editor synchronisation](CONTINUITY_SALE_EDITOR_SYNC_20261021.md), tested code `2ddb302`, same draft PR #2. **418 checks PASS; all four jobs SUCCESS** in Actions 39611455222. Saved SOLD status reaches matching owner/item editor without losing unsaved fields and overrides stale readiness in header. Actual component/shared-helper/synthetic-parent browser checks pass at all eight width/theme combinations; full hosted route remains separate. [Verified Drive handover](https://drive.google.com/file/d/1xnp2Vzk_kCuoOQHmQehi2pgk96l5EAGI/view?usp=drivesdk) · [46-file full logs/screenshots/source receipt](https://drive.google.com/file/d/1yAgHAItKTa-kz2SbKFUKK8W3s92alTq4/view?usp=drivesdk). Original full form checkpoint/failures preserved below. Production unchanged; both SQL candidates unapplied; current Instructions/source approval, actual Storage bytes and full hosted/human acceptance remain gates.
 
 
