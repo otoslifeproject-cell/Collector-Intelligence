@@ -14,7 +14,7 @@ test('actual application uploads, renders and orders two private originals',asyn
  await page.setViewportSize({width:390,height:900});const errors=[],paid=[];page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.hostname!=='127.0.0.1')return route.abort('blockedbyclient');if(url.pathname.startsWith('/api/')){paid.push(url.pathname);return route.abort('blockedbyclient');}return route.fallback();});
  const seeded=await client.from('items').insert({owner_id:owner,title:'Synthetic photo workflow',currency:'GBP',acquisition_currency:'GBP'}).select('id').single();expect(seeded.error).toBeNull();const id=seeded.data.id;
- await page.goto(`/item/${id}?tab=photos`);await page.getByLabel('Email',{exact:true}).fill('photo-ci-a@example.test');await page.getByLabel('Password',{exact:true}).fill('Ci-disposable-photo-4826!');await page.getByRole('button',{name:'Sign in',exact:true}).click();
+ await page.goto(`/#/item/${id}?tab=photos`);await page.getByLabel('Email',{exact:true}).fill('photo-ci-a@example.test');await page.getByLabel('Password',{exact:true}).fill('Ci-disposable-photo-4826!');await page.getByRole('button',{name:'Sign in',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Photographs',exact:true})).toBeVisible();await expect(page.getByText('No photographs uploaded yet.',{exact:true})).toBeVisible();
  const originals=[syntheticStoragePNG(40),syntheticStoragePNG(170)];
  await page.locator('input[type=file]').setInputFiles(originals.map((buffer,index)=>({name:`Original ${index}.png`,mimeType:'image/png',buffer})));
