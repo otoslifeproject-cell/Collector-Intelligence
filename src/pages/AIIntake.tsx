@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react'
 import type {ChangeEvent,DragEvent} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {Link,useNavigate} from 'react-router-dom'
 import {Camera,Images,Sparkles,Trash2,UploadCloud} from 'lucide-react'
 import {supabase} from '../lib/supabase'
 import InfoDisclosure from '../components/InfoDisclosure'
@@ -100,6 +100,7 @@ export default function AIIntake(){
           <h1>Photographs in. Catalogue out.</h1>
           <InfoDisclosure label="How intake works"><p>Photos are analysed into draft objects. You review and approve before anything enters your catalogue.</p></InfoDisclosure>
         </div>
+        <Link className="secondaryButton" to="/uploads">Saved uploads</Link>
       </div>
 
       <fieldset disabled={locked} style={{border:0,padding:0,margin:0,minWidth:0}}>
@@ -163,6 +164,7 @@ export default function AIIntake(){
           {!pending.dispatched&&<button type="button" className="primaryButton" disabled={working} onClick={retry}>Retry same photo session</button>}
         </div>
         <p className="ci-page-meta">Keep this page open during recovery. Reloading or leaving this page loses unsent choices; saved sessions and originals remain private.</p>
+        <Link to={'/uploads/'+pending.request.id}>Open this saved session</Link>
         {savedData&&<details><summary>Saved session data</summary><pre className="ci-research-response">{savedData}</pre></details>}
         {rawReply&&<details><summary>Unconfirmed service reply</summary><pre className="ci-research-response">{rawReply}</pre></details>}
       </section>}

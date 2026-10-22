@@ -375,7 +375,7 @@ export default function Research() {
   }
 
   return <div>
-    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1>Research your objects</h1><InfoDisclosure label="About research"><p>Saved reports and individual objects retain their own source evidence, corrections and provisional valuations.</p></InfoDisclosure></div></div>
+    <div className="pageHeader"><div><div className="eyebrow">RESEARCH</div><h1>Research your objects</h1><InfoDisclosure label="About research"><p>Saved reports and individual objects retain their own source evidence, corrections and provisional valuations.</p></InfoDisclosure></div><Link className="secondaryButton" to="/uploads">All saved uploads</Link></div>
     <section className="ci-research-options panel" aria-label="Choose research method">
       <div className="eyebrow">RESEARCH OPTIONS</div>
       <h2>Choose how to research</h2>

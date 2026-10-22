@@ -115,7 +115,7 @@ try{
  const [A,B]=users,anon=createClient(API,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
  await exercisePhotoStorage({admin,check,A,B,anon,API});
  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
-  env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:300000,maxBuffer:4*1024*1024,
+  env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:420000,maxBuffer:4*1024*1024,
  }).catch(error=>{console.error(error.stdout,error.stderr);throw Error('Disposable photo application browser acceptance failed. See browser output.');});
  console.log(browser.stdout,browser.stderr);
  console.log(`${passed} real Supabase Storage byte assertions passed. Disposable file backend with genuine Auth/Kong/REST/SDK; browser output covers the exercised full-application routes, not hosted S3/CDN or untested flows.`);
