@@ -11,6 +11,7 @@ import {createClient} from '@supabase/supabase-js';
 import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {continuityKongConfig} from './continuity-kong-config.mjs';
 import {installResearchSessionFixtures,exerciseResearchSessions} from './test-research-sessions.mjs';
+import {exerciseIntakeResponseRecovery} from './test-intake-response-recovery.mjs';
 import {exerciseCatalogueApproval} from './test-catalogue-approval.mjs';
 import {exerciseSaleCapture} from './test-sale-capture.mjs';
 import {loadApprovedCanonicalContext,canonicalCallerKeys} from '../src/lib/approvedCanonicalSources.ts';
@@ -261,6 +262,7 @@ try {
     await assert.rejects(readCanonicalArchiveVersion(archiveSDK,{...foreign,owner_id:A.id}),/could not be read/);
   });
   await exerciseResearchSessions({admin,rest,check,A,B,anon,API,key:publishableKey});
+  await exerciseIntakeResponseRecovery({admin,rest,check,A,B,API,key:publishableKey});
   await exerciseCatalogueApproval({admin,rest,check,A,B,anon,read});
   await exerciseSaleCapture({admin,rest,check,A,B,anon,read});
   // Runs the actual React component and SDK against these real disposable

@@ -46,6 +46,7 @@ on:
       - 'scripts/test-continuity-postgres.mjs'
       - 'scripts/test-continuity-http.mjs'
       - 'scripts/test-research-sessions.mjs'
+      - 'scripts/test-intake-response-recovery.mjs'
       - 'scripts/test-catalogue-approval.mjs'
       - 'scripts/test-sale-capture.mjs'
       - 'scripts/test-photo-storage.mjs'
