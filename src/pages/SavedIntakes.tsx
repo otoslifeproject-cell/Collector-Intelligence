@@ -3,7 +3,15 @@ import {Link,useLocation,useParams} from 'react-router-dom'
 import {supabase} from '../lib/supabase'
 import {intakePageSize,listSavedIntakes,readSavedIntake,savedIntakePreviews,savedIntakeState,savedIntakeTitle,savedReportAvailable,SavedIntakeError,type SavedIntake} from '../lib/savedIntakes'
 
-type Checked={key:string;rows:SavedIntake[];total:number;previewsChecked:boolean;previews:Record<string,{index:number;name:string;url:string}[]>}
+type Photo={index:number;name:string;url:string}
+type Checked={key:string;rows:SavedIntake[];total:number;previewsChecked:boolean;previews:Record<string,Photo[]>}
+function SavedPhoto({photo}:{photo:Photo}){
+ const [failed,setFailed]=useState(false)
+ return <div className="photoTile">
+  {photo.url&&!failed?<img src={photo.url} alt={'Source photograph '+(photo.index+1)+': '+photo.name} style={{objectFit:'contain'}} onError={()=>setFailed(true)}/>:<p className="note">Preview unavailable</p>}
+  <div><strong>Source photograph #{photo.index+1}</strong><span>{photo.name}</span></div>
+ </div>
+}
 export default function SavedIntakes(){
  const {id}=useParams(),location=useLocation(),[reload,setReload]=useState(0)
  const query=new URLSearchParams(location.search).get('page')||'1',page=/^[1-9]\d*$/.test(query)?Number(query):NaN
@@ -36,7 +44,7 @@ export default function SavedIntakes(){
    <p>{id?'Check the original saved response before requesting another analysis.':'Find your drafts and earlier uploads. Checking this list does not run AI.'}</p></div>
    <div className="intakeActions">{id?<Link className="secondaryButton" to="/uploads">Saved uploads</Link>:<Link className="primaryButton" to="/intake">New photo upload</Link>}{refresh}</div>
   </div>
-  <section aria-label={id?'Saved photo session':'Saved uploads'} aria-busy={!data&&!message}>
+  <section aria-label={id?'Saved photo session':'Saved uploads'} aria-busy={(!data&&!message)||!!data&&!data.previewsChecked}>
    {message?<div className="panel"><p role="alert">{message}</p><Link to="/uploads">Return to first page</Link></div>:!data?<p role="status">Checking saved uploads…</p>:id?
     !row?<p className="note">This saved session is unavailable for your account.</p>:<>
      <div className="panel"><div className="panelHeader"><h2>{savedIntakeTitle(row)}</h2><span>{savedIntakeState(row)}</span></div>
@@ -44,8 +52,7 @@ export default function SavedIntakes(){
       {savedReportAvailable(row)?<Link className="primaryButton" to={'/draft/'+row.id}>Open saved draft</Link>:<p className="note">A complete usable draft is not confirmed. The original response is retained below. Checking this session will not start another paid analysis.</p>}
       <details><summary>Session details</summary><p>Model: {row.model}</p><label>Saved session ID<input readOnly value={row.id}/></label></details>
      </div>
-     {!data.previewsChecked?<p role="status">Checking photo previews…</p>:data.previews[row.id]?.length>0?<div className="panel"><h2>Saved source photographs</h2><div className="photoGrid">{data.previews[row.id].map(photo=><div key={photo.index}>
-      {photo.url?<img src={photo.url} alt={'Source photograph '+(photo.index+1)+': '+photo.name} onError={e=>{e.currentTarget.hidden=true}}/>:<p>Preview unavailable</p>}<p>#{photo.index+1} · {photo.name}</p></div>)}</div></div>:<p className="ci-page-meta">Photo previews are unavailable or the saved manifest needs review. Original session data is preserved below.</p>}
+     {!data.previewsChecked?<p role="status">Checking photo previews…</p>:data.previews[row.id]?.length>0?<div className="panel"><h2>Saved source photographs</h2><div className="photoGrid">{data.previews[row.id].map(photo=><SavedPhoto key={photo.index} photo={photo}/>)}</div></div>:<p className="ci-page-meta">Photo previews are unavailable or the saved manifest needs review. Original session data is preserved below.</p>}
      <details className="panel"><summary>Saved session data</summary><p>Original saved data. Model statements and saved responses do not independently verify an attribution or sale.</p><pre className="ci-research-response">{JSON.stringify(row,null,2)}</pre></details>
     </>:
     <><p className="ci-page-meta">{data.total?`Showing ${(page-1)*intakePageSize+1}–${(page-1)*intakePageSize+data.rows.length} of ${data.total} saved uploads`:'No saved photo uploads for this account.'}</p>

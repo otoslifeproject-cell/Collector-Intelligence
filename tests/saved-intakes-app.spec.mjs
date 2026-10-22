@@ -37,13 +37,20 @@ const report=(stage='COMPLETE')=>({analysis_stage:stage,batch_summary:'Synthetic
 for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(`saved raw session and private original ${width}px ${theme}`,async({page})=>{
  const run=await seed();await page.setViewportSize({width,height:900});const e=await visit(page,'/uploads/'+run.id,theme);
  await expect(body(page)).toHaveAttribute('aria-busy','false');await photoReady(page);
+ const image=body(page).locator('.photoGrid img').first(),box=await image.boundingBox();expect(box.width).toBeGreaterThan(60);expect(box.height).toBeGreaterThanOrEqual(180);await expect(image).toHaveCSS('object-fit','contain');
  await page.getByText('Saved session data',{exact:true}).click();await expect(body(page).locator('pre')).toContainText(run.result.provider_response_raw);
  await expect(page.getByRole('link',{name:'Open saved draft',exact:true})).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  await expect(body(page).locator('script')).toHaveCount(0);
  await page.screenshot({path:`test-artifacts/saved-upload-${width}-${theme}.png`,fullPage:true});
  const stored=await client.from('ai_analysis_runs').select('result').eq('id',run.id).single();expect(stored.error).toBeNull();expect(stored.data.result).toEqual(run.result);
- const image=await client.storage.from('item-images').download(run.storage_path);expect(image.error).toBeNull();expect(hash(Buffer.from(await image.data.arrayBuffer()))).toBe(hash(run.bytes));noWrites(e);
+ const original=await client.storage.from('item-images').download(run.storage_path);expect(original.error).toBeNull();expect(hash(Buffer.from(await original.data.arrayBuffer()))).toBe(hash(run.bytes));
+ if((width===320&&theme==='light')||(width===1440&&theme==='dark')){
+  await page.getByRole('link',{name:'Saved uploads',exact:true}).click();const list=page.getByRole('region',{name:'Saved uploads',exact:true});await expect(list).toHaveAttribute('aria-busy','false');await expect(list.locator('.itemCard').first()).toBeVisible();
+  await expect.poll(()=>list.locator('.itemCard img').evaluateAll(images=>images.every(img=>img.complete&&img.naturalWidth>0))).toBe(true);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.screenshot({path:`test-artifacts/saved-upload-list-${width}-${theme}.png`,fullPage:true});
+ }
+ noWrites(e);
 });
 test('older uploads beyond the former twelve-session view remain reachable by counted pages',async({page})=>{
  const prefix=randomUUID(),records=Array.from({length:25},(_,index)=>({id:randomUUID(),mode:'single',model:'fixture-no-provider',status:'DRAFT',input_photo_count:0,created_at:new Date(Date.UTC(2040,0,1,0,0,25-index)).toISOString(),result:{analysis_stage:'UPLOADED',objects:[{working_title:`${prefix} saved upload ${index}`}]}}));
