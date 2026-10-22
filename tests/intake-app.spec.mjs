@@ -63,8 +63,8 @@ test('lost original upload reply is independently confirmed without a second upl
  await choose(page);await analyse(page).click();await saved(page);expect(e.uploads).toHaveLength(2);expect(e.stages).toHaveLength(1);expect(e.api).toHaveLength(1);await originals(e.api[0].run_id,files());expect(e.errors).toEqual([]);
 });
 test('wrong downloaded bytes stop staging and preserve the selected original for safe recovery',async({page})=>{
- const e=await visit(page);await mockCompletion(page);const download='**/storage/v1/object/authenticated/item-images/**';let injected=0;
- await page.route(download,route=>{injected++;return route.fulfill({status:200,contentType:'image/png',body:syntheticStoragePNG(222)});});
+ const e=await visit(page);await mockCompletion(page);const download='**/storage/v1/object/item-images/**';let injected=0;
+ await page.route(download,async route=>{if(route.request().method()!=='GET')return route.fallback();injected++;const response=await route.fetch(),body=syntheticStoragePNG(222);return route.fulfill({response,status:200,headers:{...response.headers(),'content-type':'image/png','content-length':String(body.length)},body});});
  await choose(page,[41]);await analyse(page).click();await expect(status(page)).toContainText('stored original differs');expect(injected).toBeGreaterThan(0);expect(e.api).toHaveLength(0);expect(e.stages).toHaveLength(0);expect(e.uploads).toHaveLength(1);
  await page.unroute(download);await retry(page).click();await saved(page);expect(e.uploads).toHaveLength(1);await originals(e.api[0].run_id,files([41]));
 });
@@ -108,7 +108,7 @@ for(const field of ['user_context','image_manifest'])test(`changed saved ${field
 });
 test('malformed saved model arrays remain raw rather than crashing review or enabling a paid repeat',async({page})=>{
  const e=await visit(page);await page.route(api,async route=>{const id=route.request().postDataJSON().run_id;const result=await complete(id,{objects:[{...originalObject([0]),evidence:'Malformed original array'}]});return route.fulfill({status:200,json:{saved_run_id:id,result}});});
- await choose(page,[41]);await analyse(page).click();await expect(status(page)).toContainText('not yet confirmed');await pending(page).getByText('Saved session data',{exact:true}).click();await expect(pending(page).locator('pre').filter({hasText:'Malformed original array'})).toBeVisible();await expect(retry(page)).toHaveCount(0);expect(e.errors).toEqual([]);expect(e.api).toHaveLength(1);
+ await choose(page,[41]);await analyse(page).click();await expect(status(page)).toContainText('not yet confirmed');await pending(page).getByText('Saved session data',{exact:true}).click();await expect(pending(page).locator('details').filter({has:page.getByText('Saved session data',{exact:true})}).locator('pre')).toContainText('Malformed original array');await expect(retry(page)).toHaveCount(0);expect(e.errors).toEqual([]);expect(e.api).toHaveLength(1);
 });
 test('a saved first pass stays available when later enrichment fails and catalogue remains blocked',async({page})=>{
  const e=await visit(page);await page.route(api,async route=>{await complete(route.request().postDataJSON().run_id,{analysis_stage:'FIRST_PASS_SAVED'});return route.fulfill({status:503,json:{error:'Synthetic enrichment failure'}});});
@@ -135,7 +135,7 @@ test('one intake continues through owner approval, original photos and sales pla
  const e=await visit(page),apiPaths=[];page.on('request',r=>{const u=new URL(r.url());if(r.method()==='POST'&&u.pathname.startsWith('/api/'))apiPaths.push(u.pathname);});await mockCompletion(page);
  await choose(page);await analyse(page).click();await saved(page);const id=e.api[0].run_id;
  const review=page.locator('details.ci-object-review').first();await review.locator('summary').first().click();await review.getByRole('textbox',{name:'Object title',exact:true}).fill('Owner title for sale preparation');
- await page.getByRole('tab',{name:'catalogue',exact:true}).click();await page.getByRole('button',{name:'Catalogue 1 selected',exact:true}).click();await expect(page.getByRole('region',{name:'Saved catalogue records',exact:true})).toBeVisible();
+ await page.getByRole('tab',{name:'catalogue',exact:true}).click();await page.getByRole('button',{name:'Catalogue 1 selected',exact:true}).click();await expect(page).toHaveURL(/#\/item\/[0-9a-f-]+/);await expect(page.getByRole('heading',{name:'Owner title for sale preparation',exact:true})).toBeVisible();
  const items=await client.from('items').select('*').eq('source_analysis_run_id',id);expect(items.error).toBeNull();expect(items.data).toHaveLength(1);const item=items.data[0];expect(item.title).toBe('Owner title for sale preparation');expect(item.owner_id).toBe(owner);
  const row=await originals(id,files());expect(row.result.objects[0].working_title).toBe('Synthetic intake vessel');expect(row.status).toBe('APPROVED');
  await page.goto('/#/item/'+item.id+'?tab=photos');const photos=page.getByRole('region',{name:'Original photographs',exact:true});await expect(photos.locator('.photoGrid img')).toHaveCount(2);await expect.poll(()=>photos.locator('.photoGrid img').evaluateAll(images=>images.every(img=>img.complete&&img.naturalWidth===2))).toBe(true);
