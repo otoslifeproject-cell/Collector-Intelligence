@@ -22,6 +22,7 @@ on:
       - 'src/lib/itemPhotographs.ts'
       - 'src/lib/catalogueApproval.ts'
       - 'src/lib/ownerReview.ts'
+      - 'src/lib/verdictCorrection.ts'
       - 'src/App.tsx'
       - 'src/components/RecordSaleOutcome.tsx'
       - 'src/pages/ItemDetail.tsx'

@@ -16,6 +16,8 @@ import type {CatalogueRequest,CatalogueSource} from '../lib/catalogueApproval'
 
 import {OwnerReviewError,prepareOwnerReview,settleOwnerReview} from '../lib/ownerReview'
 import type {OwnerReviewRequest} from '../lib/ownerReview'
+import {CorrectionError,prepareCorrection,readOwnerCorrections,settleCorrection} from '../lib/verdictCorrection'
+import type {CorrectionRequest} from '../lib/verdictCorrection'
 
 type SavedRun=CatalogueSource
 export default function SavedDraft(){
@@ -25,7 +27,7 @@ export default function SavedDraft(){
 }
 function SavedDraftRecord({id}:{id:string}){
  const reportMenuRef=useRef<HTMLDetailsElement>(null)
- const alive=useRef(false),approvalBusy=useRef(false),reviewBusy=useRef(false),approvalStatus=useRef<HTMLParagraphElement|null>(null)
+ const alive=useRef(false),approvalBusy=useRef(false),reviewBusy=useRef(false),correctionBusy=useRef(false),approvalStatus=useRef<HTMLParagraphElement|null>(null)
  const current=()=>alive.current
  const navigate=useNavigate()
  const [run,setRun]=useState<SavedRun|null>(null)
@@ -40,6 +42,7 @@ function SavedDraftRecord({id}:{id:string}){
  const [confirmedPhotoCorrection,setConfirmedPhotoCorrection]=useState(false)
  const [catalogued,setCatalogued]=useState<Array<{item_id:string;item_code:string;title:string;object_index:number}>>([])
  const [saveStatus,setSaveStatus]=useState('')
+ const [pendingCorrection,setPendingCorrection]=useState<CorrectionRequest|null>(null)
  const [pendingReview,setPendingReview]=useState<OwnerReviewRequest|null>(null)
  const [pendingApproval,setPendingApproval]=useState<CatalogueRequest|null>(null)
  const [activeTab,setActiveTab]=useState(()=>{
@@ -95,12 +98,9 @@ function SavedDraftRecord({id}:{id:string}){
      setResearchHistory(past)
      if(past.length){setResearchResult(past[0].result);setResearchAudit(past[0].result?.source_audit||null)}
    }
-   const {data:feedbackRows,error:feedbackError,count:feedbackCount}=await supabase.from('ai_verdict_feedback')
-    .select('id,source_object_index,feedback_type,corrected_material,owner_statement,created_at',{count:'exact'})
-    .eq('owner_id',report.owner_id).eq('source_analysis_run_id',report.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(501)
+   const feedbackRows=await readOwnerCorrections(supabase,report,current)
    if(!current())return
-   if(feedbackError||!feedbackRows||feedbackCount===null||feedbackCount>500||feedbackCount!==feedbackRows.length){setError('Complete owner corrections unavailable; reload this report before further actions.');setRun(null);setBusy(false);return}
-   setVerdictFeedback(feedbackRows||[])
+   setVerdictFeedback(feedbackRows)
    const overrides=report.result?.owner_review?.objects || {}
    setEdits(Object.fromEntries((report.result?.objects||[]).map((o:any,i:number)=>[i,{working_title:overrides[i]?.working_title??o.working_title??'',condition_summary:overrides[i]?.condition_summary??o.condition_summary??''}])))
    const manifest=Array.isArray(report.result?.image_manifest)?report.result.image_manifest:[]
@@ -116,13 +116,13 @@ function SavedDraftRecord({id}:{id:string}){
     const verified=await readApprovedCatalogue(supabase,id,current)
     if(current())setCatalogued(verified.records)
    }
-   }catch(error){if(current()){setError(error instanceof CatalogueError?error.message:'The saved report could not be read. Reload before further actions.');setRun(null)}}
+   }catch(error){if(current()){setError(error instanceof CatalogueError||error instanceof CorrectionError?error.message:'The saved report could not be read. Reload before further actions.');setRun(null)}}
    finally{if(current())setBusy(false)}
   }
   void load()
   return ()=>{active=false;alive.current=false}
  },[id])
- useEffect(()=>{if(!approving&&!saving&&saveStatus)approvalStatus.current?.focus()},[approving,saving,saveStatus])
+ useEffect(()=>{if(!approving&&!saving&&!savingDisagreement&&saveStatus)approvalStatus.current?.focus()},[approving,saving,savingDisagreement,saveStatus])
  const finishReview=async(request:OwnerReviewRequest,submit:boolean)=>{
   const result=await settleOwnerReview(supabase,request,current,submit)
   if(!current())return
@@ -131,21 +131,21 @@ function SavedDraftRecord({id}:{id:string}){
   setSaveStatus('Owner review revision '+result.owner_review_revision+' saved and independently read back with its revision evidence. Previous edits preserved. No AI rerun.')
  }
  const recoverReview=async(submit:boolean)=>{
-  if(!pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
+  if(!pendingReview||pendingCorrection||correctionBusy.current||reviewBusy.current||approvalBusy.current||busy||error)return
   reviewBusy.current=true;setSaving(true);setSaveStatus('Checking the held owner review…')
   try{await finishReview(pendingReview,submit)}
-  catch(error){if(current())setSaveStatus(error instanceof OwnerReviewError||error instanceof CatalogueError?error.message:'The review result could not be confirmed. Keep this page open and check the same save.')}
+  catch(error){if(current())setSaveStatus(error instanceof OwnerReviewError||error instanceof CatalogueError||error instanceof CorrectionError?error.message:'The review result could not be confirmed. Keep this page open and check the same save.')}
   finally{reviewBusy.current=false;if(current())setSaving(false)}
  }
  const save=async()=>{
-  if(!run||run.status!=='DRAFT'||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||researching||savingDisagreement||busy||error)return
+  if(!run||run.status!=='DRAFT'||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||researching||savingDisagreement||busy||error)return
   reviewBusy.current=true;setSaving(true);setSaveStatus('Saving your reviewed text…')
   try{
    const request=await prepareOwnerReview(supabase,run,edits,current)
    if(!current())return
    setPendingReview(request)
    await finishReview(request,true)
-  }catch(error){if(current())setSaveStatus(error instanceof OwnerReviewError||error instanceof CatalogueError?error.message:'The review result could not be confirmed. Keep this page open and check the same save.')}
+  }catch(error){if(current())setSaveStatus(error instanceof OwnerReviewError||error instanceof CatalogueError||error instanceof CorrectionError?error.message:'The review result could not be confirmed. Keep this page open and check the same save.')}
   finally{reviewBusy.current=false;if(current())setSaving(false)}
  }
  const openSavedObject=(i:number)=>{
@@ -195,23 +195,35 @@ function SavedDraftRecord({id}:{id:string}){
  // Only research completed BEFORE the owner's correction is superseded.
  // New metal-informed deep dives must remain visible even while raw visual AI says glass.
  const existingResearchObsolete=correctionAfterResearch
+ const finishCorrection=async(request:CorrectionRequest,submit:boolean)=>{
+  const result=await settleCorrection(supabase,request,current,submit)
+  if(!current())return
+  if(!result){setSaveStatus('No correction is confirmed yet. Your observation is held unchanged. Check the save or retry the same correction; keep this page open.');return}
+  setVerdictFeedback(result.rows);setPendingCorrection(null);setDisagreeOpen(false);setDisagreementNote('')
+  if(reportMenuRef.current)reportMenuRef.current.open=false
+  setSaveStatus('Correction saved and independently read back. Original AI and earlier observations preserved. Current owner history refreshed.')
+ }
+ const recoverCorrection=async(submit:boolean)=>{
+  if(!pendingCorrection||correctionBusy.current||reviewBusy.current||approvalBusy.current||busy||error)return
+  correctionBusy.current=true;setSavingDisagreement(true);setSaveStatus('Checking the held correction…')
+  try{await finishCorrection(pendingCorrection,submit)}
+  catch(error){if(current())setSaveStatus(error instanceof CorrectionError||error instanceof CatalogueError?error.message:'The correction could not be confirmed. Keep this page open and check the same save.')}
+  finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
+ }
  const saveDisagreement=async()=>{
-   if(!run||savingDisagreement||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
+  if(!run||pendingCorrection||correctionBusy.current||researching||savingDisagreement||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
+  correctionBusy.current=true;setSavingDisagreement(true);setSaveStatus('Preserving your correction separately from original AI…')
+  try{
    const note=disagreementNote.trim()||'Owner rejects the model material. Reinvestigate using corrected material and original photographs.'
-   setSavingDisagreement(true);setSaveStatus('Preserving correction separately from original AI…')
-   try{
-     const {data,error:e}=await supabase.from('ai_verdict_feedback').insert({
-       source_analysis_run_id:run.id,source_object_index:paired?null:scopeIndex,
-       feedback_type:disagreementType,corrected_material:disagreementType==='MATERIAL_CORRECTION'?disagreementMaterial:null,owner_statement:note
-     }).select('id,source_object_index,feedback_type,corrected_material,owner_statement,created_at').single()
-     if(e||!data)throw Error(e?.message||'Owner correction was not saved')
-     setVerdictFeedback(v=>[data,...v]);setDisagreeOpen(false);setDisagreementNote('')
-     setSaveStatus('Correction saved. Original AI error preserved; conflicting prior prices flagged.')
-   }catch(e:any){setSaveStatus(e?.message||'Feedback not saved')}
-   finally{setSavingDisagreement(false)}
+   const request=await prepareCorrection(supabase,run,{source_object_index:paired?null:scopeIndex,feedback_type:disagreementType,corrected_material:disagreementType==='MATERIAL_CORRECTION'?disagreementMaterial:null,owner_statement:note},current)
+   if(!current())return
+   setPendingCorrection(request)
+   await finishCorrection(request,true)
+  }catch(error){if(current())setSaveStatus(error instanceof CorrectionError||error instanceof CatalogueError?error.message:'The correction could not be confirmed. Keep this page open and check the same save.')}
+  finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
  }
  const runDraftResearch=async(depth:'standard'|'deep_dive'='standard')=>{
-   if(!run||!isPhotoManifestReady||researching||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
+   if(!run||!isPhotoManifestReady||researching||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
    setResearching(true);setSaveStatus(depth==='deep_dive'?'Deep visual and source research applying owner corrections…':'Researching attribution, genuine sale evidence and selling routes online…')
    try{
      const {data:{session}}=await supabase.auth.getSession()
@@ -261,14 +273,14 @@ function SavedDraftRecord({id}:{id:string}){
   if(result.records.length===1)navigate('/item/'+result.records[0].item_id+'?tab=market')
  }
  const recoverApproval=async(submit:boolean)=>{
-  if(!pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
+  if(!pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
   approvalBusy.current=true;setApproving(true);setSaveStatus('Checking the held catalogue approval…')
   try{await finishApproval(pendingApproval,submit)}
-  catch(error){if(current())setSaveStatus(error instanceof CatalogueError?error.message:'The catalogue result could not be confirmed. Keep this page open and check the same approval.')}
+  catch(error){if(current())setSaveStatus(error instanceof CatalogueError||error instanceof CorrectionError?error.message:'The catalogue result could not be confirmed. Keep this page open and check the same approval.')}
   finally{approvalBusy.current=false;if(current())setApproving(false)}
  }
  const approveSaved=async()=>{
-  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approvalBusy.current||reviewBusy.current||pendingReview||saving||researching||savingDisagreement||pendingApproval||busy||error)return
+  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approvalBusy.current||reviewBusy.current||pendingReview||pendingCorrection||correctionBusy.current||saving||researching||savingDisagreement||pendingApproval||busy||error)return
   if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
   if(needsPhotoCorrection&&!confirmedPhotoCorrection){setSaveStatus('Confirm the valid source photo mapping before approval.');return}
   approvalBusy.current=true;setApproving(true);setSaveStatus('Saving catalogue and linking original photographs…')
@@ -286,7 +298,7 @@ function SavedDraftRecord({id}:{id:string}){
    if(!current())return
    setPendingApproval(request)
    await finishApproval(request,true)
-  }catch(error){if(current())setSaveStatus(error instanceof CatalogueError?error.message:'The catalogue result could not be confirmed. Keep this page open and check the same approval.')}
+  }catch(error){if(current())setSaveStatus(error instanceof CatalogueError||error instanceof CorrectionError?error.message:'The catalogue result could not be confirmed. Keep this page open and check the same approval.')}
   finally{approvalBusy.current=false;if(current())setApproving(false)}
  }
  return <div className="ci-page ci-saved-draft">
@@ -313,21 +325,21 @@ function SavedDraftRecord({id}:{id:string}){
        </button>
        {disagreeOpen&&<section className="ci-report-correction-form" aria-label="Correct AI verdict">
         <label>What is wrong?
-         <select value={disagreementType} onChange={e=>setDisagreementType(e.target.value)}>
+         <select disabled={savingDisagreement||!!pendingCorrection} value={disagreementType} onChange={e=>setDisagreementType(e.target.value)}>
           <option value="MATERIAL_CORRECTION">Material</option>
           <option value="ATTRIBUTION_REJECTION">Maker or attribution</option>
           <option value="IDENTIFICATION_CORRECTION">Object type or period</option>
           <option value="OTHER">Value, pair or another conclusion</option>
          </select></label>
         {disagreementType==='MATERIAL_CORRECTION'&&<label>Actual material
-         <select value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
+         <select disabled={savingDisagreement||!!pendingCorrection} value={disagreementMaterial} onChange={e=>setDisagreementMaterial(e.target.value)}>
           {['Metal','Glass','Ceramic','Wood','Stone','Textile','Mixed materials','Unknown'].map(x=><option key={x} value={x}>{x}</option>)}
          </select></label>}
         <label>Correction details
-         <textarea rows={3} maxLength={2000} value={disagreementNote}
+         <textarea readOnly={savingDisagreement||!!pendingCorrection} rows={3} maxLength={2000} value={disagreementNote}
           onChange={e=>setDisagreementNote(e.target.value)} placeholder="Describe what needs correcting"/></label>
         <div className="ci-page-actions">
-         <button className="primaryButton" disabled={savingDisagreement||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval} onClick={saveDisagreement}>
+         <button className="primaryButton" disabled={savingDisagreement||researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={saveDisagreement}>
           {savingDisagreement?'Saving…':'Save correction'}
          </button>
          <button className="secondaryButton" onClick={()=>setDisagreeOpen(false)}>Cancel</button>
@@ -370,17 +382,21 @@ function SavedDraftRecord({id}:{id:string}){
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
-      <label className="ci-record-selection"><input type="checkbox" disabled={busy||approving||saving||!!pendingReview||!!pendingApproval} checked={groupPair} onChange={e=>{setGroupPair(e.target.checked);setConfirmedPhotoCorrection(false)}}/> One catalogue record for the pair (recommended)</label>
+      <label className="ci-record-selection"><input type="checkbox" disabled={busy||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection} checked={groupPair} onChange={e=>{setGroupPair(e.target.checked);setConfirmedPhotoCorrection(false)}}/> One catalogue record for the pair (recommended)</label>
     </div>}
    {activeTab==='catalogue'&&needsPhotoCorrection&&<label className="ci-catalogue-photo-confirm">
-    <input type="checkbox" disabled={busy||approving||saving||!!pendingReview||!!pendingApproval} checked={confirmedPhotoCorrection} onChange={e=>setConfirmedPhotoCorrection(e.target.checked)}/>
+    <input type="checkbox" disabled={busy||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection} checked={confirmedPhotoCorrection} onChange={e=>setConfirmedPhotoCorrection(e.target.checked)}/>
     Confirm existing uploaded photos only
    </label>}
-   {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&!pendingApproval&&!pendingReview&&<div className="ci-page-actions">
+   {activeTab==='catalogue'&&run.status==='DRAFT'&&hasReviewObjects&&!pendingApproval&&!pendingReview&&!pendingCorrection&&<div className="ci-page-actions">
     <button className="secondaryButton" disabled={busy||!!error||saving||approving||researching||savingDisagreement} onClick={save}>{saving?'Saving…':'Save review changes'}</button>
     <button className="primaryButton" disabled={busy||!!error||approving||saving||researching||savingDisagreement||!isPhotoManifestReady||!selectedIndices.length||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={approveSaved}>
      {approving?'Saving safely…':'Catalogue '+selectedIndices.length+' selected'}
     </button>
+   </div>}
+   {pendingCorrection&&<div className="ci-page-actions" aria-label="Recover owner correction">
+    <button className="primaryButton" disabled={savingDisagreement} onClick={()=>void recoverCorrection(false)}>Check correction save</button>
+    <button className="secondaryButton" disabled={savingDisagreement} onClick={()=>void recoverCorrection(true)}>Retry same correction</button>
    </div>}
    {pendingReview&&<div className="ci-page-actions" aria-label="Recover owner review">
     <button className="primaryButton" disabled={saving} onClick={()=>void recoverReview(false)}>Check review save</button>
@@ -390,7 +406,7 @@ function SavedDraftRecord({id}:{id:string}){
     <button className="primaryButton" disabled={approving} onClick={()=>void recoverApproval(false)}>Check catalogue result</button>
     <button className="secondaryButton" disabled={approving} onClick={()=>void recoverApproval(true)}>Retry same catalogue approval</button>
    </div>}
-   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&!pendingApproval&&!pendingReview&&<p className="ci-action-hint">Select the objects to catalogue.</p>}
+   {activeTab==='catalogue'&&run.status==='DRAFT'&&isPhotoManifestReady&&!pendingApproval&&!pendingReview&&!pendingCorrection&&<p className="ci-action-hint">Select the objects to catalogue.</p>}
    {catalogued.length>0&&<div className="panel ci-catalogued-result" role="region" aria-label="Saved catalogue records">
     <h2>Objects safely catalogued</h2>
     <div className="ci-catalogued-links">{catalogued.map(item=><Link key={item.item_id} to={'/item/'+item.item_id} className="secondaryButton inlineButton">{item.item_code} · {item.title||'Object'}</Link>)}</div>
@@ -413,11 +429,11 @@ function SavedDraftRecord({id}:{id:string}){
      primary={{
       label:researching?'Researching…':'Dive deeper',
       onClick:()=>runDraftResearch('deep_dive'),
-      disabled:researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
+      disabled:researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}
      selector={!paired&&(run.result?.objects||[]).length>1?
       <label>Choose object to research
-       <select value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
+       <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching} value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
         {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
        </select>
       </label>:null}
@@ -430,11 +446,11 @@ function SavedDraftRecord({id}:{id:string}){
       <details className="ci-archive-section">
        <summary>Another standard online search · paid</summary>
        <p className="ci-page-meta">Existing saved findings remain available without a repeat charge.</p>
-       <button className="secondaryButton" disabled={researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||!isPhotoManifestReady||run.status!=='DRAFT'}
+       <button className="secondaryButton" disabled={researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
         onClick={()=>runDraftResearch('standard')}>Run standard research</button>
       </details>:
       <button className="secondaryButton ci-action-minor-button"
-       disabled={researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||!isPhotoManifestReady||run.status!=='DRAFT'}
+       disabled={researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
        onClick={()=>runDraftResearch('standard')}>Standard research instead</button>}
      {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved results</span>}
      {unfinishedResearch.length>0&&<details className="ci-archive-section">
@@ -501,7 +517,7 @@ function SavedDraftRecord({id}:{id:string}){
      <div className="itemCardBody">
       <div className="itemMeta"><span>{paired?'Pair · 2 pieces':'Object '+(i+1)}</span><span>{run.status==='DRAFT'?'Unfinished':run.status}</span></div>
       {run.status==='DRAFT'&&isPhotoManifestReady&&<label className="ci-record-selection" onClick={e=>e.stopPropagation()}>
-       <input type="checkbox" disabled={busy||approving||saving||!!pendingReview||!!pendingApproval} checked={selected[i]!==false} onChange={e=>{setSelected(v=>({...v,[i]:e.target.checked}));setConfirmedPhotoCorrection(false)}}/>
+       <input type="checkbox" disabled={busy||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection} checked={selected[i]!==false} onChange={e=>{setSelected(v=>({...v,[i]:e.target.checked}));setConfirmedPhotoCorrection(false)}}/>
        <span>Include in catalogue</span>
       </label>}
       <h3 className="ci-record-title">{title}</h3>
@@ -512,9 +528,9 @@ function SavedDraftRecord({id}:{id:string}){
         <div className="ci-review-section ci-review-section-primary">
          <div className="ci-review-section-heading"><span className="ci-review-section-number">01</span><h4>Your review</h4><span className="ci-review-section-hint">Editable information</span></div>
          {run.status==='DRAFT'?<div className="ci-review-fields">
-          <label>{paired?'Original first-piece title':'Object title'}<input readOnly={saving||!!pendingReview} disabled={busy||approving||!!pendingApproval} value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
+          <label>{paired?'Original first-piece title':'Object title'}<input readOnly={saving||!!pendingReview||savingDisagreement||!!pendingCorrection} disabled={busy||approving||!!pendingApproval} value={edits[i]?.working_title||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],working_title:e.target.value}}))}/></label>
           {paired&&<p className="ci-page-meta">Second original member: {run.result.objects[1]?.working_title||'Unidentified'} · {run.result.objects[1]?.condition_summary||'Condition not recorded'}. Both observations will be retained.</p>}
-          <label>Your condition notes<textarea rows={3} readOnly={saving||!!pendingReview} disabled={busy||approving||!!pendingApproval} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label>
+          <label>Your condition notes<textarea rows={3} readOnly={saving||!!pendingReview||savingDisagreement||!!pendingCorrection} disabled={busy||approving||!!pendingApproval} value={edits[i]?.condition_summary||''} onChange={e=>setEdits(v=>({...v,[i]:{...v[i],condition_summary:e.target.value}}))}/></label>
          </div>:<p>Previously saved review</p>}
         </div>
         <details className="ci-review-section ci-review-source">
