@@ -212,7 +212,7 @@ function SavedDraftRecord({id}:{id:string}){
   if(!run||pendingCorrection||correctionBusy.current||researchBusy.current||researching||savingDisagreement||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
   correctionBusy.current=true;setSavingDisagreement(true);setSaveStatus('Preserving your correction separately from original AI…')
   try{
-   const note=disagreementNote.trim()||'Owner rejects the model material. Reinvestigate using corrected material and original photographs.'
+   const note=disagreementNote.trim()||'Owner requests review of this AI conclusion; no additional observation supplied.'
    const request=await prepareCorrection(supabase,run,{source_object_index:paired?null:scopeIndex,feedback_type:disagreementType,corrected_material:disagreementType==='MATERIAL_CORRECTION'?disagreementMaterial:null,owner_statement:note},current)
    if(!current())return
    setPendingCorrection(request)

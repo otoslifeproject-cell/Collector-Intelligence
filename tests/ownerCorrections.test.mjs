@@ -27,3 +27,30 @@ test('metal correction contradicts mistaken glass description but does not trans
 test('unknown material cannot overrule image evidence as a false certainty',()=>{
  assert.equal(materialContradictsVisualGuess(null,'Dark glass object'),false)
 })
+test('wood observation contradicts a glass guess while remaining compatible with wooden wording',()=>{
+ assert.equal(materialContradictsVisualGuess('Wood','Decorated glass'),true)
+ assert.equal(materialContradictsVisualGuess('Wood','Carved wooden object'),false)
+})
+test('stone observation distinguishes a glass guess from ceramic stoneware wording',()=>{
+ assert.equal(materialContradictsVisualGuess('Stone','Glass'),true)
+ assert.equal(materialContradictsVisualGuess('Ceramic','Stoneware'),false)
+ assert.equal(materialContradictsVisualGuess('Stone','Stoneware'),true)
+})
+test('textile observation contradicts a wooden guess and recognises fabric wording',()=>{
+ assert.equal(materialContradictsVisualGuess('Textile','Wood'),true)
+ assert.equal(materialContradictsVisualGuess('Textile','Woven fabric'),false)
+})
+test('unknown and mixed observations do not invent a specific contradiction',()=>{
+ assert.equal(materialContradictsVisualGuess('Unknown','Glass'),false)
+ assert.equal(materialContradictsVisualGuess('Mixed materials','Glass'),false)
+ assert.equal(materialContradictsVisualGuess('__proto__','Glass'),false)
+ assert.equal(materialContradictsVisualGuess('constructor','Glass'),false)
+})
+test('explicit mixed model materials remain compatible with a listed owner material',()=>{
+ assert.equal(materialContradictsVisualGuess('Wood','Glass and wood'),false)
+ assert.equal(materialContradictsVisualGuess('Metal','Glass with metal fittings'),false)
+})
+test('an unclassified model description does not become a definite rejected material',()=>{
+ assert.equal(materialContradictsVisualGuess('Wood','Unidentified construction'),false)
+ assert.equal(materialContradictsVisualGuess('Stone',''),false)
+})

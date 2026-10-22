@@ -24,6 +24,8 @@ on:
       - 'src/lib/ownerReview.ts'
       - 'src/lib/verdictCorrection.ts'
       - 'src/lib/draftResearch.ts'
+      - 'src/lib/ownerCorrections.ts'
+      - 'tests/ownerCorrections.test.mjs'
       - 'src/App.tsx'
       - 'src/components/RecordSaleOutcome.tsx'
       - 'src/pages/ItemDetail.tsx'

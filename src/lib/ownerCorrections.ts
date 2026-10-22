@@ -22,12 +22,16 @@ export function researchPredatesCorrection(researchCreatedAt:string|undefined,fe
  const when=Date.parse(researchCreatedAt)
  return feedback.some(x=>Date.parse(x.created_at)>when)
 }
+const materialClasses=new Map<string,RegExp>([
+ ['metal',/\bmetal\b/],['glass',/\bglass\b/],['ceramic',/\b(ceramic|pottery|porcelain|earthenware|stoneware)\b/],
+ ['wood',/\bwood(en)?\b/],['stone',/\bstone\b/],['textile',/\b(textile|fabric)\b/]
+])
 export function materialContradictsVisualGuess(ownerMaterial:string|null,modelDescription:string){
  if(!ownerMaterial)return false
- const material=ownerMaterial.toLowerCase()
+ const material=ownerMaterial.trim().toLowerCase()
  const raw=(modelDescription||'').toLowerCase()
- if(material==='metal')return /glass|ceramic|pottery/.test(raw)&&!raw.includes('metal')
- if(material==='glass')return /metal|ceramic|pottery/.test(raw)&&!raw.includes('glass')
- if(material==='ceramic')return /glass|metal/.test(raw)&&!raw.includes('ceramic')
- return false
+ const observed=materialClasses.get(material)
+ // Unknown/mixed observations and unclassified descriptions remain uncertain.
+ // A model explicitly listing the owner's class is compatible, even when mixed.
+ return !!observed&&!observed.test(raw)&&[...materialClasses.values()].some(pattern=>pattern.test(raw))
 }
