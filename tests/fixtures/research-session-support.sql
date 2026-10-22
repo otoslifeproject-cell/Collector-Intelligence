@@ -5,6 +5,10 @@
 CREATE VIEW public.trusted_knowledge_v1 AS SELECT
   null::uuid id,null::text entity_key,null::text claim,null::text source_url,
   null::text source_reference,null::timestamptz last_verified,null::text certainty_class
+  ,null::text knowledge_type,null::text entity_type,null::integer confidence,
+  null::text evidence_provenance,null::date source_date,null::text freshness_requirement,
+  null::text verification_status,null::text stance,null::text[] tags,
+  null::uuid supersedes_id,null::timestamptz updated_at
 WHERE false;
 CREATE VIEW public.trusted_comparables_v1 AS SELECT
   null::uuid id,null::uuid item_id,null::text venue,null::text source_reference,

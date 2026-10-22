@@ -51,8 +51,8 @@ async function setup(t,caller,options={}){
     if(url.pathname==='/rest/v1/ai_visual_reference_reviews')return json([],options.visualUnavailable?503:200);
     if(url.pathname==='/rest/v1/rpc/ci_claim_paid_research_v1'){state.claims++;return json('CLAIMED');}
     if(url.pathname==='/rest/v1/ai_analysis_runs'){
-      if(init.method==='PATCH'){const body=JSON.parse(init.body);state.saves.push(body.result);return json([{id:D,...body}],options.saveUnavailable?503:200);}
-      if(caller==='intake')return json([{id:D,status:'DRAFT',mode:'single',input_photo_count:1,result:{image_manifest:[{index:0,file_name:'fixture.jpg',storage_path:'SYNTHETIC_ONLY'}]}}]);
+      if(init.method==='PATCH'){const body=JSON.parse(init.body);state.saves.push(body.result);if(caller==='intake'&&!options.saveUnavailable)state.intakeSaved=body;return json([{id:D,...body}],options.saveUnavailable?503:200);}
+      if(caller==='intake')return json([{id:D,status:'DRAFT',mode:'single',input_photo_count:1,result:{analysis_stage:'UPLOADED',image_manifest:[{index:0,file_name:'fixture.jpg',storage_path:'SYNTHETIC_ONLY'}]},...state.intakeSaved}]);
       const result=options.savedComplete?{analysis_stage:'COMPLETE',research_summary:'Saved fixture',response_id:'saved-response'}:{analysis_stage:'STAGED'};
       return json([{id:D,status:'DRAFT',mode:'research',...(url.searchParams.get('select').split(',').includes('model')?{model:'saved-model'}:{}),input_photo_count:0,result,user_context:{item_id:I}}]);
     }
