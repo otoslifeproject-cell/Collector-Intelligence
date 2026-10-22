@@ -18,6 +18,7 @@ import {OwnerReviewError,prepareOwnerReview,settleOwnerReview} from '../lib/owne
 import type {OwnerReviewRequest} from '../lib/ownerReview'
 import {CorrectionError,prepareCorrection,readOwnerCorrections,settleCorrection} from '../lib/verdictCorrection'
 import type {CorrectionRequest} from '../lib/verdictCorrection'
+import {DraftResearchError,hasSavedResearchResult,readDraftResearch,researchForScope} from '../lib/draftResearch'
 
 type SavedRun=CatalogueSource
 export default function SavedDraft(){
@@ -27,7 +28,7 @@ export default function SavedDraft(){
 }
 function SavedDraftRecord({id}:{id:string}){
  const reportMenuRef=useRef<HTMLDetailsElement>(null)
- const alive=useRef(false),approvalBusy=useRef(false),reviewBusy=useRef(false),correctionBusy=useRef(false),approvalStatus=useRef<HTMLParagraphElement|null>(null)
+ const alive=useRef(false),approvalBusy=useRef(false),reviewBusy=useRef(false),correctionBusy=useRef(false),researchBusy=useRef(false),approvalStatus=useRef<HTMLParagraphElement|null>(null)
  const current=()=>alive.current
  const navigate=useNavigate()
  const [run,setRun]=useState<SavedRun|null>(null)
@@ -49,12 +50,12 @@ function SavedDraftRecord({id}:{id:string}){
    try{return new URLSearchParams(window.location.hash.split('?')[1]||'').get('tab')||'overview'}catch{return 'overview'}
  })
  const [researching,setResearching]=useState(false)
+ const [checkingResearch,setCheckingResearch]=useState(false)
+ const [researchError,setResearchError]=useState('')
+ const [unconfirmedResearch,setUnconfirmedResearch]=useState<{runId:string;payload:any}|null>(null)
  const [researchIndex,setResearchIndex]=useState(0)
- const [researchResult,setResearchResult]=useState<any|null>(null)
- const [researchAudit,setResearchAudit]=useState<any|null>(null)
  const [researchHistory,setResearchHistory]=useState<any[]>([])
  const [unfinishedResearch,setUnfinishedResearch]=useState<any[]>([])
- const [lastResearchScope,setLastResearchScope]=useState('')
  const [verdictFeedback,setVerdictFeedback]=useState<any[]>([])
  const [disagreeOpen,setDisagreeOpen]=useState(false)
  useEffect(()=>{
@@ -89,15 +90,11 @@ function SavedDraftRecord({id}:{id:string}){
    setGroupPair(!!suggestSingleIntakePair(report.result?.objects||[],report.mode))
    setConfirmedPhotoCorrection(false)
    setSelected(Object.fromEntries((report.result?.objects||[]).map((_:any,i:number)=>[i,true])))
-   const {data:prior}=await supabase.from('ai_analysis_runs')
-    .select('id,result,created_at,user_context').eq('owner_id',report.owner_id).eq('mode','research').eq('user_context->>source_analysis_run_id',report.id).order('created_at',{ascending:false}).limit(100)
-   if(current()){
-     const related=(prior||[]).filter((x:any)=>x.user_context?.source_analysis_run_id===report.id)
-     const past=related.filter((x:any)=>x.result?.research_summary)
-     setUnfinishedResearch(related.filter((x:any)=>!x.result?.research_summary))
-     setResearchHistory(past)
-     if(past.length){setResearchResult(past[0].result);setResearchAudit(past[0].result?.source_audit||null)}
-   }
+   try{
+    const prior=await readDraftResearch(supabase,report,current)
+    if(!current())return
+    setResearchHistory(prior.filter(hasSavedResearchResult));setUnfinishedResearch(prior.filter(row=>!hasSavedResearchResult(row)));setResearchError('')
+   }catch(error){if(current())setResearchError(error instanceof DraftResearchError?error.message:'Saved research history unavailable. Check it before starting another paid search.')}
    const feedbackRows=await readOwnerCorrections(supabase,report,current)
    if(!current())return
    setVerdictFeedback(feedbackRows)
@@ -138,7 +135,7 @@ function SavedDraftRecord({id}:{id:string}){
   finally{reviewBusy.current=false;if(current())setSaving(false)}
  }
  const save=async()=>{
-  if(!run||run.status!=='DRAFT'||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||researching||savingDisagreement||busy||error)return
+  if(!run||run.status!=='DRAFT'||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||researchBusy.current||researching||savingDisagreement||busy||error)return
   reviewBusy.current=true;setSaving(true);setSaveStatus('Saving your reviewed text…')
   try{
    const request=await prepareOwnerReview(supabase,run,edits,current)
@@ -177,14 +174,15 @@ function SavedDraftRecord({id}:{id:string}){
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
     run.result?.analysis_stage==='COMPLETE'
  const scopeIndex=paired?0:researchIndex
- const scopeKey=String(scopeIndex)+':'+(paired?'pair':'single')
  const scopeFeedback=feedbackForObject(verdictFeedback,scopeIndex,paired)
  const correctedMaterial=currentOwnerMaterial(scopeFeedback)
  const matchedResearchRun=researchHistory.find((x:any)=>
    x.user_context?.source_object_index===scopeIndex &&
    (Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2)===paired)
- const visibleResearch=matchedResearchRun?.result || (lastResearchScope===scopeKey?researchResult:null)
- const visibleAudit=matchedResearchRun?.result?.source_audit || (lastResearchScope===scopeKey?researchAudit:null)
+ const scopePending=unfinishedResearch.filter(row=>researchForScope(row,scopeIndex,paired))
+ const researchBlocked=!!researchError||scopePending.length>0
+ const visibleResearch=researchError?null:matchedResearchRun?.result || null
+ const visibleAudit=matchedResearchRun?.result?.source_audit || null
  const correctionAfterResearch=!!matchedResearchRun&&
   researchPredatesCorrection(matchedResearchRun.created_at,scopeFeedback)
  const originalMaterial=String(run?.result?.objects?.[scopeIndex]?.material||'').toLowerCase()
@@ -211,7 +209,7 @@ function SavedDraftRecord({id}:{id:string}){
   finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
  }
  const saveDisagreement=async()=>{
-  if(!run||pendingCorrection||correctionBusy.current||researching||savingDisagreement||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
+  if(!run||pendingCorrection||correctionBusy.current||researchBusy.current||researching||savingDisagreement||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||busy||error)return
   correctionBusy.current=true;setSavingDisagreement(true);setSaveStatus('Preserving your correction separately from original AI…')
   try{
    const note=disagreementNote.trim()||'Owner rejects the model material. Reinvestigate using corrected material and original photographs.'
@@ -222,47 +220,63 @@ function SavedDraftRecord({id}:{id:string}){
   }catch(error){if(current())setSaveStatus(error instanceof CorrectionError||error instanceof CatalogueError?error.message:'The correction could not be confirmed. Keep this page open and check the same save.')}
   finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
  }
+ const updateResearchHistory=async()=>{
+  if(!run)return
+  const rows=await readDraftResearch(supabase,run,current)
+  if(!current())return
+  const complete=rows.filter(hasSavedResearchResult)
+  setResearchHistory(complete);setUnfinishedResearch(rows.filter(row=>!hasSavedResearchResult(row)));setResearchError('')
+  setUnconfirmedResearch(previous=>previous&&complete.some(row=>row.id===previous.runId)?null:previous)
+  return rows
+ }
+ const checkSavedResearch=async()=>{
+  if(!run||checkingResearch||researchBusy.current||reviewBusy.current||approvalBusy.current||correctionBusy.current||pendingReview||pendingApproval||pendingCorrection||busy||error)return
+  setCheckingResearch(true);setSaveStatus('Checking saved research without another AI request…')
+  try{const rows=await updateResearchHistory();if(current()&&rows)setSaveStatus('Saved research checked: '+rows.filter(hasSavedResearchResult).length+' complete responses and '+rows.filter(row=>!hasSavedResearchResult(row)).length+' unresolved attempts. No AI requested.')}
+  catch(error){if(current()){const message=error instanceof DraftResearchError||error instanceof CatalogueError?error.message:'Saved research history unavailable. Check again before starting another paid search.';setResearchError(message);setSaveStatus(message)}}
+  finally{if(current())setCheckingResearch(false)}
+ }
  const runDraftResearch=async(depth:'standard'|'deep_dive'='standard')=>{
-   if(!run||!isPhotoManifestReady||researching||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
-   setResearching(true);setSaveStatus(depth==='deep_dive'?'Deep visual and source research applying owner corrections…':'Researching attribution, genuine sale evidence and selling routes online…')
-   try{
-     const {data:{session}}=await supabase.auth.getSession()
-     if(!session)throw Error('Sign in again to use web research.')
-     const i=paired?0:researchIndex
-     const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
-     const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
-     // Pre-stage an owner-scoped source link BEFORE the paid model request.
-     const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
-       mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
-       user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:paired?[0,1]:[],research_depth:depth},
-       result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
-     }).select('id,created_at,user_context').single()
-     if(stageError||!staged?.id)throw Error('Could not preserve the research session; no paid AI was requested.')
-     const response=await fetch('/api/research-item',{
-      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
-      body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:paired?[0,1]:[],
-       research_run_id:staged.id,depth,images:urls})
-     })
-     const payload=await response.json()
-     if(!response.ok){
-       if(payload?.result?.research_summary){
-         setLastResearchScope(scopeKey)
-         setResearchResult(payload.result);setResearchAudit(payload.source_audit||null)
-       }
-       throw Error((payload.error||'Live research did not complete.')+
-        ' The staged research run remains saved; do not repeat the paid request to recover it.')
-     }
-     if(payload.saved_run_id!==staged.id)throw Error('Research identity mismatch; no result is being presented as saved.')
-     const {data:verified,error:verifyError}=await supabase.from('ai_analysis_runs')
-       .select('id,result,created_at,user_context').eq('id',staged.id).single()
-     if(verifyError||!verified||verified.result?.analysis_stage!=='COMPLETE'||!verified.result?.research_summary)
-       throw Error('Research completed but database readback failed. Do not pay for another search to recover this result.')
-     setLastResearchScope(scopeKey)
-     setResearchResult(verified.result);setResearchAudit(verified.result.source_audit||null)
-     setResearchHistory(v=>[verified,...v])
-     setSaveStatus((depth==='deep_dive'?'Deep-dive':'Research')+' findings saved. Original evidence and corrections preserved.')
-   }catch(err:any){setSaveStatus(err?.message||'Research failed')}
-   finally{setResearching(false)}
+  if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
+  researchBusy.current=true;setResearching(true);setSaveStatus('Preserving the research session before requesting '+(depth==='deep_dive'?'deep':'standard')+' research…')
+  let stagedId:string|null=null
+  try{
+   // Recheck complete history immediately before any new staged/paid request.
+   const rows=await readDraftResearch(supabase,run,current)
+   if(rows.some(row=>researchForScope(row,scopeIndex,paired)&&!hasSavedResearchResult(row)))throw new DraftResearchError('An unresolved research attempt already exists for this object. Check saved research; do not repeat the paid request.')
+   const {data:{session}}=await supabase.auth.getSession()
+   if(!current())return
+   if(!session||session.user.id!==run.owner_id)throw Error('Sign in again to use your private research.')
+   const i=scopeIndex,pair=paired?[0,1]:[]
+   const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
+   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
+   const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
+    user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:pair,research_depth:depth},
+    result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
+   }).select('id,owner_id,mode,model,result,created_at,user_context').single()
+   if(!current())return
+   if(stageError||!staged?.id)throw Error('The research session could not be confirmed. Check saved research before another attempt; no AI request was sent.')
+   stagedId=staged.id;setUnfinishedResearch(previous=>[staged,...previous])
+   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(120000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls})})
+   const payload=await response.json()
+   if(!current())return
+   if(payload?.result)setUnconfirmedResearch({runId:staged.id,payload})
+   if(!response.ok)throw Error((payload.error||'Research outcome unavailable.')+' Check saved research; do not repeat the paid request.')
+   if(payload.saved_run_id!==staged.id)throw Error('Research identity mismatch. Check saved research before another attempt.')
+   const saved=await updateResearchHistory()
+   if(!current())return
+   if(!saved?.some(row=>row.id===staged.id&&hasSavedResearchResult(row)))throw Error('Research response received, but its saved result could not be confirmed. Check saved research; do not repeat the paid request.')
+   setSaveStatus('Research findings independently read back from the saved session. Original evidence and corrections preserved.')
+  }catch(error){
+   if(!current())return
+   try{await updateResearchHistory()}catch{if(current())setResearchError('Saved research history is unconfirmed. Check saved research before another paid request.')}
+   if(current()){
+    // A lost staging acknowledgement can leave a real session. Until history is
+    // checked, a fresh paid request must not be used as recovery.
+    if(!stagedId)setResearchError('The research attempt needs a saved-history check before another paid request.')
+    setSaveStatus(error instanceof Error?error.message:'Research outcome unavailable. Check the saved session before another attempt.')
+   }
+  }finally{researchBusy.current=false;if(current())setResearching(false)}
  }
  const finishApproval=async(request:CatalogueRequest,submit:boolean)=>{
   const result=await settleCatalogueApproval(supabase,request,current,submit)
@@ -280,7 +294,7 @@ function SavedDraftRecord({id}:{id:string}){
   finally{approvalBusy.current=false;if(current())setApproving(false)}
  }
  const approveSaved=async()=>{
-  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approvalBusy.current||reviewBusy.current||pendingReview||pendingCorrection||correctionBusy.current||saving||researching||savingDisagreement||pendingApproval||busy||error)return
+  if(!run || run.status!=='DRAFT'||!isPhotoManifestReady||approvalBusy.current||reviewBusy.current||pendingReview||pendingCorrection||correctionBusy.current||researchBusy.current||saving||researching||savingDisagreement||pendingApproval||busy||error)return
   if(!selectedIndices.length){setSaveStatus('Select at least one object to catalogue.');return}
   if(needsPhotoCorrection&&!confirmedPhotoCorrection){setSaveStatus('Confirm the valid source photo mapping before approval.');return}
   approvalBusy.current=true;setApproving(true);setSaveStatus('Saving catalogue and linking original photographs…')
@@ -339,7 +353,7 @@ function SavedDraftRecord({id}:{id:string}){
          <textarea readOnly={savingDisagreement||!!pendingCorrection} rows={3} maxLength={2000} value={disagreementNote}
           onChange={e=>setDisagreementNote(e.target.value)} placeholder="Describe what needs correcting"/></label>
         <div className="ci-page-actions">
-         <button className="primaryButton" disabled={savingDisagreement||researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={saveDisagreement}>
+         <button className="primaryButton" disabled={savingDisagreement||researching||checkingResearch||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={saveDisagreement}>
           {savingDisagreement?'Saving…':'Save correction'}
          </button>
          <button className="secondaryButton" onClick={()=>setDisagreeOpen(false)}>Cancel</button>
@@ -429,11 +443,11 @@ function SavedDraftRecord({id}:{id:string}){
      primary={{
       label:researching?'Researching…':'Dive deeper',
       onClick:()=>runDraftResearch('deep_dive'),
-      disabled:researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
+      disabled:researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}
      selector={!paired&&(run.result?.objects||[]).length>1?
       <label>Choose object to research
-       <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching} value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
+       <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
         {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
        </select>
       </label>:null}
@@ -446,19 +460,22 @@ function SavedDraftRecord({id}:{id:string}){
       <details className="ci-archive-section">
        <summary>Another standard online search · paid</summary>
        <p className="ci-page-meta">Existing saved findings remain available without a repeat charge.</p>
-       <button className="secondaryButton" disabled={researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
+       <button className="secondaryButton" disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
         onClick={()=>runDraftResearch('standard')}>Run standard research</button>
       </details>:
       <button className="secondaryButton ci-action-minor-button"
-       disabled={researching||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
+       disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
        onClick={()=>runDraftResearch('standard')}>Standard research instead</button>}
-     {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved results</span>}
+     <button className="secondaryButton" disabled={checkingResearch||researching||busy||!!error||saving||approving||savingDisagreement||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={()=>void checkSavedResearch()}>{checkingResearch?'Checking saved research…':'Check saved research'}</button>
+     {researchError&&<p role="alert">{researchError}</p>}
+     {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved complete responses · provisional</span>}
+     {scopePending.length>0&&<p className="ci-page-meta">An unresolved attempt exists for this object. Check saved research before another paid request.</p>}
      {unfinishedResearch.length>0&&<details className="ci-archive-section">
       <summary>{unfinishedResearch.length} interrupted or staged investigation(s)</summary>
-      <p className="ci-page-meta">Inspect previous attempts before rerunning; a paid request may have been interrupted.</p>
-      {unfinishedResearch.map((x:any)=><p key={x.id} className="ci-page-meta">
-       {new Date(x.created_at).toLocaleString()} · {x.result?.analysis_stage||'Unknown state'}</p>)}
+      <p className="ci-page-meta">Checking reads saved records only. It never starts another search. Unknown or malformed responses remain preserved below.</p>
+      {unfinishedResearch.map((x:any)=><details key={x.id} className="ci-review-section ci-review-source"><summary>{x.id} · {x.result?.analysis_stage||'Unknown state'}</summary><pre className="ci-research-response">{JSON.stringify({model:x.model,created_at:x.created_at,user_context:x.user_context,result:x.result},null,2)}</pre></details>)}
      </details>}
+     {unconfirmedResearch&&<details className="ci-archive-section"><summary>Returned response · save unconfirmed</summary><p>This response is retained in this page only. Check its saved session before using it or starting another paid request.</p><pre className="ci-research-response">{JSON.stringify(unconfirmedResearch,null,2)}</pre></details>}
     </WorkspaceActionPanel>
     {!materialContradictsModel&&<div className="panel">
      <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>

@@ -826,3 +826,6 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .photoGrid .photoTile>div{background:var(--panel);color:var(--text)}
 .photoGrid .photoTile>div span{color:var(--muted)}
 .photoGrid .photoTile strong,.photoGrid .photoTile span{font-size:var(--ci-support-size,.875rem);line-height:1.45}
+
+/* Preserve raw unconfirmed research without overflowing narrow workspaces. */
+.ci-research-response{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font-size:.8rem;line-height:1.5}
