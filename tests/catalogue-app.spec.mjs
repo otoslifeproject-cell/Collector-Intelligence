@@ -262,3 +262,6 @@ for(const change of ['account','report'])test(`late committed correction cannot 
 test('keyboard correction save focuses independently confirmed status',async({page})=>{
  const run=await seed();await visit(page,run.id);await correctionForm(page);await correctionSave(page).focus();await page.keyboard.press('Enter');await correctionSaved(page);expect(await corrections(run.id)).toHaveLength(1);
 });
+test('unavailable saved research history blocks another paid search',async({page})=>{
+ const run=await seed();await page.route('**/rest/v1/ai_analysis_runs?*',route=>new URL(route.request().url()).searchParams.get('mode')==='eq.research'?route.fulfill({status:403,json:{message:'Synthetic research history denial'}}):route.fallback());await visit(page,run.id);await page.getByRole('tab',{name:'market',exact:true}).click();await expect(page.getByRole('button',{name:'Standard research instead',exact:true})).toBeDisabled();
+});
