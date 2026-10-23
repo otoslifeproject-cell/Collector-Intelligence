@@ -878,3 +878,10 @@ body{font-size:var(--ci-body-size);line-height:1.5}
  .ci-audit-state{grid-column:2;justify-self:start;text-align:left;padding:5px 10px}
  .ci-audit-total strong{font-size:1.4rem}
 }
+
+/* Compact object audits keep every status visible while detailed evidence remains one action away. */
+.ci-research-progress-compact{padding:12px}
+.ci-research-progress-compact .ci-audit-row{grid-template-columns:14px minmax(0,1fr) minmax(60px,90px);gap:6px;padding:6px 0;align-items:center}
+.ci-research-progress-compact .ci-audit-category>strong{font-size:11px}
+.ci-research-progress-compact .ci-audit-state{grid-column:auto;font-size:10px;padding:3px 5px;justify-self:stretch;text-align:center}
+.ci-research-progress-compact .ci-audit-icon{width:14px;height:14px}

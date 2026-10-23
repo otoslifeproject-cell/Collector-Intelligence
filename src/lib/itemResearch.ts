@@ -82,6 +82,7 @@ export function itemResearchAudit(history:ItemResearchHistory,trustedComparables
  const receipts:ResearchReceipt[]=researchTypes.map(type=>{
   const base={type,runId:newest?.id||history.original?.id,checkedAt:newest?.created_at||history.original?.created_at}
   if(newest?.result?.analysis_stage==='PROCESSING'){
+   if(!['MAKER_ARCHIVE','AUCTION_REALISED','MARKETPLACE_SOLD'].includes(type))return {...base,status:'RECEIPT_MISSING',detail:'A general web investigation is processing; no dispatch receipt for this separate physical or economics check is stored.'} as ResearchReceipt
    const at=Date.parse(newest.result.claimed_at||newest.created_at)
    return {...base,status:Number.isFinite(at)&&now-at>=0&&now-at<15*60*1000?'RUNNING':'BLOCKED',detail:'A stored research request was dispatched. Category outcomes are unconfirmed; recover the same run before any paid retry.'} as ResearchReceipt
   }

@@ -399,14 +399,15 @@ function SavedDraftRecord({id}:{id:string}){
      {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
     </select>
    </label>}
-   {scopeDashboard&&<ResearchProgress audit={scopeDashboard.audit} history={scopeDashboard.history}
-    objectLabel={paired?(correctedPairTitle||'Matched pair — whole lot'):run.result.objects?.[scopeIndex]?.working_title||'Object '+(scopeIndex+1)}
-    confidence={scopeDashboard.confidence} loading={busy||checkingResearch} error={researchError}
-    onReload={()=>void checkSavedResearch()} onInvestigate={()=>setActiveTab('market')}/>}
    <div className="tabBar" role="tablist" aria-label="Object workspace">
     {['overview','photos','identification','market','sales','catalogue'].map(t=>
       <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
    </div>
+   {scopeDashboard&&<ResearchProgress compact audit={scopeDashboard.audit} history={scopeDashboard.history}
+    objectLabel={paired?(correctedPairTitle||'Matched pair — whole lot'):run.result.objects?.[scopeIndex]?.working_title||'Object '+(scopeIndex+1)}
+    confidence={scopeDashboard.confidence} loading={busy||checkingResearch} error={researchError}
+    onReload={()=>void checkSavedResearch()} onInvestigate={()=>setActiveTab('market')}/>}
+
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
@@ -512,10 +513,10 @@ function SavedDraftRecord({id}:{id:string}){
     <div className="panel">
      <div className="panelHeader"><h2>Sales planning</h2><span>No listing or publication without approval</span></div>
      <p>{!existingResearchObsolete&&visibleResearch?.routing?.best_venue?'Research suggests '+visibleResearch.routing.best_venue+' as the likely route.':'Current source-backed selling route not established. Rerun material-corrected research first.'}</p>
-     <p>{!existingResearchObsolete?visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'Sale readiness needs source and condition review.':'Prior sale-readiness judgement superseded by owner correction.'}</p>
+     <p><strong>DO NOT LIST YET — final evidenced item decision required.</strong> {!existingResearchObsolete?`Earlier model suggestion: ${visibleResearch?.routing?.sale_readiness?.replaceAll('_',' ')||'not recorded'}. This does not establish readiness.`:'Prior judgement superseded by owner correction.'}</p>
      <button className="secondaryButton inlineButton" onClick={()=>setActiveTab('market')}>Review source evidence and valuation →</button>
     </div>
-    <SaleEconomics currency={run.result?.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP'}
+    <SaleEconomics key={`${run.id}:${paired?'pair':researchIndex}`} currency={run.result?.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||''}
      acquisitionPrice={run.user_context?.purchase_price??null}
      contextLabel={paired?'two-piece matched lot':'saved draft object'}/>
    </div>}

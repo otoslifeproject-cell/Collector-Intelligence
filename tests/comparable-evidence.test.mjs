@@ -19,3 +19,5 @@ for(const sale_date of ['2026-02-30','not a date','2026-01-01T00:00:00Z'])check(
 check('whitespace currency rejected',()=>assert.equal(classifyComparables([{...comp,currency:' '}])[0].verified,false))
 check('URL credentials rejected',()=>assert.equal(classifyComparables([{...comp,source_url:'https://user:password@example.org/lot'}])[0].verified,false))
 console.log(n+' comparable evidence checks passed')
+
+check('future achieved result remains unverified lead',()=>assert.equal(classifyComparables([{...comp,sale_date:'2099-12-31'}],'2026-10-23')[0].verified,false))

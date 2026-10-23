@@ -263,7 +263,7 @@ function ItemDetailRecord({id}:{id:string}) {
       <div className="tabBar">
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
-      <ResearchProgress audit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      <ResearchProgress compact={tab!=='overview'} audit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
       <ItemAssessment client={supabase} item={item} audit={!historyError&&researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
 
       {tab==='overview' && <div>
@@ -434,11 +434,6 @@ function ItemDetailRecord({id}:{id:string}) {
          </div>
         </>}
 
-        <div className="panel">
-          <div className="panelHeader"><h2>Comparable evidence</h2><span>{comps.length} permanent records</span></div>
-          {comps.length===0 ? <div className="empty">No permanent comparable sales recorded yet.</div> :
-          <div className="tableWrap"><table><thead><tr><th>Venue</th><th>Date</th><th>Evidence class</th><th>Description</th><th>Price</th><th>Verification</th></tr></thead><tbody>{comps.map(c=><tr key={c.id}><td>{c.venue}</td><td>{date(c.sale_date)}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{c.description}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')} {c.source_url && <a href={c.source_url} target="_blank"><ExternalLink size={13}/></a>}</td></tr>)}</tbody></table></div>}
-        </div>
       </div>}
 
       {tab==='sales' && <div className="marketStack">
