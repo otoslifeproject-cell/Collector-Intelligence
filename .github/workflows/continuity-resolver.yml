@@ -20,6 +20,9 @@ on:
       - 'tests/fixtures/sale-outcome.*'
       - 'src/lib/actualSale.ts'
       - 'src/lib/researchSaleDecision.ts'
+      - 'src/lib/comparableEvidence.ts'
+      - 'src/components/ComparableEvidence.tsx'
+      - 'tests/comparable-evidence.test.mjs'
       - 'tests/research-sale-decision.test.mjs'
       - 'src/lib/itemPhotographs.ts'
       - 'src/lib/intakeSession.ts'
@@ -93,6 +96,7 @@ jobs:
       - name: Run fail-closed fixture tests
         run: |
           node --experimental-strip-types tests/research-sale-decision.test.mjs
+          node --experimental-strip-types tests/comparable-evidence.test.mjs
           node tests/continuity/test.mjs
           node tests/continuity/multi-document.test.mjs
           node tests/continuity/migration-guards.test.mjs
