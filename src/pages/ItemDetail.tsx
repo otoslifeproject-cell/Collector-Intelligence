@@ -8,7 +8,9 @@ import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
 import ComparableEvidence from '../components/ComparableEvidence'
-import type {ResearchReceipt} from '../lib/researchSaleDecision'
+import {itemResearchAudit,readItemResearch,readItemSaleRows} from '../lib/itemResearch'
+import type {ItemResearchHistory} from '../lib/itemResearch'
+import SellFastPlan from '../components/SellFastPlan'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
 import {applyConfirmedSaleStatus} from '../lib/actualSale'
@@ -94,6 +96,29 @@ function ItemDetailRecord({id}:{id:string}) {
   const [researchAudit,setResearchAudit] = useState<any>(null)
   const [savedResearchRuns,setSavedResearchRuns] = useState<any[]>([])
   const [pendingResearchRuns,setPendingResearchRuns] = useState<any[]>([])
+  const [researchHistory,setResearchHistory]=useState<ItemResearchHistory|null>(null)
+  const [historyLoading,setHistoryLoading]=useState(true)
+  const [historyError,setHistoryError]=useState('')
+  const [trustedComps,setTrustedComps]=useState<Comparable[]>([])
+  const [listings,setListings]=useState<any[]>([])
+  const historyRead=useRef(0)
+  const reloadResearch=async(record:Item)=>{
+    const serial=++historyRead.current
+    const selected=()=>current()&&serial===historyRead.current
+    setHistoryLoading(true);setHistoryError('');setTrustedComps([]);setListings([])
+    try{
+      const [history,comparables,trusted,storedListings]=await Promise.all([
+        readItemResearch(supabase,record,selected),readItemSaleRows(supabase,'comparables',record,selected),
+        readItemSaleRows(supabase,'trusted_comparables_v1',record,selected),readItemSaleRows(supabase,'listings',record,selected)
+      ])
+      if(!selected())return
+      setResearchHistory(history);setComps(comparables);setTrustedComps(trusted);setListings(storedListings)
+      setOriginalReportPaired(history.paired)
+      setSavedResearchRuns(history.runs.filter(x=>x.status==='APPROVED'&&x.result?.research_summary))
+      setPendingResearchRuns(history.runs.filter(x=>x.status==='DRAFT'&&x.result?.research_summary))
+    }catch(error){if(selected()){setResearchHistory(null);setSavedResearchRuns([]);setPendingResearchRuns([]);setHistoryError(error instanceof Error?error.message:'Saved history is unavailable. No new research was started.')}}
+    finally{if(selected())setHistoryLoading(false)}
+  }
 
   const load = async () => {
     if (!id) return
@@ -103,13 +128,10 @@ function ItemDetailRecord({id}:{id:string}) {
     if(!current()||serial!==itemRead.current)return
     if(auth.error||!auth.data.user){setItem(null);setLoadError('Sign in again to open this collection object.');return}
     const ownerId=auth.data.user.id
-    const [{data:itemData,error:itemError},{data:compData}] = await Promise.all([
-      supabase.from('items').select('*').eq('id',id).eq('owner_id',ownerId).maybeSingle(),
-      supabase.from('comparables').select('*').eq('item_id',id).eq('owner_id',ownerId).order('sale_date',{ascending:false})
-    ])
+    const {data:itemData,error:itemError}=await supabase.from('items').select('*').eq('id',id).eq('owner_id',ownerId).maybeSingle()
     if(!current()||serial!==itemRead.current)return
     if(itemError||!itemData||itemData.owner_id!==ownerId){setItem(null);setLoadError('This collection object is unavailable for the signed-in account.');return}
-    setItem(itemData as Item); setComps((compData||[]) as Comparable[])
+    setItem(itemData as Item)
     const [ev,ah] = await Promise.all([
       supabase.from('item_evidence').select('*').eq('item_id',id).order('created_at',{ascending:false}),
       supabase.from('attribution_history').select('*').eq('item_id',id).order('created_at',{ascending:false})
@@ -117,32 +139,17 @@ function ItemDetailRecord({id}:{id:string}) {
     if(!current()||serial!==itemRead.current)return
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
-    const originalItem=itemData as any
-    const parentId=originalItem?.source_analysis_run_id as string|null
-    const originalIndex=originalItem?.source_object_index as number|null
-    const [researchQuery,parentQuery]=await Promise.all([
-      supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100),
-      parentId?supabase.from('ai_analysis_runs').select('result').eq('id',parentId).single():Promise.resolve({data:null})
-    ])
-    if(!current()||serial!==itemRead.current)return
-    const snapshot=(parentQuery.data as any)?.result?.owner_review?.approved_snapshot?.[String(originalIndex)]
-    const wasPair=Array.isArray(snapshot?.pair_source_indices)&&snapshot.pair_source_indices.length===2
-    setOriginalReportPaired(wasPair)
-    const itemRuns=(researchQuery.data||[]).filter((x:any)=>{
-      if(!x.result?.research_summary)return false
-      if(x.user_context?.item_id===id)return true
-      if(!parentId||originalIndex===null||x.user_context?.source_analysis_run_id!==parentId)return false
-      const matchingIndex=Number(x.user_context?.source_object_index)===Number(originalIndex)
-      const originalResearchWasPair=Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2
-      return matchingIndex&&originalResearchWasPair===wasPair
-    })
-    setSavedResearchRuns(itemRuns.filter((x:any)=>x.status==='APPROVED'))
-    setPendingResearchRuns(itemRuns.filter((x:any)=>x.status==='DRAFT'))
+    await reloadResearch(itemData as Item)
   }
   useEffect(()=>{
     alive.current=true;void load();void loadPhotographs()
-    return ()=>{alive.current=false;photoRead.current++;itemRead.current++}
+    return ()=>{alive.current=false;photoRead.current++;itemRead.current++;historyRead.current++}
   },[id])
+  useEffect(()=>{
+    if(!item||!researchHistory?.runs.some(run=>run.result?.analysis_stage==='PROCESSING'))return
+    const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void reloadResearch(item)},15000)
+    return ()=>window.clearInterval(timer)
+  },[item?.id,researchHistory])
 
   const update = (k:keyof Item,v:any)=> item && setItem({...item,[k]:v})
   const save = async () => {
@@ -171,6 +178,9 @@ function ItemDetailRecord({id}:{id:string}) {
     const {data:{session}} = await supabase.auth.getSession()
     if (!session) { setResearching(false); return setMessage('Session expired. Sign in again.') }
     try {
+      // Re-read persisted attempts before staging another chargeable request.
+      const history=await readItemResearch(supabase,item,current)
+      if(history.runs.some(run=>run.result?.analysis_stage==='PROCESSING'))throw Error('An earlier research request has an unconfirmed outcome. Recover its stored history before any paid retry.')
       const images=Object.values(photoUrls).filter(Boolean).slice(0,12)
       const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
         mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:images.length,
@@ -201,6 +211,7 @@ function ItemDetailRecord({id}:{id:string}) {
       setResearchDraft(verified.result)
       setResearchAudit(verified.result.source_audit||null)
       setResearchRunId(staged.id)
+      await reloadResearch(item)
       setMessage('Online research saved and read back. Review sources before promoting any claim or price.')
     } catch (err:any) {
       setMessage(err?.message || 'Research failed')
@@ -251,6 +262,7 @@ function ItemDetailRecord({id}:{id:string}) {
       <div className="tabBar">
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
+      <ResearchProgress audit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
 
       {tab==='overview' && <div>
         <div className="panel">
@@ -362,8 +374,7 @@ function ItemDetailRecord({id}:{id:string}) {
       </div>}
 
       {tab==='market' && <div className="marketStack">
-        <ComparableEvidence rows={comps} />
-        <ResearchProgress receipts={Array.isArray(researchDraft?.research_execution_receipts)?researchDraft.research_execution_receipts as ResearchReceipt[]:[]} />
+        <ComparableEvidence rows={comps} trustedIds={trustedComps.map(c=>c.id)} error={historyError}/>
         {photos.some(p=>!!photoUrls[p.id])&&
          <VisualReferenceWorkbench
           itemId={item.id}
@@ -405,7 +416,7 @@ function ItemDetailRecord({id}:{id:string}) {
          description="Continue with the original item photographs. Saved research remains available above."
          primary={{
           label:researching?'Researching…':'Research online',
-          onClick:runResearch,disabled:researching,loading:researching
+          onClick:runResearch,disabled:researching||historyLoading||!!historyError||!!researchHistory?.runs.some(run=>run.result?.analysis_stage==='PROCESSING'),loading:researching
          }}
          secondary={<a href="https://lens.google.com/" target="_blank" rel="noopener noreferrer"
           className="ci-action-text-link">Manual image search ↗</a>}
@@ -439,6 +450,8 @@ function ItemDetailRecord({id}:{id:string}) {
         <p className="ci-page-meta">Previously recorded prices are not evidence of achieved sales. Do not automatically use dealer asking as a realised price.</p>
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
+       {historyError&&<p role="alert">{historyError} Sale recommendation and publication status cannot be confirmed.</p>}
+       <SellFastPlan item={item} comparables={comps} trustedComparableIds={historyError?[]:trustedComps.map(c=>c.id)} listings={historyError?[]:listings} photoCount={photos.length} researchAudit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
        <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
        <RecordSaleOutcome client={supabase} itemId={item.id} onSold={(soldId,ownerId)=>setItem(current=>applyConfirmedSaleStatus(current,soldId,ownerId))}/>
       </div>}

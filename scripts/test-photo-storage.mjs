@@ -85,6 +85,10 @@ try{
  for(const path of ['001_core_schema.sql','002_rls_and_storage.sql','004_ai_intake.sql','20261017_append_only_owner_verdict_feedback.sql','20261017_owner_review_revision_cas_v1.sql',
   '20261016_atomic_photo_first_approval_v1.sql','20261017_reviewed_material_evidence_on_catalogue_v6.sql','20261016_block_partial_analysis_catalogue_approval.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/catalogue-approval-input-guards.sql'));
+ // Empty context views are explicit fixtures, not certification of live source
+ // review definitions. The actual application must be able to distinguish a
+ // complete empty read from a missing relation/failed evidence request.
+ await admin.query(await read('tests/fixtures/research-session-support.sql'));
  // Install every application RPC before PostgREST builds its schema cache.
  for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));

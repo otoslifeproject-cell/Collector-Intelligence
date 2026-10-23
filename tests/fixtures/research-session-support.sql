@@ -11,7 +11,7 @@ CREATE VIEW public.trusted_knowledge_v1 AS SELECT
   null::uuid supersedes_id,null::timestamptz updated_at
 WHERE false;
 CREATE VIEW public.trusted_comparables_v1 AS SELECT
-  null::uuid id,null::uuid item_id,null::text venue,null::text source_reference,
+  null::uuid id,null::uuid owner_id,null::uuid item_id,null::text venue,null::text source_reference,
   null::text source_url,null::text lot_item_id,null::date sale_date,null::text price_type,
   null::numeric price,null::text currency,null::text description,null::text maker_attribution,
   null::text dimensions,null::text condition_summary,null::text comparability_grade,

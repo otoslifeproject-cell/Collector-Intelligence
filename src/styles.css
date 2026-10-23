@@ -829,3 +829,22 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 
 /* Preserve raw unconfirmed research without overflowing narrow workspaces. */
 .ci-research-response{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font-size:.8rem;line-height:1.5}
+
+/* Object-level research remains readable in single and batch workspaces. */
+.ci-research-progress{min-width:0;max-width:100%;margin-bottom:16px}
+.ci-research-progress .panelHeader{flex-wrap:wrap;gap:8px}
+.ci-research-progress table{table-layout:fixed}
+.ci-research-progress th,.ci-research-progress td{overflow-wrap:anywhere;word-break:normal}
+.ci-research-progress th:first-child{width:24%}
+.ci-research-progress th:nth-child(2){width:27%}
+.ci-research-progress details>summary{cursor:pointer;min-height:36px;padding:8px 0}
+.ci-research-progress a{overflow-wrap:anywhere}
+.ci-research-progress-compact{padding:12px;margin:12px 0;border:1px solid var(--line);box-shadow:none}
+.ci-research-progress-compact h2{font-size:1rem}
+.ci-research-progress-compact td,.ci-research-progress-compact th{padding:8px 6px}
+.ci-research-next{overflow-wrap:anywhere}
+@media(max-width:600px){
+ .ci-research-progress table{font-size:11px}
+ .ci-research-progress td,.ci-research-progress th{padding:8px 5px}
+ .ci-research-progress .panelHeader h2{font-size:1.1rem}
+}

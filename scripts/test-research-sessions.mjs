@@ -3,6 +3,8 @@
 // and empty evidence-context views are explicit fixtures; no AI/network spend.
 import assert from 'node:assert/strict';
 import researchHandler from '../api/research-item.ts';
+import {createClient} from '@supabase/supabase-js';
+import {readItemResearch,readItemSaleRows,itemResearchAudit} from '../src/lib/itemResearch.ts';
 
 export async function installResearchSessionFixtures(admin,read){
   await admin.query(await read('tests/fixtures/catalogue-storage-metadata.sql'));
@@ -41,6 +43,29 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
   const itemResponse=await post(A.token,'items',{});assert.equal(itemResponse.status,201);
   const item=(await itemResponse.json())[0];
   const stage=(overrides={})=>insert(A.token,{mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:0,user_context:{item_id:item.id},result:{analysis_stage:'STAGED',preserved_fixture:'original envelope'},...overrides});
+  const sdk=createClient(API,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  const sdkLogin=await sdk.auth.signInWithPassword({email:'collector-ci-a@example.test',password:'Ci-disposable-fixture-4826!'});assert.equal(sdkLogin.error,null);
+  const historyItem=await post(A.token,'items',{source_analysis_run_id:draft.id,source_object_index:1});assert.equal(historyItem.status,201);const target=(await historyItem.json())[0];
+  let directHistory;
+  await check('item history SDK recovers101 real owner-scoped responses with exact pagination',async()=>{
+    const batch=Array.from({length:101},(_,i)=>({mode:'research',model:'fixture-history',status:'DRAFT',input_photo_count:0,user_context:{item_id:target.id},result:{analysis_stage:'COMPLETE',research_summary:'Stored original history '+i}}));
+    const r=await post(A.token,'ai_analysis_runs',batch);assert.equal(r.status,201,await r.clone().text());directHistory=await r.json();
+    const history=await readItemResearch(sdk,target,()=>true);assert.equal(history.runs.length,101);assert.equal(new Set(history.runs.map(r=>r.id)).size,101);assert.ok(history.runs.every(r=>r.owner_id===A.id));assert.equal(history.original.id,draft.id);
+  });
+  await check('item lineage SDK retains only matching original sibling and never inherits pair investigations',async()=>{
+    const inherited=[];for(const [index,pair] of [[0,[]],[1,[]],[0,[0,1]]])inherited.push(await insert(A.token,{mode:'research',model:'fixture-source',input_photo_count:0,user_context:{source_analysis_run_id:draft.id,source_object_index:index,pair_source_indices:pair},result:{analysis_stage:'COMPLETE',research_summary:'Original sibling '+index}}));
+    const history=await readItemResearch(sdk,target,()=>true);assert.equal(history.runs.length,102);assert.ok(history.runs.some(r=>r.id===inherited[1].id));assert.ok(!history.runs.some(r=>[inherited[0].id,inherited[2].id].includes(r.id)));
+  });
+  await check('legacy item null object mapping is blocked rather than assigned to sibling zero',async()=>{
+    const history=await readItemResearch(sdk,{...target,source_object_index:null},()=>true);assert.equal(history.lineageUnresolved,true);assert.equal(history.runs.length,101);assert.ok(itemResearchAudit(history,[]).receipts.every(r=>r.status==='BLOCKED'));
+  });
+  await check('item research helper refuses other-owner identity before revealing private history',async()=>{
+    await assert.rejects(readItemResearch(sdk,{...target,owner_id:B.id},()=>true),/history could not be verified/);
+    const other=await rest(B.token,'ai_analysis_runs?id=eq.'+directHistory[0].id);assert.equal(other.status,200);assert.deepEqual(await other.json(),[]);
+  });
+  await check('real owner listing and trusted comparable reads preserve counted empty states',async()=>{
+    assert.deepEqual(await readItemSaleRows(sdk,'listings',target,()=>true),[]);assert.deepEqual(await readItemSaleRows(sdk,'trusted_comparables_v1',target,()=>true),[]);
+  });
   await check('review RPC rejects anonymous and other-owner edits without changing draft',async()=>{
     assert.ok([401,403].includes((await edit(anon,draft.id,0,{'0':{working_title:'Anonymous'}})).status));
     const foreign=await edit(B.token,draft.id,0,{'0':{working_title:'Wrong owner'}});assert.equal(foreign.status,400);
@@ -159,6 +184,8 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
       const saved=await row(concurrent.id);assert.equal(saved.result.analysis_stage,'COMPLETE');assert.equal(saved.model,'fixture-research-model');
       assert.equal(saved.result.canonical_source_audit.resolution_mode,'APPROVED_V1');assert.equal(saved.result.canonical_source_audit.publication_receipts.length,3);
       assert.deepEqual(saved.result,successful.body.result);assert.equal(saved.result.source_audit.independent_source_verification,false);
+      assert.equal(saved.result.research_execution_v1.run_id,concurrent.id);assert.equal(saved.result.research_execution_v1.provider_response_id,'fixture-response-1');
+      assert.equal(saved.result.research_execution_v1.independent_source_verification,false);assert.equal(saved.result.research_execution_v1.category_receipts_available,false);assert.deepEqual(saved.result.research_execution_v1.web_search_calls,[]);
     });
     await check('saved research replay preserves model response identity and makes zero new provider calls',async()=>{
       const callsBefore=providerCalls;const replay=await invoke(concurrent.id);assert.equal(replay.code,200);

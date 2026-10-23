@@ -1,3 +1,4 @@
+import {applyInscriptionReview} from '../src/lib/inscriptionReview.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
@@ -160,38 +161,7 @@ function markNeedsReview(result: any, context: any): boolean {
   }) || /\b(?:signed|signature|inscription)\b/i.test(String(context?.user_notes || ""));
 }
 
-function applyInscriptionReview(result: any, review: any) {
-  if (!review?.mark_visible || !Array.isArray(result?.objects)) return result;
-  const valid = new Set((review.evidence_image_indices || []).filter((x: any) => Number.isInteger(x)));
-  const description = review.candidate_transcription
-    ? `Second-pass candidate inscription: "${review.candidate_transcription}" (${review.transcription_confidence}% transcription confidence; NOT independently verified).`
-    : "Second-pass examination detected a mark but could not transcribe it reliably.";
-  for (const object of result.objects) {
-    if (!Array.isArray(object.image_indices) || !object.image_indices.some((x: number) => valid.has(x))) continue;
-    const indices = object.image_indices.filter((x: number) => valid.has(x)).join(", ");
-    const source = `Source image indices: ${indices || "not determined"}. ${review.rationale || ""}`;
-    object.marks_signatures_labels = [object.marks_signatures_labels, description].filter(Boolean).join(" ");
-    object.evidence = Array.isArray(object.evidence) ? object.evidence : [];
-    object.evidence.push({ claim: description, provenance: "INFERENCE", certainty_class: "POSSIBLE_ATTRIBUTION", stance: "SUPPORTS", notes: source });
-    if (review.candidate_maker && !object.maker) {
-      object.current_attribution = [review.candidate_maker, review.candidate_design].filter(Boolean).join(" — ") + " (candidate only; research needed)";
-      object.catalogue_note = `Unverified inscription-led candidate: ${object.current_attribution}. ${object.catalogue_note || ""}`;
-      // Image-only maker readings are hypotheses, never confirmed identities.
-      object.identification_confidence = Math.min(74, object.identification_confidence || 0); // A speculative second-pass maker must not increase object-level identification certainty.
-    }
-    if (review.candidate_period && !object.period_wording) object.period_wording = `Possible ${review.candidate_period}; unverified`;
-    if (review.candidate_maker) {
-      object.sale_readiness = "RESEARCH_FIRST";
-      object.status = "RESEARCH";
-      object.specialist_review = true;
-    }
-    // Do not request replacement photographs if the existing image already yields a candidate reading.
-    if (!review.needs_new_photograph && review.candidate_transcription && Array.isArray(object.next_evidence)) {
-      object.next_evidence = object.next_evidence.filter((e: any) => !/\b(?:inscription|signature|mark)\b/i.test(String(e.title || "")));
-    }
-  }
-  return result;
-}
+
 
 // Owner-confirmed material mistakes are reusable cautionary benchmarks, not
 // independent maker identifications or permission to override new photos.

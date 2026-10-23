@@ -1,5 +1,6 @@
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
+import {researchExecutionReceipt} from '../src/lib/researchExecution.ts';
 
 const researchSchema = {
   type: "object",
@@ -559,6 +560,7 @@ export default async function handler(req: any, res: any) {
 
   let response:Response;
   let payload:any;
+  const dispatchedAt=new Date().toISOString();
   try {
     response = await fetch(
     useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
@@ -590,7 +592,8 @@ export default async function handler(req: any, res: any) {
     const savedResult={
       ...result,source_audit,canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
       research_depth:depth,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
-      analysis_stage:'COMPLETE',response_id:payload.id||null
+      analysis_stage:'COMPLETE',response_id:payload.id||null,
+      research_execution_v1:researchExecutionReceipt(payload,research_run_id,dispatchedAt,new Date().toISOString())
     };
     try{
       await persistResearchResult(supabaseUrl,supabaseKey,token,research_run_id,payload.model||body.model,savedResult);

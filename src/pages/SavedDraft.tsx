@@ -6,6 +6,8 @@ import {supabase} from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
+import ResearchProgress from '../components/ResearchProgress'
+import {draftResearchDashboard} from '../lib/draftResearchAudit'
 import SaleEconomics from '../components/SaleEconomics'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
@@ -174,6 +176,9 @@ function SavedDraftRecord({id}:{id:string}){
     run.result.image_manifest.length===run.input_photo_count && run.input_photo_count>0 &&
     run.result?.analysis_stage==='COMPLETE'
  const scopeIndex=paired?0:researchIndex
+ const storedResearch=[...researchHistory,...unfinishedResearch]
+ const dashboardFor=(index:number,pair=false)=>run?draftResearchDashboard(run,storedResearch.filter(row=>researchForScope(row,index,pair)),index,pair,researchError):null
+ const scopeDashboard=dashboardFor(scopeIndex,paired)
  const scopeFeedback=feedbackForObject(verdictFeedback,scopeIndex,paired)
  const correctedMaterial=currentOwnerMaterial(scopeFeedback)
  const matchedResearchRun=researchHistory.find((x:any)=>
@@ -318,7 +323,7 @@ function SavedDraftRecord({id}:{id:string}){
  return <div className="ci-page ci-saved-draft">
   <header className="ci-page-header ci-report-heading">
     <div className="ci-report-heading-copy">
-     
+
      <h1 title={paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}>
       {paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'}
      </h1>
@@ -389,6 +394,15 @@ function SavedDraftRecord({id}:{id:string}){
    {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
+   {!paired&&(run.result?.objects||[]).length>1&&<label className="ci-research-scope-selector">Choose object to research
+    <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
+     {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
+    </select>
+   </label>}
+   {scopeDashboard&&<ResearchProgress audit={scopeDashboard.audit} history={scopeDashboard.history}
+    objectLabel={paired?(correctedPairTitle||'Matched pair — whole lot'):run.result.objects?.[scopeIndex]?.working_title||'Object '+(scopeIndex+1)}
+    confidence={scopeDashboard.confidence} loading={busy||checkingResearch} error={researchError}
+    onReload={()=>void checkSavedResearch()} onInvestigate={()=>setActiveTab('market')}/>}
    <div className="tabBar" role="tablist" aria-label="Object workspace">
     {['overview','photos','identification','market','sales','catalogue'].map(t=>
       <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
@@ -445,12 +459,6 @@ function SavedDraftRecord({id}:{id:string}){
       onClick:()=>runDraftResearch('deep_dive'),
       disabled:researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}
-     selector={!paired&&(run.result?.objects||[]).length>1?
-      <label>Choose object to research
-       <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
-        {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
-       </select>
-      </label>:null}
      secondary={<a className="ci-action-text-link" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">
       Manual image search ↗</a>}
      note="Dive deeper uses paid AI research. Museum image comparisons above are free; reverse-image search remains manual."
@@ -539,6 +547,27 @@ function SavedDraftRecord({id}:{id:string}){
       </label>}
       <h3 className="ci-record-title">{title}</h3>
       <p className="ci-record-stage">{o.maker||'Maker not confirmed'} · Provisional identification</p>
+      <div className="ci-object-research-summary" onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
+       {paired?<>
+        <p className="ci-page-meta">Two physical pieces retain separate mark readings. Whole-lot market research above does not authenticate either piece.</p>
+        {(run.result.objects||[]).map((member:any,memberIndex:number)=>{
+         const dashboard=dashboardFor(memberIndex)
+         return dashboard&&<section key={memberIndex} className="ci-pair-piece-research" aria-label={'Physical piece '+(memberIndex+1)+' research'}>
+          <h4>Physical piece {memberIndex+1} · {member.working_title||'Original object'}</h4>
+          <ResearchProgress audit={dashboard.audit} history={dashboard.history} compact
+           objectLabel={'Physical piece '+(memberIndex+1)+' · '+(member.working_title||'Original object')}
+           confidence={dashboard.confidence} loading={busy||checkingResearch} error={researchError}/>
+         </section>
+        })}
+        <button type="button" className="secondaryButton inlineButton" onClick={()=>setActiveTab('identification')}>Review both original pieces</button>
+       </>:(()=>{
+        const dashboard=dashboardFor(i)
+        return dashboard&&<ResearchProgress audit={dashboard.audit} history={dashboard.history} compact
+         objectLabel={'Object '+(i+1)+' · '+title} confidence={dashboard.confidence}
+         loading={busy||checkingResearch} error={researchError}
+         onInvestigate={()=>{setResearchIndex(i);setActiveTab('market')}}/>
+       })()}
+      </div>
       <details className="ci-object-review">
        <summary>Review object & evidence</summary>
        <div className="ci-object-review-content">
