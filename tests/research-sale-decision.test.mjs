@@ -1,9 +1,5 @@
 import assert from 'node:assert/strict'
-import {readFileSync} from 'node:fs'
-import ts from 'typescript'
-const source=readFileSync(new URL('../src/lib/researchSaleDecision.ts',import.meta.url),'utf8')
-const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
-const {auditResearch,recommendSaleRoutes}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'))
+import {auditResearch,recommendSaleRoutes} from '../src/lib/researchSaleDecision.ts'
 const stages=['PHOTOGRAPH_EXAM','SIGNATURE_READING','MAKER_ARCHIVE','AUCTION_REALISED','MARKETPLACE_SOLD','CONDITION_REVIEW','SALES_ECONOMICS']
 let count=0
 function check(label,fn){fn();count++;console.log('PASS',label)}
