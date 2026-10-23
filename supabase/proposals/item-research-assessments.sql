@@ -51,7 +51,7 @@ begin
  or exists(select 1 from jsonb_object_keys(v_payload) k where k not in ('decision','rationale','unresolvedIssues','nextAction','routeGuidance','confidence','sourceRefs','availableChecks'))
  or v_payload->>'decision' is distinct from new.decision then raise exception 'Unsupported final hold assessment shape'; end if;
  foreach v_key in array array['rationale','unresolvedIssues','nextAction','routeGuidance'] loop
-  if jsonb_typeof(v_payload->v_key) is distinct from 'string' or length(btrim(v_payload->>v_key))<case when v_key='rationale' then 40 else 2 end
+  if jsonb_typeof(v_payload->v_key) is distinct from 'string' or length(btrim(v_payload->>v_key))<(case when v_key='rationale' then 40 else 2 end)
    or length(v_payload->>v_key)>6000 then raise exception 'Final hold advice is missing or too long'; end if;
  end loop;
  v_conf:=v_payload->'confidence';
