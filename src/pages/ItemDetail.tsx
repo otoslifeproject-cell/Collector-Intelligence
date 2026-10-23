@@ -11,6 +11,7 @@ import ComparableEvidence from '../components/ComparableEvidence'
 import {itemResearchAudit,readItemResearch,readItemSaleRows} from '../lib/itemResearch'
 import type {ItemResearchHistory} from '../lib/itemResearch'
 import SellFastPlan from '../components/SellFastPlan'
+import ItemAssessment from '../components/ItemAssessment'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
 import {applyConfirmedSaleStatus} from '../lib/actualSale'
@@ -263,6 +264,7 @@ function ItemDetailRecord({id}:{id:string}) {
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
       <ResearchProgress audit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      <ItemAssessment client={supabase} item={item} audit={!historyError&&researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
 
       {tab==='overview' && <div>
         <div className="panel">

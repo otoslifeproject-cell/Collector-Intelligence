@@ -89,6 +89,7 @@ try{
  // review definitions. The actual application must be able to distinguish a
  // complete empty read from a missing relation/failed evidence request.
  await admin.query(await read('tests/fixtures/research-session-support.sql'));
+ await admin.query(await read('supabase/proposals/item-research-assessments.sql'));
  // Install every application RPC before PostgREST builds its schema cache.
  for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));

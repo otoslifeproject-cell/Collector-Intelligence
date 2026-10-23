@@ -28,6 +28,31 @@ test('denied history is blocked rather than zero progress and GET-only recovery 
  const events=await login(page,'/#/item/'+item.id+'?tab=market');const panel=dashboard(page,item);await expect(panel.getByRole('alert')).toContainText('Missing history is not evidence');await expect(panel.getByRole('progressbar')).toHaveCount(0);await expect(page.getByRole('button',{name:'Research online',exact:true})).toBeDisabled();
  await page.unroute('**/rest/v1/ai_analysis_runs*');await panel.getByRole('button',{name:'Reload saved research history',exact:true}).click();await expect(panel).toContainText('1 saved research executions');expect(events.paid).toEqual([]);
 });
+test('final hold survives a committed save with denied readback, GET-only Check and refresh',async({page})=>{
+ const item=await seedItem();await research(item.id);const events=await login(page,'/#/item/'+item.id);const panel=page.getByRole('region',{name:'Final item decision — '+item.item_code,exact:true});
+ await expect(panel).toContainText('No stored decision was found.');await panel.getByText('Record a hold decision and guidance',{exact:true}).click();
+ await panel.getByLabel('Decision',{exact:true}).selectOption('SPECIALIST_REVIEW');
+ await panel.getByLabel('Decision rationale (at least 40 characters)',{exact:true}).fill('Both signatures require independent review and maker authentication remains unresolved.');
+ await panel.getByLabel('Unresolved identification / value issues',{exact:true}).fill('The faint bubble-base signature and the condition of each piece.');
+ await panel.getByLabel('Next recommended action',{exact:true}).fill('Inspect both original bases and measure each vase.');
+ await panel.getByLabel('Selling route guidance while research is incomplete',{exact:true}).fill('Hold all sale routes pending researched valuation and actual net costs.');
+ let writes=0,deny=false;
+ await page.route('**/rest/v1/rpc/ci_record_item_hold_assessment_v1',async route=>{writes++;const response=await route.fetch();expect(response.ok()).toBe(true);deny=true;return route.fulfill({status:503,json:{message:'Synthetic lost acknowledgement after real commit'}});});
+ await page.route('**/rest/v1/item_research_assessments*',route=>deny&&new URL(route.request().url()).searchParams.has('client_event_id')?route.fulfill({status:403,json:{message:'Synthetic readback denial'}}):route.fallback());
+ await panel.getByRole('button',{name:'Save hold decision',exact:true}).click();await expect(panel.getByRole('button',{name:'Check saved decision',exact:true})).toBeEnabled();await expect(panel.getByRole('button',{name:'Retry same held decision',exact:true})).toBeDisabled();
+ deny=false;await panel.getByRole('button',{name:'Check saved decision',exact:true}).click();await expect(panel).toContainText('Final hold decision confirmed by stored readback.');expect(writes).toBe(1);
+ await page.reload();await expect(panel).toContainText('Both signatures require independent review');await expect(panel).toContainText('Final decision history (1)');await expect(panel).toContainText('Owner-reported, unverified');
+ await page.getByRole('button',{name:'sales',exact:true}).click();await expect(page.getByText('DO NOT LIST YET — research / final assessment incomplete',{exact:true})).toBeVisible();const rows=await client.from('item_research_assessments').select('*').eq('item_id',item.id);expect(rows.error).toBeNull();expect(rows.data).toHaveLength(1);expect(rows.data[0].decision).toBe('SPECIALIST_REVIEW');expect(events.paid).toEqual([]);expect(events.errors).toEqual([]);
+ await page.screenshot({path:'test-artifacts/final-item-hold-readback.png',fullPage:true});
+});
+test('catalogue facts changing preserve earlier final hold and require a fresh decision',async({page})=>{
+ const item=await seedItem();await research(item.id);const context=await client.from('item_assessment_context_v1').select('*').eq('item_id',item.id).single();expect(context.error).toBeNull();
+ const {holdPayload}=await import('../src/lib/itemAssessment.ts');const {auditResearch}=await import('../src/lib/researchSaleDecision.ts');
+ const payload=holdPayload({decision:'DO_NOT_LIST_YET',rationale:'Condition and maker attribution require investigation before sale is appropriate.',unresolvedIssues:'Condition and maker.',nextAction:'Review original bases.',routeGuidance:'Do not list until valuation is evidenced.',confidence:{identification:null,dating:null,valuation:null},sourceRefs:[]},auditResearch([]));
+ const saved=await client.rpc('ci_record_item_hold_assessment_v1',{p_item_id:item.id,p_client_event_id:randomUUID(),p_expected_facts_sha256:context.data.facts_sha256,p_assessment:payload});expect(saved.error).toBeNull();
+ const events=await login(page,'/#/item/'+item.id),panel=page.getByRole('region',{name:'Final item decision — '+item.item_code,exact:true});await expect(panel).toContainText('Condition and maker attribution require investigation');
+ expect((await client.from('items').update({condition_summary:'New condition observation'}).eq('id',item.id)).error).toBeNull();await page.reload();await expect(panel).toContainText('Earlier decisions remain in history.');await panel.getByText('Final decision history (1)',{exact:true}).click();await expect(panel).toContainText('earlier catalogue facts');await expect(panel).toContainText(payload.rationale);expect(events.paid).toEqual([]);
+});
 test('oldest persisted item investigation survives more than100 newer attempts',async({page})=>{
  const item=await seedItem();const rows=Array.from({length:101},(_,i)=>({mode:'research',model:'fixture-no-provider',input_photo_count:0,user_context:{item_id:item.id},result:{analysis_stage:'COMPLETE',research_summary:'Historical item response '+i}}));
  const insert=await client.from('ai_analysis_runs').insert(rows);expect(insert.error).toBeNull();const e=await login(page,'/#/item/'+item.id);const panel=dashboard(page,item);await expect(panel).toContainText('101 saved research executions');await panel.getByText('Stored execution history (101)',{exact:true}).click();await expect(panel).toContainText('Historical item response 0');await expect(panel).toContainText('Historical item response 100');expect(e.paid).toEqual([]);

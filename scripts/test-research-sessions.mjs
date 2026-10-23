@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import researchHandler from '../api/research-item.ts';
 import {createClient} from '@supabase/supabase-js';
 import {readItemResearch,readItemSaleRows,itemResearchAudit} from '../src/lib/itemResearch.ts';
+import {exerciseItemAssessments} from './test-item-assessments.mjs';
 
 export async function installResearchSessionFixtures(admin,read){
   await admin.query(await read('tests/fixtures/catalogue-storage-metadata.sql'));
@@ -14,6 +15,7 @@ export async function installResearchSessionFixtures(admin,read){
     public.attribution_history,public.research_tasks TO authenticated;
     GRANT USAGE,SELECT ON SEQUENCE public.item_code_seq TO authenticated`);
   await admin.query(await read('tests/fixtures/research-session-support.sql'));
+  await admin.query(await read('supabase/proposals/item-research-assessments.sql'));
   await admin.query(await read('supabase/migrations/004_ai_intake.sql'));
   await admin.query('GRANT SELECT,INSERT,UPDATE ON public.ai_analysis_runs TO authenticated');
   await admin.query(await read('supabase/migrations/20261017_paid_research_claim_gate_v1.sql'));
@@ -45,6 +47,7 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
   const stage=(overrides={})=>insert(A.token,{mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:0,user_context:{item_id:item.id},result:{analysis_stage:'STAGED',preserved_fixture:'original envelope'},...overrides});
   const sdk=createClient(API,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
   const sdkLogin=await sdk.auth.signInWithPassword({email:'collector-ci-a@example.test',password:'Ci-disposable-fixture-4826!'});assert.equal(sdkLogin.error,null);
+  await exerciseItemAssessments({admin,rest,check,A,B,anon,API,key,sdk});
   const historyItem=await post(A.token,'items',{source_analysis_run_id:draft.id,source_object_index:1});assert.equal(historyItem.status,201);const target=(await historyItem.json())[0];
   let directHistory;
   await check('item history SDK recovers101 real owner-scoped responses with exact pagination',async()=>{

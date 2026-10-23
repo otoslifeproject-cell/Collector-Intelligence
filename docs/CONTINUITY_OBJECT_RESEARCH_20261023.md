@@ -120,3 +120,25 @@ SHA-256 `a5f1bf600d2de343889572cbd646b4f5d4c7d071bc31391658e659783d5eceb4`.
 Actual raw Drive readback, ZIP integrity and member hashes match. It preserves
 all ten original photographs, separately examined signatures, sources and doubts.
 It does not certify either maker, an exact pair valuation or listing readiness.
+
+## Final hold storage candidate
+
+The next development stage adds an append-only owner/item hold assessment,
+server-generated catalogue snapshot/hash, current/stale decision history and
+readback-confirmed saves. A missing acknowledgement is checked by GET; deliberate
+retries retain the same immutable event and payload. Catalogue changes preserve
+earlier decisions and require a new review. The core item page shows this decision
+and its unresolved issues, next action, guidance and full retained advice.
+
+The SQL is an explicit proposal under `supabase/proposals/`, installed only in
+guarded disposable CI. It is UNAPPLIED TO PRODUCTION. Authenticated owners can
+record only DO_NOT_LIST_YET or SPECIALIST_REVIEW as OWNER_REPORTED_UNVERIFIED;
+they cannot write READY_TO_LIST, promote SOURCE_REVIEWED, modify old rows or
+certify a research category. This is useful negative-decision persistence, not
+the completed independently reviewed positive approval workflow.
+
+Local strict API check, production build and 119 unit/application checks pass.
+New genuine Auth/REST cases cover owner/anonymous denial, immutable history,
+stale snapshots, same-event races, lost acknowledgements and rejection of false
+completion. Two actual browser cases cover Check/readback, refresh and changed
+facts. Their CI acceptance remains PENDING at candidate creation.
