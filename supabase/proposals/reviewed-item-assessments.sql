@@ -87,13 +87,13 @@ begin
   if a is null or (a<>'null'::jsonb and (jsonb_typeof(a)<>'number' or (a#>>'{}')::numeric<0 or (a#>>'{}')::numeric>100 or (a#>>'{}')::numeric<>trunc((a#>>'{}')::numeric))) then return false; end if;
  end loop;
  if jsonb_typeof(p_payload->'evidenceSources') is distinct from 'array' or jsonb_array_length(p_payload->'evidenceSources')<3 or jsonb_array_length(p_payload->'evidenceSources')>100 then return false; end if;
- if (select count(distinct ((a->>'kind')||':'||(a->>'id'))) from jsonb_array_elements(p_payload->'evidenceSources') a)<>jsonb_array_length(p_payload->'evidenceSources') then return false; end if;
+ if (select count(distinct ((source_anchor->>'kind')||':'||(source_anchor->>'id'))) from jsonb_array_elements(p_payload->'evidenceSources') source_anchor)<>jsonb_array_length(p_payload->'evidenceSources') then return false; end if;
  for a in select value from jsonb_array_elements(p_payload->'evidenceSources') loop
   if a is distinct from public.ci_item_review_anchor_v1(p_owner,p_item,a->>'kind',(a->>'id')::uuid) then return false; end if;
  end loop;
  if jsonb_typeof(p_payload->'sourceRefs') is distinct from 'array' or jsonb_array_length(p_payload->'sourceRefs')<1 then return false; end if;
  for v_ref in select value from jsonb_array_elements(p_payload->'sourceRefs') loop
-  if jsonb_typeof(v_ref)<>'string' or not exists(select 1 from jsonb_array_elements(p_payload->'evidenceSources') a where a->'reference'=v_ref) then return false; end if;
+  if jsonb_typeof(v_ref)<>'string' or not exists(select 1 from jsonb_array_elements(p_payload->'evidenceSources') source_anchor where source_anchor->'reference'=v_ref) then return false; end if;
  end loop;
  -- A final decision may support generic identification without authenticating a
  -- maker. Affirmative maker copy needs its own reviewer-bound documentary scope.
@@ -135,12 +135,12 @@ begin
    if not (p_payload->'sourceRefs' @> jsonb_build_array(v_ref)) then return false; end if;
   end loop;
   if c->>'id' in ('PHOTOGRAPH_EXAM','SIGNATURE_READING','CONDITION_REVIEW') and not exists(
-   select 1 from jsonb_array_elements(p_payload->'evidenceSources') a where a->>'kind'='PHOTO' and c->'sourceRefs' @> jsonb_build_array(a->'reference')) then return false; end if;
+   select 1 from jsonb_array_elements(p_payload->'evidenceSources') source_anchor where source_anchor->>'kind'='PHOTO' and c->'sourceRefs' @> jsonb_build_array(source_anchor->'reference')) then return false; end if;
   if c->>'id' in ('MAKER_ARCHIVE','SALES_ECONOMICS') and not exists(
-   select 1 from jsonb_array_elements(p_payload->'evidenceSources') a where a->>'kind'='EVIDENCE' and c->'sourceRefs' @> jsonb_build_array(a->'reference')) then return false; end if;
+   select 1 from jsonb_array_elements(p_payload->'evidenceSources') source_anchor where source_anchor->>'kind'='EVIDENCE' and c->'sourceRefs' @> jsonb_build_array(source_anchor->'reference')) then return false; end if;
   if c->>'id' in ('AUCTION_REALISED','MARKETPLACE_SOLD') and not exists(
-   select 1 from jsonb_array_elements(p_payload->'evidenceSources') a join public.trusted_comparables_v1 comp on comp.id=(a->>'id')::uuid and comp.item_id=p_item and comp.owner_id=p_owner
-   where a->>'kind'='COMPARABLE' and c->'sourceRefs' @> jsonb_build_array(a->'reference')
+   select 1 from jsonb_array_elements(p_payload->'evidenceSources') source_anchor join public.trusted_comparables_v1 comp on comp.id=(source_anchor->>'id')::uuid and comp.item_id=p_item and comp.owner_id=p_owner
+   where source_anchor->>'kind'='COMPARABLE' and c->'sourceRefs' @> jsonb_build_array(source_anchor->'reference')
     and ((c->>'id'='AUCTION_REALISED' and comp.price_type in ('HAMMER_REALIZED','REALIZED_INCL_BP')) or (c->>'id'='MARKETPLACE_SOLD' and comp.price_type in ('MARKETPLACE_SOLD','DEALER_SOLD_CONFIRMED')))) then return false; end if;
  end loop;
  return coalesce(p_payload->>'sourceGraphSha256'=encode(sha256(convert_to(public.ci_item_review_graph_v1(p_owner,p_item)::text,'UTF8')),'hex'),false);

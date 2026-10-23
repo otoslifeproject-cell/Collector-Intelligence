@@ -28,6 +28,22 @@ async function asReviewer(admin,actor,fn){
   const r=await fn(admin);await admin.query('COMMIT');return r;
  }catch(e){await admin.query('ROLLBACK');throw e;}
 }
+// On an unexpected fixture failure, surface the exact validator branch or SQL
+// error in the isolated test DB. The production validator remains fail-closed.
+async function diagnoseReviewedFixture(admin,owner,item,payload,actor){
+ const original=(await admin.query("SELECT pg_get_functiondef('public.ci_reviewed_item_payload_valid_v1(uuid,uuid,jsonb)'::regprocedure) definition")).rows[0].definition;
+ let branch=0;const definition=original.replace('public.ci_reviewed_item_payload_valid_v1(', 'public.ci_reviewed_item_fixture_diagnostic_v1(')
+  .replace('exception when others then return false;', 'exception when others then raise;')
+  .replaceAll('return false;',()=>`raise exception 'DISPOSABLE_REVIEW_VALIDATOR_BRANCH_${++branch}';`);
+ await admin.query(definition);await admin.query('REVOKE ALL ON FUNCTION public.ci_reviewed_item_fixture_diagnostic_v1(uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role');
+ try{
+  const diagnostic={...payload,reviewerId:actor,verificationMethod:'INDEPENDENT_SOURCE_REVIEW'};
+  const graph=(await admin.query("SELECT encode(sha256(convert_to(public.ci_item_review_graph_v1($1,$2)::text,'UTF8')),'hex') digest",[owner,item])).rows[0].digest;
+  diagnostic.sourceGraphSha256=graph;
+  const result=(await admin.query('SELECT public.ci_reviewed_item_fixture_diagnostic_v1($1,$2,$3) valid',[owner,item,diagnostic])).rows[0].valid;
+  return 'validator='+result;
+ }catch(error){return error.message;}finally{await admin.query('DROP FUNCTION public.ci_reviewed_item_fixture_diagnostic_v1(uuid,uuid,jsonb)');}
+}
 export async function seedReviewedAssessmentFixture(admin,owner,{client,title='Synthetic reviewed acceptance fixture'}={}){
  const actor=(await admin.query('SELECT id FROM auth.users WHERE id<>$1 ORDER BY id LIMIT 1',[owner])).rows[0]?.id;
  assert.ok(actor,'Independent disposable reviewer fixture required');
@@ -62,7 +78,7 @@ export async function seedReviewedAssessmentFixture(admin,owner,{client,title='S
  const context=(await admin.query('SELECT * FROM public.item_assessment_context_v1 WHERE item_id=$1',[item.id])).rows[0];
  const event=randomUUID();
  const append=async(p=payload,e=event)=>asReviewer(admin,actor,async db=>(await db.query('SELECT * FROM ci_private.record_reviewed_item_assessment_v1($1,$2,$3,$4,$5)',[owner,item.id,e,context.facts_sha256,p])).rows[0]);
- const row=await append();
+ let row;try{row=await append();}catch(error){const diagnostic=await diagnoseReviewedFixture(admin,owner,item.id,payload,actor);throw Error('Disposable reviewed fixture append rejected: '+diagnostic,{cause:error});}
  return {item,photo,evidence,comps,anchors,payload,context,event,actor,row,append};
 }
 
