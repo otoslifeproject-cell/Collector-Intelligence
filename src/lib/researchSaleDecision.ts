@@ -23,7 +23,7 @@ export function auditResearch(input:ResearchReceipt[]):ResearchAudit{
  return {complete,total:researchTypes.length,percent:Math.floor(100*complete/researchTypes.length),
   receipts,unresolved:receipts.filter(x=>x.status!=='DONE_EVIDENCED').map(x=>x.type)}
 }
-export type SaleRoute={venue:string;mode:'FAST_CASH'|'BALANCED'|'MAX_VALUE';grossLow:number;grossHigh:number;feeRate:number;fixedCosts:number;shippingRisk:'LOW'|'MEDIUM'|'HIGH';daysToSaleLow:number;daysToSaleHigh:number;sourceRefs:string[];eligible:boolean}
+export type SaleRoute={venue:string;mode:'FAST_CASH'|'BALANCED'|'MAX_VALUE';grossLow:number;grossHigh:number;feeRate:number;fixedCosts:number;shippingRisk:'LOW'|'MEDIUM'|'HIGH';daysToSaleLow:number;daysToSaleHigh:number;sourceRefs:string[];eligible:boolean;priceBasis?:'AUCTION_REALISED'|'MARKETPLACE_SOLD'|'DEALER_ASKING'|'MARKETPLACE_ASKING'|'UNVERIFIED';feeCheckedAt?:string}
 export type RouteDecision={status:'RESEARCH_FIRST'|'ONE_QUICK_CHECK_THEN_SELL'|'SELL_NOW';recommendation:SaleRoute|null;netLow:number|null;netHigh:number|null;ranked:{route:SaleRoute;netLow:number;netHigh:number}[];warnings:string[]}
 export function recommendSaleRoutes(audit:ResearchAudit,routes:SaleRoute[],signedMakerConfirmed:boolean):RouteDecision{
  const warnings:string[]=[]
@@ -31,6 +31,7 @@ export function recommendSaleRoutes(audit:ResearchAudit,routes:SaleRoute[],signe
   [r.grossLow,r.grossHigh,r.feeRate,r.fixedCosts,r.daysToSaleLow,r.daysToSaleHigh].every(Number.isFinite)&&
   r.grossLow>=0&&r.grossHigh>=r.grossLow&&r.feeRate>=0&&r.feeRate<=1&&r.fixedCosts>=0&&
   r.daysToSaleLow>=0&&r.daysToSaleHigh>=r.daysToSaleLow&&r.venue?.trim()&&
+  ['AUCTION_REALISED','MARKETPLACE_SOLD'].includes(r.priceBasis||'')&&!!r.feeCheckedAt?.trim()&&
   ['FAST_CASH','BALANCED','MAX_VALUE'].includes(r.mode))
  const ranked=validated.map(route=>({route,netLow:Math.round((route.grossLow*(1-route.feeRate)-route.fixedCosts)*100)/100,netHigh:Math.round((route.grossHigh*(1-route.feeRate)-route.fixedCosts)*100)/100}))
   .sort((a,b)=> ((b.netLow+b.netHigh)/2)-((a.netLow+a.netHigh)/2))
@@ -40,7 +41,7 @@ export function recommendSaleRoutes(audit:ResearchAudit,routes:SaleRoute[],signe
  if(!signedMakerConfirmed)warnings.push('Signature reading does not confirm maker authenticity; describe signed mark without unsupported attribution')
  if(!soldEvidence)warnings.push('No verified SOLD/REALISED evidence: estimates and asking prices cannot establish resale')
  if(!condition)warnings.push('Condition verification incomplete')
- if(!ranked.length)warnings.push('No evidence-backed eligible sale route and cost assumptions')
+ if(!ranked.length)warnings.push('No eligible route with verified realised/sold price basis and dated fee assumptions')
  const status:RouteDecision['status']=!ranked.length||!soldEvidence?'RESEARCH_FIRST':!condition?'ONE_QUICK_CHECK_THEN_SELL':'SELL_NOW'
  // Ranking is conditional, not a fabricated recommendation in the absence of sound comps.
  const chosen=status==='RESEARCH_FIRST'?null:ranked[0]
