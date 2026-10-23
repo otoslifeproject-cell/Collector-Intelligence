@@ -13,7 +13,7 @@ export function auditResearch(input:ResearchReceipt[]):ResearchAudit{
   const matching=input.filter(x=>x.type===type)
   const row=matching.length===1?matching[0]:undefined
   if(!row)return {type,status:'NOT_RUN' as ResearchStatus}
-  if(row.status==='DONE_EVIDENCED'&&(!row.runId||!row.checkedAt||!row.sourceRefs?.some(Boolean)))
+  if(row.status==='DONE_EVIDENCED'&&(!row.runId||!row.checkedAt||!row.sourceRefs?.some(x=>typeof x==='string'&&x.trim().length>0)))
    return {...row,status:'INCONCLUSIVE' as ResearchStatus,detail:'Completion lacks traceable source and execution receipt'}
   if(terminal.has(row.status)&&!row.runId)
    return {...row,status:'NOT_RUN' as ResearchStatus,detail:'Missing execution receipt'}
@@ -27,7 +27,11 @@ export type SaleRoute={venue:string;mode:'FAST_CASH'|'BALANCED'|'MAX_VALUE';gros
 export type RouteDecision={status:'RESEARCH_FIRST'|'ONE_QUICK_CHECK_THEN_SELL'|'SELL_NOW';recommendation:SaleRoute|null;netLow:number|null;netHigh:number|null;ranked:{route:SaleRoute;netLow:number;netHigh:number}[];warnings:string[]}
 export function recommendSaleRoutes(audit:ResearchAudit,routes:SaleRoute[],signedMakerConfirmed:boolean):RouteDecision{
  const warnings:string[]=[]
- const validated=routes.filter(r=>r.eligible&&r.sourceRefs.length>0&&r.grossLow>=0&&r.grossHigh>=r.grossLow&&r.feeRate>=0&&r.feeRate<=1&&r.fixedCosts>=0&&r.daysToSaleLow>=0&&r.daysToSaleHigh>=r.daysToSaleLow&&Number.isFinite(r.grossHigh))
+ const validated=routes.filter(r=>r.eligible&&r.sourceRefs?.some(x=>typeof x==='string'&&x.trim().length>0)&&
+  [r.grossLow,r.grossHigh,r.feeRate,r.fixedCosts,r.daysToSaleLow,r.daysToSaleHigh].every(Number.isFinite)&&
+  r.grossLow>=0&&r.grossHigh>=r.grossLow&&r.feeRate>=0&&r.feeRate<=1&&r.fixedCosts>=0&&
+  r.daysToSaleLow>=0&&r.daysToSaleHigh>=r.daysToSaleLow&&r.venue?.trim()&&
+  ['FAST_CASH','BALANCED','MAX_VALUE'].includes(r.mode))
  const ranked=validated.map(route=>({route,netLow:Math.round((route.grossLow*(1-route.feeRate)-route.fixedCosts)*100)/100,netHigh:Math.round((route.grossHigh*(1-route.feeRate)-route.fixedCosts)*100)/100}))
   .sort((a,b)=> ((b.netLow+b.netHigh)/2)-((a.netLow+a.netHigh)/2))
  const evidence=audit.receipts
