@@ -19,6 +19,8 @@ on:
       - 'tests/sale-outcome.spec.mjs'
       - 'tests/fixtures/sale-outcome.*'
       - 'src/lib/actualSale.ts'
+      - 'src/lib/researchSaleDecision.ts'
+      - 'tests/research-sale-decision.test.mjs'
       - 'src/lib/itemPhotographs.ts'
       - 'src/lib/intakeSession.ts'
       - 'src/pages/AIIntake.tsx'
@@ -90,6 +92,7 @@ jobs:
           node-version: '22'
       - name: Run fail-closed fixture tests
         run: |
+          node --experimental-strip-types tests/research-sale-decision.test.mjs
           node tests/continuity/test.mjs
           node tests/continuity/multi-document.test.mjs
           node tests/continuity/migration-guards.test.mjs
