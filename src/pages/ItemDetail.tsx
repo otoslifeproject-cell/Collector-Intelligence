@@ -269,7 +269,7 @@ function ItemDetailRecord({id}:{id:string}) {
       {tab==='overview' && <div>
         <div className="panel">
           <div className="panelHeader"><h2>At a glance</h2><span>{item.item_code}</span></div>
-          <div className="valueSummary">
+          <div className="valueSummary ci-item-value-summary">
             <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
             <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
             <div><small>Fast cash · provisional</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>

@@ -10,8 +10,8 @@ create table public.item_research_assessments (
  review_status text not null default 'OWNER_REPORTED_UNVERIFIED' check (review_status in ('OWNER_REPORTED_UNVERIFIED','SOURCE_REVIEWED')),
  assessment jsonb not null,
  facts_snapshot jsonb not null,
- facts_sha256 text generated always as (encode(sha256(convert_to(facts_snapshot::text,'UTF8')),'hex')) stored,
- request_fingerprint text generated always as (encode(sha256(convert_to(assessment::text||E'\n'||facts_snapshot::text,'UTF8')),'hex')) stored,
+ facts_sha256 text not null check (facts_sha256 ~ '^[0-9a-f]{64}$'),
+ request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{64}$'),
  created_at timestamptz not null default clock_timestamp(),
  unique(owner_id,client_event_id)
 );
@@ -43,7 +43,9 @@ begin
  select * into v_item from public.items where id=new.item_id and owner_id=auth.uid() for update;
  if not found then raise exception 'Owned item is unavailable'; end if;
  if new.facts_snapshot is distinct from to_jsonb(v_item) then raise exception 'Item facts changed; review the current snapshot before a new assessment'; end if;
- -- Reuse exact server numeric/timestamp rendering for the generated digest.
+ -- Reuse exact server numeric/timestamp rendering for the server digest.
+ -- convert_to is STABLE in PostgreSQL; compute in this validation trigger,
+ -- not an invalid generated-column expression. Clients have no digest grants.
  new.facts_snapshot:=to_jsonb(v_item);
  if jsonb_typeof(v_payload) is distinct from 'object' or (select count(*) from jsonb_object_keys(v_payload))<>8
  or exists(select 1 from jsonb_object_keys(v_payload) k where k not in ('decision','rationale','unresolvedIssues','nextAction','routeGuidance','confidence','sourceRefs','availableChecks'))
@@ -76,6 +78,8 @@ begin
   end loop;
   if jsonb_typeof(v_check->'detail') is distinct from 'string' or length(v_check->>'detail')>4000 then raise exception 'Invalid research detail'; end if;
  end loop;
+ new.facts_sha256:=encode(sha256(convert_to(new.facts_snapshot::text,'UTF8')),'hex');
+ new.request_fingerprint:=encode(sha256(convert_to(new.assessment::text||E'\n'||new.facts_snapshot::text,'UTF8')),'hex');
  return new;
 end $$;
 revoke all on function public.ci_validate_item_hold_assessment_v1() from public,anon,authenticated;

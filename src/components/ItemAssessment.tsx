@@ -53,7 +53,7 @@ function AssessmentRecord({client,item,audit}:Props){
   const a=document.createElement('a');a.href=url;a.download=`${item.item_code.replace(/[^a-zA-Z0-9_-]/g,'_')}-hold-review.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
  }
  const latest=rows.find(r=>r.id===currentId)
- return <section className="panel" aria-label={`Final item decision — ${item.item_code}`}>
+ return <section className="panel ci-item-assessment" aria-label={`Final item decision — ${item.item_code}`}>
   <div className="panelHeader"><h2>Final item decision</h2><span>{latest?latest.decision.replaceAll('_',' '):'DO NOT LIST YET'}</span></div>
   <p className="ci-page-meta">Research and a final evidenced assessment are required before listing. An owner hold records advice and unresolved work; it cannot verify sources, complete a research stage or approve a sale.</p>
   {latest&&<div><strong>{latest.decision.replaceAll('_',' ')}</strong><p>{latest.assessment.rationale}</p><p>Unresolved: {latest.assessment.unresolvedIssues}</p><p>Next action: {latest.assessment.nextAction}</p><p>Selling guidance: {latest.assessment.routeGuidance}</p><small>Owner-reported, unverified · {latest.created_at} · {latest.id}</small></div>}
