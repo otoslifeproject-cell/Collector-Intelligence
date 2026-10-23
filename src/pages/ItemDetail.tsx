@@ -7,6 +7,7 @@ import { date, money } from '../lib/format'
 import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
+import ComparableEvidence from '../components/ComparableEvidence'
 import type {ResearchReceipt} from '../lib/researchSaleDecision'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
@@ -361,6 +362,7 @@ function ItemDetailRecord({id}:{id:string}) {
       </div>}
 
       {tab==='market' && <div className="marketStack">
+        <ComparableEvidence rows={comps} />
         <ResearchProgress receipts={Array.isArray(researchDraft?.research_execution_receipts)?researchDraft.research_execution_receipts as ResearchReceipt[]:[]} />
         {photos.some(p=>!!photoUrls[p.id])&&
          <VisualReferenceWorkbench
