@@ -28,6 +28,7 @@ export type FinalResearchDecision = {
   id:string; itemId:string; ownerId:string; status:'READY_TO_LIST'|'DO_NOT_LIST_YET'|'SPECIALIST_REVIEW'
   reviewStatus:'APPROVED'; reviewedAt:string; sourceRefs:string[]
   rationale:string
+  makerApproval?:{maker:string;sourceRefs:string[]}
   availabilityScope:{checkIds:string[];sourceRefs:string[];rationale:string}
   availableChecks:{id:string;status:'COMPLETE'|'INCONCLUSIVE'|'BLOCKED'|'NOT_RUN'|'RUNNING'|'MISSING_RECEIPT';sourceRefs:string[]}[]
 }
@@ -118,6 +119,7 @@ export function assessSaleScenario(scenario:SaleScenario, item:Item, comparables
     blockers.push('Stock acquired for resale needs business seller economics.')
   if(!review.conditionReviewed||!item.condition_summary?.trim())blockers.push('Inspect and confirm a written condition report.')
   if(review.attribution==='UNRESOLVED')blockers.push('Resolve maker-dependent value or choose a generic description and matching generic comparables.')
+  if(review.attribution==='DOCUMENTED_MAKER'&&(!research.finalDecision?.makerApproval||research.finalDecision.makerApproval.maker!==item.maker||!research.finalDecision.makerApproval.sourceRefs.includes(review.makerSource)||!research.finalDecision.sourceRefs.includes(review.makerSource)))blockers.push('Maker authentication requires explicit matching maker and documentary source approval in the independent final assessment. Choose a generic description until that support exists.')
   if(review.attribution==='DOCUMENTED_MAKER'&&(!item.maker?.trim()||!safeSourceUrl(review.makerSource)))
     blockers.push('A maker attribution requires a recorded maker and reviewed documentary source URL; a signature reading is insufficient.')
   if(review.specialistRisk)blockers.push('DO NOT LIST YET — SPECIALIST REVIEW: a material attribution/value question remains.')
@@ -148,7 +150,7 @@ export function storedPublication(listing:StoredListing, itemId:string, ownerId?
 }
 export function prepareListing(item:Item, assessment:ScenarioAssessment, review:ListingReview, comparables:Comparable[]):PreparedListing {
   const s=assessment.scenario
-  const documentary=review.attribution==='DOCUMENTED_MAKER'&&!!item.maker?.trim()&&safeSourceUrl(review.makerSource)
+  const documentary=assessment.ready&&review.attribution==='DOCUMENTED_MAKER'&&!!item.maker?.trim()&&safeSourceUrl(review.makerSource)
   const nouns=[documentary?item.maker:null,item.colour,item.material,item.object_type||'Collectable object'].filter(Boolean)
   const title=nouns.join(' ').replace(/\s+/g,' ').trim()
   const condition=item.condition_summary?.trim()||'Condition needs inspection and a written report.'

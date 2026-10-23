@@ -69,7 +69,9 @@ test('fees, eligibility and business treatment require actual review inputs',()=
 test('uncertain maker requires generic fallback or documented source and specialist uncertainty blocks sale',()=>{
   assert.equal(assess(scenario,{...review,attribution:'UNRESOLVED'}).ready,false)
   assert.equal(assess(scenario,{...review,attribution:'DOCUMENTED_MAKER'}).ready,false)
-  assert.equal(assess(scenario,{...review,attribution:'DOCUMENTED_MAKER',makerSource:'https://example.org/maker/archive'}).ready,true)
+  assert.equal(assess(scenario,{...review,attribution:'DOCUMENTED_MAKER',makerSource:'https://example.org/maker/archive'}).ready,false)
+  const bound={...research,finalDecision:{...finalDecision,sourceRefs:[...finalDecision.sourceRefs,'https://example.org/maker/archive'],makerApproval:{maker:item.maker,sourceRefs:['https://example.org/maker/archive']}}}
+  assert.equal(assess(scenario,{...review,attribution:'DOCUMENTED_MAKER',makerSource:'https://example.org/maker/archive'},[comp],item,[comp.id],bound).ready,true)
   assert.equal(assess(scenario,{...review,specialistRisk:true}).ready,false)
 })
 test('condition, physical comparability, shipping and already sold object gates survive complete pricing',()=>{
@@ -103,7 +105,9 @@ test('generic listing preserves reported MEDINA spelling without promoting maker
 })
 test('documented maker variants retain the same physical facts and source provenance',()=>{
   const r={...review,attribution:'DOCUMENTED_MAKER',makerSource:'https://example.org/maker/archive'}
-  const a=assess({...scenario,platform:'Vinted'},r),draft=prepareListing(item,a,r,[comp])
+  const provisional=prepareListing(item,assess({...scenario,platform:'Vinted'},r),r,[comp]);assert.equal(provisional.status,'REVIEW_REQUIRED');assert.doesNotMatch(provisional.title,/Unconfirmed maker/)
+  const bound={...research,finalDecision:{...finalDecision,sourceRefs:[...finalDecision.sourceRefs,r.makerSource],makerApproval:{maker:item.maker,sourceRefs:[r.makerSource]}}}
+  const a=assess({...scenario,platform:'Vinted'},r,[comp],item,[comp.id],bound),draft=prepareListing(item,a,r,[comp])
   assert.match(draft.title,/Unconfirmed maker/);assert.equal(draft.platform,'Vinted')
   assert.ok(draft.sourceReferences.includes(r.makerSource));assert.match(draft.description,/Light surface wear/)
 })

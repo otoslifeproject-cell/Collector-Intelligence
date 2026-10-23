@@ -5,12 +5,12 @@ import type {ResearchAudit} from '../lib/researchSaleDecision'
 import {assessmentIsCurrent,prepareItemAssessment,readAssessmentHistory,settleItemAssessment,ItemAssessmentStaleMissingError} from '../lib/itemAssessment'
 import type {AssessmentRequest,HoldAdvice,StoredItemAssessment} from '../lib/itemAssessment'
 
-type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>}
+type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>;onChanged?:()=>void}
 const initial:HoldAdvice={decision:'DO_NOT_LIST_YET',rationale:'',unresolvedIssues:'',nextAction:'',routeGuidance:'',confidence:{identification:null,dating:null,valuation:null},sourceRefs:[]}
 export default function ItemAssessment(props:Props){
  return <AssessmentRecord key={`${props.item.owner_id}:${props.item.id}`} {...props}/>
 }
-function AssessmentRecord({client,item,audit,onRefreshFacts}:Props){
+function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged}:Props){
  const [advice,setAdvice]=useState<HoldAdvice>(initial),[sourceText,setSourceText]=useState('')
  const [rows,setRows]=useState<StoredItemAssessment[]>([]),[currentId,setCurrentId]=useState<string|null>(null)
  const [pending,setPending]=useState<AssessmentRequest|null>(null),[message,setMessage]=useState(''),[error,setError]=useState('')
@@ -43,7 +43,7 @@ function AssessmentRecord({client,item,audit,onRefreshFacts}:Props){
    setCanRetry(false)
    const saved=await settleItemAssessment(client,request,current,mode!=='CHECK')
    if(!current())return
-   if(saved){held.current=null;setPending(null);setMessage(saved.current?'Final hold decision confirmed by stored readback. This does not certify research completion.':'Earlier hold decision recovered. Item facts changed; a new assessment is required.');await load()}
+   if(saved){onChanged?.();held.current=null;setPending(null);setMessage(saved.current?'Final hold decision confirmed by stored readback. This does not certify research completion.':'Earlier hold decision recovered. Item facts changed; a new assessment is required.');await load()}
    else{setCanRetry(mode==='CHECK');setMessage(mode==='CHECK'?'No stored row confirmed for this exact held decision. Retry the same decision only after this check, or export it.':'Save outcome is not confirmed. Keep this page open and use Check saved decision before retrying. No sale-ready status was created.')}
   }catch(e){if(current()){setStaleMissing(mode==='CHECK'&&e instanceof ItemAssessmentStaleMissingError);setError(e instanceof Error?e.message:'The decision could not be confirmed. Keep the held advice and check again.')}}
   finally{lock.current=false;if(current())setBusy(false)}

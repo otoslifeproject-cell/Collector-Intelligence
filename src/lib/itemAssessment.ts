@@ -69,7 +69,7 @@ export async function readAssessmentHistory(client:SupabaseClient,item:Pick<Item
  const context=await readAssessmentContext(client,item,current)
  const rows:StoredItemAssessment[]=[];let total:number|undefined
  do{
-  const read=await client.from('item_research_assessments').select('*',{count:'exact'}).eq('owner_id',item.owner_id).eq('item_id',item.id)
+  const read=await client.from('item_research_assessments').select('*',{count:'exact'}).eq('owner_id',item.owner_id).eq('item_id',item.id).eq('review_status','OWNER_REPORTED_UNVERIFIED')
    .order('created_at',{ascending:false}).order('id',{ascending:false}).range(rows.length,rows.length+99).abortSignal(AbortSignal.timeout(20000));stop(current)
   if(read.error)databaseError(read.error,'Complete final-assessment history could not be read. Your current advice remains here.')
   if(!read.data||read.count===null||read.count<0||read.count>500||(total!==undefined&&read.count!==total))return fail('Final-assessment history changed or is incomplete. Reload before recording another decision.')

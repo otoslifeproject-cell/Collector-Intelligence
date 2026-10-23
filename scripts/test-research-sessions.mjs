@@ -6,6 +6,7 @@ import researchHandler from '../api/research-item.ts';
 import {createClient} from '@supabase/supabase-js';
 import {readItemResearch,readItemSaleRows,itemResearchAudit} from '../src/lib/itemResearch.ts';
 import {exerciseItemAssessments} from './test-item-assessments.mjs';
+import {installReviewedAssessmentFixtures,exerciseReviewedItemAssessments} from './test-reviewed-item-assessments.mjs';
 import {exercisePaidScopeClaims} from './test-paid-scope-claims.mjs';
 
 export async function installResearchSessionFixtures(admin,read){
@@ -31,6 +32,7 @@ export async function installResearchSessionFixtures(admin,read){
   for(const file of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql',
     '20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])
     await admin.query(await read('supabase/migrations/'+file));
+  await installReviewedAssessmentFixtures(admin,read);
 }
 
 export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,key}){
@@ -51,6 +53,7 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
   const sdkLogin=await sdk.auth.signInWithPassword({email:'collector-ci-a@example.test',password:'Ci-disposable-fixture-4826!'});assert.equal(sdkLogin.error,null);
   await exerciseItemAssessments({admin,rest,check,A,B,anon,API,key,sdk});
   await exercisePaidScopeClaims({admin,rest,check,A,B,anon});
+  await exerciseReviewedItemAssessments({admin,rest,check,A,B,anon,API,key,sdk});
   const historyItem=await post(A.token,'items',{source_analysis_run_id:draft.id,source_object_index:1});assert.equal(historyItem.status,201);const target=(await historyItem.json())[0];
   let directHistory;
   await check('item history SDK recovers101 real owner-scoped responses with exact pagination',async()=>{

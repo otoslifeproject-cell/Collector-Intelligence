@@ -10,6 +10,7 @@ import {promisify} from 'node:util';
 import {createClient} from '@supabase/supabase-js';
 import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {continuityKongConfig} from './continuity-kong-config.mjs';
+import {installReviewedAssessmentFixtures,seedReviewedAssessmentFixture} from './test-reviewed-item-assessments.mjs';
 import {exercisePhotoStorage} from './test-photo-storage-cases.mjs';
 
 const input=process.env.CI_STAGING_DATABASE_URL;
@@ -90,6 +91,7 @@ try{
  // complete empty read from a missing relation/failed evidence request.
  await admin.query(await read('tests/fixtures/research-session-support.sql'));
  await admin.query(await read('supabase/proposals/item-research-assessments.sql'));
+ await installReviewedAssessmentFixtures(admin,read);
  // Install every application RPC before PostgREST builds its schema cache.
  for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));
@@ -119,6 +121,7 @@ try{
  }
  const [A,B]=users,anon=createClient(API,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
  await exercisePhotoStorage({admin,check,A,B,anon,API});
+ await seedReviewedAssessmentFixture(admin,A.id,{client:A.client});
  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
   env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:600000,maxBuffer:4*1024*1024,
  }).catch(error=>{console.error(error.stdout,error.stderr);throw Error('Disposable photo application browser acceptance failed. See browser output.');});

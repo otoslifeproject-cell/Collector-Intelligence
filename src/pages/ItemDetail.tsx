@@ -11,6 +11,8 @@ import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
 import ComparableEvidence from '../components/ComparableEvidence'
 import {itemResearchAudit,readItemResearch,readItemSaleRows} from '../lib/itemResearch'
+import {readReviewedAssessment,readReviewedHistory,reviewedAudit,reviewedDecision,reviewedForItem} from '../lib/reviewedAssessment'
+import type {ReviewedAssessment} from '../lib/reviewedAssessment'
 import type {ItemResearchHistory} from '../lib/itemResearch'
 import SellFastPlan from '../components/SellFastPlan'
 import ItemAssessment from '../components/ItemAssessment'
@@ -104,13 +106,16 @@ function ItemDetailRecord({id}:{id:string}) {
   const [researchHistory,setResearchHistory]=useState<ItemResearchHistory|null>(null)
   const [historyLoading,setHistoryLoading]=useState(true)
   const [historyError,setHistoryError]=useState('')
+  const [reviewedCandidate,setReviewed]=useState<ReviewedAssessment|null>(null)
+  const [reviewedError,setReviewedError]=useState('')
+  const [reviewedHistory,setReviewedHistory]=useState<ReviewedAssessment[]>([])
   const [trustedComps,setTrustedComps]=useState<Comparable[]>([])
   const [listings,setListings]=useState<any[]>([])
   const historyRead=useRef(0)
   const reloadResearch=async(record:Item)=>{
     const serial=++historyRead.current
     const selected=()=>current()&&serial===historyRead.current
-    setHistoryLoading(true);setHistoryError('');setTrustedComps([]);setListings([])
+    setHistoryLoading(true);setHistoryError('');setTrustedComps([]);setListings([]);setReviewed(null);setReviewedError('');setReviewedHistory([])
     try{
       const [history,comparables,trusted,storedListings]=await Promise.all([
         readItemResearch(supabase,record,selected),readItemSaleRows(supabase,'comparables',record,selected),
@@ -118,6 +123,8 @@ function ItemDetailRecord({id}:{id:string}) {
       ])
       if(!selected())return
       setResearchHistory(history);setComps(comparables);setTrustedComps(trusted);setListings(storedListings)
+      try{const [verified,archive]=await Promise.all([readReviewedAssessment(supabase,record,selected),readReviewedHistory(supabase,record,selected)]);if(selected()){setReviewed(verified);setReviewedHistory(archive)}}catch(e){if(selected())setReviewedError(e instanceof Error?e.message:'Independent final review is unavailable.')}
+      if(!selected())return
       setOriginalReportPaired(history.paired)
       setSavedResearchRuns(history.runs.filter(x=>x.status==='APPROVED'&&x.result?.research_summary))
       setPendingResearchRuns(history.runs.filter(x=>x.status==='DRAFT'&&x.result?.research_summary))
@@ -156,8 +163,9 @@ function ItemDetailRecord({id}:{id:string}) {
     return ()=>window.clearInterval(timer)
   },[item?.id,researchHistory])
 
-  const update = (k:keyof Item,v:any)=>{editRevision.current++;if(item)setItem({...item,[k]:v})}
+  const update = (k:keyof Item,v:any)=>{setReviewed(null);editRevision.current++;if(item)setItem({...item,[k]:v})}
   const refreshStoredFacts=async()=>{
+    setReviewed(null)
     if(!item||editRevision.current!==savedRevision.current)throw Error('Save your current catalogue edits before replacing the stored facts for a new review.')
     const auth=await supabase.auth.getUser();if(auth.error||auth.data.user?.id!==item.owner_id)throw Error('Sign in as this object’s owner.')
     const read=await supabase.from('items').select('*').eq('id',item.id).eq('owner_id',item.owner_id).maybeSingle()
@@ -166,7 +174,7 @@ function ItemDetailRecord({id}:{id:string}) {
   }
   const save = async () => {
     if(!item||saveLock.current)return
-    saveLock.current=true;setSaving(true);const selected=item,revision=editRevision.current
+    setReviewed(null);saveLock.current=true;setSaving(true);const selected=item,revision=editRevision.current
     const copy:any={...selected};delete copy.id;delete copy.item_code;delete copy.created_at;delete copy.updated_at
     try{
       const auth=await supabase.auth.getUser();if(!current())return
@@ -263,6 +271,7 @@ function ItemDetailRecord({id}:{id:string}) {
     } finally {setResearching(false)}
   }
 
+  const reviewed=reviewedForItem(reviewedCandidate,item)
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
 
   return (
@@ -272,7 +281,7 @@ function ItemDetailRecord({id}:{id:string}) {
           <div className="eyebrow">{item.item_code}</div>
           <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
-          <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':'FINAL RESEARCH DECISION REQUIRED'}</span></div>
+          <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':reviewed?reviewed.assessment.decision.replaceAll('_',' '):'FINAL RESEARCH DECISION REQUIRED'}</span></div>
         </div>
         <div className="heroActions">
           <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
@@ -284,8 +293,12 @@ function ItemDetailRecord({id}:{id:string}) {
       <div className="tabBar">
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
-      <ResearchProgress compact={tab!=='overview'} audit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
-      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
+      <ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onChanged={()=>{setReviewed(null);void reloadResearch(item)}}/>
+      {reviewedError&&<p className="ci-page-meta">{reviewedError}</p>}
+      {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
+
+      {reviewedHistory.length>0&&<details className="panel"><summary>Independent final assessment history ({reviewedHistory.length})</summary><p>Historical decisions retain their original evidence. Only the current qualified assessment can establish readiness.</p>{reviewedHistory.map(row=><article key={row.id}><strong>{row.assessment.decision.replaceAll('_',' ')} · {row.id===reviewed?.id?'current independent source review':'historical decision — not current readiness'}</strong><p>{row.assessment.rationale}</p><small>{row.created_at} · {row.assessment.reviewReference}</small><details><summary>Original assessment and source references</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>}
 
       {tab==='overview' && <div>
         <div className="panel">
@@ -469,7 +482,7 @@ function ItemDetailRecord({id}:{id:string}) {
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        {historyError&&<p role="alert">{historyError} Sale recommendation and publication status cannot be confirmed.</p>}
-       <SellFastPlan item={item} comparables={comps} trustedComparableIds={historyError?[]:trustedComps.map(c=>c.id)} listings={historyError?[]:listings} photoCount={photos.length} researchAudit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
+       <SellFastPlan item={item} comparables={comps} trustedComparableIds={historyError?[]:trustedComps.map(c=>c.id)} listings={historyError?[]:listings} photoCount={photos.length} researchAudit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined}/>
        <SaleEconomics currency={item.currency||''} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
        <RecordSaleOutcome client={supabase} itemId={item.id} onSold={(soldId,ownerId)=>setItem(current=>applyConfirmedSaleStatus(current,soldId,ownerId))}/>
       </div>}

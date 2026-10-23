@@ -1,6 +1,7 @@
 import {useState} from 'react'
 import {auditResearch,researchTypes} from '../lib/researchSaleDecision'
 import type {ResearchAudit,ResearchReceipt,ResearchStatus} from '../lib/researchSaleDecision'
+import type {FinalResearchDecision} from '../lib/sellFastPlan'
 import type {ItemResearchHistory} from '../lib/itemResearch'
 import {CheckCircle2,Clock3,AlertCircle,Circle,HelpCircle} from 'lucide-react'
 const titles:Record<string,string>={
@@ -14,14 +15,14 @@ const statuses:Record<ResearchStatus,string>={
  INCONCLUSIVE:'Inconclusive',FAILED:'Blocked — failed execution',BLOCKED:'Blocked',RECEIPT_MISSING:'Inconclusive — historical receipt missing'
 }
 const purposes:Record<string,string>={PHOTOGRAPH_EXAM:'Original images, base, rim and measurements',SIGNATURE_READING:'Each physical mark, candidate readings and competing makers',MAKER_ARCHIVE:'Museum, factory, catalogue and specialist records',AUCTION_REALISED:'Sold lots, condition and exact price basis',MARKETPLACE_SOLD:'Traceable confirmed sales, separate from asking prices',CONDITION_REVIEW:'Chips, cracks, repairs, wear and manufacturing features',SALES_ECONOMICS:'Fees, packing, delivery, insurance and expected net'}
-type Props={receipts?:ResearchReceipt[];audit?:ResearchAudit;history?:ItemResearchHistory|null;error?:string;loading?:boolean;onReload?:()=>void;objectLabel?:string;compact?:boolean;historyHref?:string;announceError?:boolean;confidence?:{identification?:number|null;dating?:number|null;valuation?:number|null};onInvestigate?:()=>void}
-export default function ResearchProgress({receipts=[],audit:savedAudit,history,error,loading,onReload,objectLabel,compact=false,historyHref,announceError=true,confidence,onInvestigate}:Props){
+type Props={receipts?:ResearchReceipt[];audit?:ResearchAudit;history?:ItemResearchHistory|null;error?:string;loading?:boolean;onReload?:()=>void;objectLabel?:string;compact?:boolean;historyHref?:string;announceError?:boolean;finalDecision?:FinalResearchDecision;confidence?:{identification?:number|null;dating?:number|null;valuation?:number|null};onInvestigate?:()=>void}
+export default function ResearchProgress({receipts=[],audit:savedAudit,history,error,loading,onReload,objectLabel,compact=false,historyHref,announceError=true,finalDecision,confidence,onInvestigate}:Props){
  const [detailsOpen,setDetailsOpen]=useState(false)
  const condensed=compact&&!detailsOpen
  const shortStatus:Record<ResearchStatus,string>={NOT_RUN:"Not run",RUNNING:"In progress",DONE_EVIDENCED:"Complete",INCONCLUSIVE:"Inconclusive",FAILED:"Failed",BLOCKED:"Blocked",RECEIPT_MISSING:"Receipt missing"}
  const audit=savedAudit||auditResearch(receipts)
  const unresolved=audit.receipts.find(r=>r.status==='BLOCKED'||r.status==='RUNNING')||audit.receipts.find(r=>r.status!=='DONE_EVIDENCED')
- const next=error?'Recover saved history before running more research.':unresolved?`${titles[unresolved.type]}: ${unresolved.detail||statuses[unresolved.status]}`:'Prepare the final evidence-led item assessment before deciding whether to list.'
+ const next=error?'Recover saved history before running more research.':unresolved?`${titles[unresolved.type]}: ${unresolved.detail||statuses[unresolved.status]}`:finalDecision?.status==='READY_TO_LIST'?'Review the recommended selling route, current costs and listing draft.':'Prepare the final evidence-led item assessment before deciding whether to list.'
  const score=(n:unknown)=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=100?`${n}%`:'Not established'
  return <section className={`panel ci-research-progress${condensed?' ci-research-progress-compact':''}`} aria-label={objectLabel?`Research dashboard — ${objectLabel}`:'Research completion audit'}>
   <div className="panelHeader"><h2>Research audit</h2><span>{loading?'Reading saved history…':error?'History unavailable':'Stored executions and evidence'}</span></div>
@@ -50,7 +51,7 @@ export default function ResearchProgress({receipts=[],audit:savedAudit,history,e
   
   {compact&&<button className="secondaryButton inlineButton" onClick={()=>setDetailsOpen(v=>!v)}>{detailsOpen?"Show concise research status":"Show evidence details"}</button>}
   {!condensed&&confidence&&<p className="ci-page-meta">Stored model confidence · ID {score(confidence.identification)} · date {score(confidence.dating)} · value {score(confidence.valuation)}. These are unverified opinions, independent of source completion.</p>}
-  <p className="ci-page-meta"><strong>Do not list yet:</strong> final research decision required. Signature reading and maker authentication remain separate.</p>
+  <p className="ci-page-meta"><strong>{finalDecision?.status==='READY_TO_LIST'&&audit.complete===audit.total?'Source-reviewed final decision received:':'Do not list yet:'}</strong> {finalDecision?.status==='READY_TO_LIST'&&audit.complete===audit.total?'Review route, costs and listing before owner approval to publish.':'Final research decision required.'} Signature reading and maker authentication remain separate.</p>
   {!condensed&&<p className="ci-page-meta">Statuses come from stored work. Inconclusive investigations and missing historical receipts are distinct from never attempted.</p>}
   {!!history?.runs.length&&<details id={objectLabel?undefined:'item-research-history'}><summary>Stored execution history ({history.runs.length})</summary>{history.runs.map(run=>{
    const execution=run.result?.research_execution_v1

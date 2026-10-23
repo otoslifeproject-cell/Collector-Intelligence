@@ -16,3 +16,10 @@ test('lost draft acknowledgement is resolved by independent GET and replay never
  assert.equal(await settleListingDraft(client,request,()=>true,false),null);assert.deepEqual(calls,['GET']);
  const saved=await settleListingDraft(client,request,()=>true,true);assert.equal(saved.id,request.id);assert.equal(rows.length,1);assert.equal((await settleListingDraft(client,request,()=>true,true)).id,request.id);assert.equal(calls.filter(c=>c==='INSERT').length,1);
 });
+test('missing prepared draft must requalify before every insert, while committed immutable readback remains GET only',async()=>{
+ const p={...payload,reviewedDecisionId:randomUUID(),listing:{...payload.listing,status:'PREPARED',recommendedPrice:100}},request=prepareListingDraft(item,p),rows=[];let writes=0,qualifications=0;
+ const client={auth:{getUser:async()=>({error:null,data:{user:{id:item.owner_id}}})},from(){const q={select(){return q},eq(){return q},limit(){return q},abortSignal(){return q},insert(row){writes++;rows.push(structuredClone(row));return q},then(resolve,reject){return Promise.resolve({data:rows,error:null,count:rows.length}).then(resolve,reject)}};return q}};
+ assert.equal(await settleListingDraft(client,request,()=>true,false),null);await assert.rejects(settleListingDraft(client,request,()=>true,true),/must be checked/);assert.equal(writes,0);
+ await assert.rejects(settleListingDraft(client,request,()=>true,true,async()=>{qualifications++;throw Error('Review revoked')}),/revoked/);assert.equal(writes,0);
+ assert.ok(await settleListingDraft(client,request,()=>true,true,async()=>{qualifications++}));assert.equal(writes,1);assert.ok(await settleListingDraft(client,request,()=>true,true,async()=>{throw Error('Later review revoked')}));assert.equal(writes,1);assert.equal(qualifications,2);
+});

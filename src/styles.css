@@ -890,3 +890,12 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .itemMeta{gap:6px 12px;flex-wrap:wrap;color:var(--muted)}
 .pill.accent{color:var(--accent);border-color:var(--accent)}
 .itemCardImage .ci-missing-photo{color:var(--text);background:var(--panel);border-color:var(--line)}
+
+/* Keep enlarged text and long owner/history content inside its layout. */
+.itemHero{flex-wrap:wrap;align-items:flex-start}
+.itemHero>div{min-width:0;max-width:100%}
+.heroActions,.pillRow{flex-wrap:wrap;max-width:100%}
+.itemMeta>span{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.panelHeader>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.ci-research-progress p,.ci-item-assessment p,.ci-research-progress summary{overflow-wrap:anywhere}
+.ci-workspace-action-panel>*{min-width:0;max-width:100%;overflow-wrap:anywhere}

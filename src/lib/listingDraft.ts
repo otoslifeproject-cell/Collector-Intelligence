@@ -2,7 +2,7 @@ import type {SupabaseClient} from '@supabase/supabase-js'
 import type {Item} from '../types'
 import type {ListingReview,PreparedListing,SaleScenario,SellMode} from './sellFastPlan'
 import {knownSaleCurrency,salePlatforms,sellModes} from './sellFastPlan.ts'
-export type SaleReviewDraft={format:'collector-sale-review-v1';itemId:string;ownerId:string;facts:Item;scenarios:SaleScenario[];review:ListingReview;objective:SellMode;draftMode:SellMode;listing:PreparedListing;capturedAt:string}
+export type SaleReviewDraft={format:'collector-sale-review-v1';itemId:string;ownerId:string;facts:Item;scenarios:SaleScenario[];review:ListingReview;objective:SellMode;draftMode:SellMode;listing:PreparedListing;capturedAt:string;reviewedDecisionId?:string}
 export type ListingDraftRequest={id:string;ownerId:string;itemId:string;row:Record<string,unknown>}
 const freeze=<T,>(v:T):T=>{if(v&&typeof v==='object'){for(const x of Object.values(v))freeze(x);Object.freeze(v)}return v}
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
@@ -27,7 +27,7 @@ export function prepareListingDraft(item:Item,payload:SaleReviewDraft,id=crypto.
  if(!restoreListingDraft(row,item))throw Error('The review-draft assumptions could not be validated; export them for review.')
  return freeze(JSON.parse(JSON.stringify({id,ownerId:item.owner_id,itemId:item.id,row})))
 }
-export async function settleListingDraft(client:SupabaseClient,request:ListingDraftRequest,current:()=>boolean,submit:boolean){
+export async function settleListingDraft(client:SupabaseClient,request:ListingDraftRequest,current:()=>boolean,submit:boolean,beforeInsert?:()=>Promise<void>){
  const auth=async()=>{if(!current())throw Error('This object is no longer selected.');const a=await client.auth.getUser();if(!current()||a.error||a.data.user?.id!==request.ownerId)throw Error('Sign in as this object’s owner to confirm the review draft.')}
  await auth()
  const inspect=async()=>{
@@ -38,6 +38,9 @@ export async function settleListingDraft(client:SupabaseClient,request:ListingDr
  }
  const existing=await inspect();if(existing||!submit)return existing
  if(!uuid.test(request.id)||request.row.listing_status!=='DRAFT'||request.row.listing_url!==null||request.row.owner_id!==request.ownerId||request.row.item_id!==request.itemId)throw Error('Invalid review draft; no write attempted.')
+ const payload=(request.row.item_specifics as any)?.collector_sale_review_v1
+ if(payload?.listing?.status==='PREPARED'&&!beforeInsert)throw Error('Current independent final review must be checked before saving a prepared draft.')
+ await beforeInsert?.();await auth()
  try{await client.from('listings').insert(request.row).abortSignal(AbortSignal.timeout(20000))}catch{/* Only an independent readback confirms saving. */}
  return inspect()
 }

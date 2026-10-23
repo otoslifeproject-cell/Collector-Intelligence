@@ -39,6 +39,10 @@ on:
       - 'src/lib/sellFastPlan.ts'
       - 'src/lib/listingDraft.ts'
       - 'tests/listing-draft.test.mjs'
+      - 'src/lib/reviewedAssessment.ts'
+      - 'tests/reviewed-assessment.test.mjs'
+      - 'tests/reviewed-selling-app.spec.mjs'
+      - 'scripts/test-reviewed-item-assessments.mjs'
       - 'src/components/ResearchProgress.tsx'
       - 'src/components/SellFastPlan.tsx'
       - 'tests/item-research.test.mjs'
@@ -224,7 +228,9 @@ jobs:
 
   photo-storage-integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Dependency installation can take12minutes on hosted Ubuntu. Keep the
+    # existing bounded browser/test timeouts and allow setup+evidence upload.
+    timeout-minutes: 30
     permissions:
       contents: read
     services:

@@ -6,6 +6,7 @@ import type {ResearchAudit} from '../lib/researchSaleDecision'
 import {prepareListingDraft,restoreListingDraft,settleListingDraft} from '../lib/listingDraft'
 import type {ListingDraftRequest,SaleReviewDraft} from '../lib/listingDraft'
 import {supabase} from '../lib/supabase'
+import {readReviewedAssessment,reviewedAudit,reviewedDecision} from '../lib/reviewedAssessment'
 
 type Props={item:Item;comparables:Comparable[];trustedComparableIds?:string[];listings?:StoredListing[];photoCount?:number;researchAudit?:ResearchAudit;finalDecision?:FinalResearchDecision}
 const modeTitle=(mode:SellMode)=>mode.replaceAll('_',' ')
@@ -60,8 +61,18 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
   const saveDraft=async(submit:boolean)=>{
     if(saveLock.current)return;saveLock.current=true;setDraftBusy(true);setDraftMessage('');setCanRetryDraft(false)
     try{
-      if(!held.current){if(!submit)throw Error('No pending draft to check.');const payload:SaleReviewDraft={format:'collector-sale-review-v1',itemId:item.id,ownerId:item.owner_id,facts:item,scenarios,review,objective,draftMode,listing:draft,capturedAt:new Date().toISOString()};held.current=prepareListingDraft(item,payload);setDraftPending(held.current)}
-      const row=await settleListingDraft(supabase,held.current,()=>alive.current,submit)
+      if(!held.current){if(!submit)throw Error('No pending draft to check.');
+        const payload:SaleReviewDraft={format:'collector-sale-review-v1',itemId:item.id,ownerId:item.owner_id,facts:item,scenarios,review,objective,draftMode,listing:draft,reviewedDecisionId:finalDecision?.id,capturedAt:new Date().toISOString()};held.current=prepareListingDraft(item,payload);setDraftPending(held.current)}
+      const request=held.current
+      const row=await settleListingDraft(supabase,request,()=>alive.current,submit,async()=>{
+        const saved=(request.row.item_specifics as any).collector_sale_review_v1 as SaleReviewDraft
+        if(saved.listing.status!=='PREPARED')return
+        const current=await readReviewedAssessment(supabase,saved.facts,()=>alive.current)
+        if(!current||current.id!==saved.reviewedDecisionId)throw Error('Independent final decision changed or is unavailable. Reload research before saving a sale-ready draft.')
+        const scenario=saved.scenarios.find(s=>s.mode===saved.draftMode)!
+        const check=assessSaleScenario(scenario,saved.facts,comparables,saved.review,today,trustedComparableIds,{audit:reviewedAudit(researchAudit!,current),finalDecision:reviewedDecision(current)})
+        if(!check.ready)throw Error('Current evidence no longer supports a sale-ready draft. Reload and review outstanding checks.')
+      })
       if(!alive.current)return
       if(row){setStoredDraftRows(rows=>[...rows.filter(r=>r.id!==row.id),row]);held.current=null;setDraftPending(null);setDraftMessage('Review draft confirmed from stored readback. Not published; research and current fee/cost checks still apply.')}
       else{setCanRetryDraft(!submit);setDraftMessage('Review draft is not confirmed. Keep this page open and Check saved review draft before a deliberate retry. The same event is retained.')}
