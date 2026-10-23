@@ -12,6 +12,7 @@ export function restoreListingDraft(row:any,item:Item):SaleReviewDraft|null{
  if(row?.owner_id!==item.owner_id||row?.item_id!==item.id||row?.listing_status!=='DRAFT'||!p||p.format!=='collector-sale-review-v1'||p.itemId!==item.id||p.ownerId!==item.owner_id||stable(p.facts)!==stable(item)||!knownSaleCurrency(item.currency))return null
  if(!Array.isArray(p.scenarios)||p.scenarios.length!==3||new Set(p.scenarios.map((s:any)=>s?.mode)).size!==3||!sellModes.includes(p.objective)||!sellModes.includes(p.draftMode))return null
  for(const s of p.scenarios){
+  if(!s||typeof s!=='object'||Array.isArray(s))return null
   if(!sellModes.includes(s.mode)||!salePlatforms.includes(s.platform)||s.currency!==item.currency)return null
   for(const k of ['grossLow','grossHigh','feePercent','fixedFee','packing','delivery','insurance','returnAllowance','daysLow','daysHigh','workHours'])if(s[k]!==null&&(typeof s[k]!=='number'||!Number.isFinite(s[k])||s[k]<0))return null
   for(const k of ['comparableId','feeSource','eligibilitySource','checkedAt','sellerStatus','deliveryMethod','grossBasis','priceAdjustment','premiumAdjustmentSource'])if(typeof s[k]!=='string')return null

@@ -14,8 +14,8 @@ const statuses:Record<ResearchStatus,string>={
  INCONCLUSIVE:'Inconclusive',FAILED:'Blocked — failed execution',BLOCKED:'Blocked',RECEIPT_MISSING:'Inconclusive — historical receipt missing'
 }
 const purposes:Record<string,string>={PHOTOGRAPH_EXAM:'Original images, base, rim and measurements',SIGNATURE_READING:'Each physical mark, candidate readings and competing makers',MAKER_ARCHIVE:'Museum, factory, catalogue and specialist records',AUCTION_REALISED:'Sold lots, condition and exact price basis',MARKETPLACE_SOLD:'Traceable confirmed sales, separate from asking prices',CONDITION_REVIEW:'Chips, cracks, repairs, wear and manufacturing features',SALES_ECONOMICS:'Fees, packing, delivery, insurance and expected net'}
-type Props={receipts?:ResearchReceipt[];audit?:ResearchAudit;history?:ItemResearchHistory|null;error?:string;loading?:boolean;onReload?:()=>void;objectLabel?:string;compact?:boolean;historyHref?:string;confidence?:{identification?:number|null;dating?:number|null;valuation?:number|null};onInvestigate?:()=>void}
-export default function ResearchProgress({receipts=[],audit:savedAudit,history,error,loading,onReload,objectLabel,compact=false,historyHref,confidence,onInvestigate}:Props){
+type Props={receipts?:ResearchReceipt[];audit?:ResearchAudit;history?:ItemResearchHistory|null;error?:string;loading?:boolean;onReload?:()=>void;objectLabel?:string;compact?:boolean;historyHref?:string;announceError?:boolean;confidence?:{identification?:number|null;dating?:number|null;valuation?:number|null};onInvestigate?:()=>void}
+export default function ResearchProgress({receipts=[],audit:savedAudit,history,error,loading,onReload,objectLabel,compact=false,historyHref,announceError=true,confidence,onInvestigate}:Props){
  const [detailsOpen,setDetailsOpen]=useState(false)
  const condensed=compact&&!detailsOpen
  const shortStatus:Record<ResearchStatus,string>={NOT_RUN:"Not run",RUNNING:"In progress",DONE_EVIDENCED:"Complete",INCONCLUSIVE:"Inconclusive",FAILED:"Failed",BLOCKED:"Blocked",RECEIPT_MISSING:"Receipt missing"}
@@ -25,7 +25,7 @@ export default function ResearchProgress({receipts=[],audit:savedAudit,history,e
  const score=(n:unknown)=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=100?`${n}%`:'Not established'
  return <section className={`panel ci-research-progress${condensed?' ci-research-progress-compact':''}`} aria-label={objectLabel?`Research dashboard — ${objectLabel}`:'Research completion audit'}>
   <div className="panelHeader"><h2>Research audit</h2><span>{loading?'Reading saved history…':error?'History unavailable':'Stored executions and evidence'}</span></div>
-  {loading?<p role="status">Reading stored executions and sources…</p>:error?<p role={compact?undefined:'alert'}>{error} Missing history is not evidence that research was never run.</p>:<>
+  {loading?<p role="status">Reading stored executions and sources…</p>:error?<p role={announceError?'alert':undefined}>{error} Missing history is not evidence that research was never run.</p>:<>
   <div className="ci-audit-total"><strong>{audit.complete} of {audit.total}</strong><span>{audit.complete} / {audit.total} categories complete</span></div>
   <progress aria-label="Evidence-backed research progress" value={audit.complete} max={audit.total} style={{width:'100%'}}>{audit.percent}%</progress>
   <p aria-live="polite">{history?.runs.length??0} saved research executions · {audit.total-audit.complete} categories still requiring verification</p>

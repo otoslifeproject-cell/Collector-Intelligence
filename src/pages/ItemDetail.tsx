@@ -3,7 +3,9 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { Camera, Check, ExternalLink, LoaderCircle, Save, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Comparable, Item, ItemPhoto } from '../types'
-import { date, money } from '../lib/format'
+import { date } from '../lib/format'
+import {provisionalMoney} from '../lib/catalogueSaleState'
+import {knownSaleCurrency} from '../lib/sellFastPlan'
 import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
@@ -291,7 +293,7 @@ function ItemDetailRecord({id}:{id:string}) {
           <div className="valueSummary ci-item-value-summary">
             <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
             <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
-            <div><small>Fast cash · provisional</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
+            <div><small>Fast cash · provisional</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
             <div><small>Next action</small><strong>{item.status==='SOLD'?'Review sale history':'Complete evidence review and final item assessment'}</strong></div>
           </div>
           <p>{item.condition_summary ? item.condition_summary.slice(0,180) : 'Condition not yet recorded.'}</p>
@@ -344,7 +346,7 @@ function ItemDetailRecord({id}:{id:string}) {
         </div>
 
         <div className="panel span2">
-          <div className="panelHeader"><h2>Values</h2><span>{item.currency || 'GBP'}</span></div>
+          <div className="panelHeader"><h2>Values</h2><span>{knownSaleCurrency(item.currency)?item.currency:'Currency unconfirmed'}</span></div>
           <div className="valueGrid">
             <label>Quick sale<input type="number" value={item.quick_sale_value??''} onChange={e=>update('quick_sale_value',e.target.value?Number(e.target.value):null)}/></label>
             <label>Balanced low<input type="number" value={item.balanced_value_low??''} onChange={e=>update('balanced_value_low',e.target.value?Number(e.target.value):null)}/></label>
@@ -459,16 +461,16 @@ function ItemDetailRecord({id}:{id:string}) {
        <div className="panel">
         <div className="panelHeader"><h2>Sales and listing record</h2><span>Original collection object</span></div>
         <div className="valueSummary">
-         <div><small>Acquisition · cash paid</small><strong>{money(item.acquisition_price,item.acquisition_currency||'GBP')}</strong></div>
-         <div><small>Indicative fast cash · gross</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
-         <div><small>Previously recorded expected net</small><strong>{money(item.expected_net,item.currency||'GBP')}</strong></div>
+         <div><small>Acquisition · cash paid</small><strong>{provisionalMoney(item.acquisition_price,item.acquisition_currency)}</strong></div>
+         <div><small>Indicative fast cash · gross</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
+         <div><small>Previously recorded expected net</small><strong>{provisionalMoney(item.expected_net,item.currency)}</strong></div>
         </div>
         <p className="ci-page-meta">Previously recorded prices are not evidence of achieved sales. Do not automatically use dealer asking as a realised price.</p>
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        {historyError&&<p role="alert">{historyError} Sale recommendation and publication status cannot be confirmed.</p>}
        <SellFastPlan item={item} comparables={comps} trustedComparableIds={historyError?[]:trustedComps.map(c=>c.id)} listings={historyError?[]:listings} photoCount={photos.length} researchAudit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
-       <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
+       <SaleEconomics currency={item.currency||''} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
        <RecordSaleOutcome client={supabase} itemId={item.id} onSold={(soldId,ownerId)=>setItem(current=>applyConfirmedSaleStatus(current,soldId,ownerId))}/>
       </div>}
 

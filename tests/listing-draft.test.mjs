@@ -8,6 +8,7 @@ const payload={format:'collector-sale-review-v1',itemId:item.id,ownerId:item.own
 test('review draft restore requires the same owner, object, facts and unsupported-ready cannot publish',()=>{
  const request=prepareListingDraft(item,payload);assert.ok(Object.isFrozen(request.row));assert.equal(request.row.listing_status,'DRAFT');assert.equal(request.row.listing_url,null);assert.ok(restoreListingDraft(request.row,item));
  assert.equal(restoreListingDraft({...request.row,listing_status:'PUBLISHED'},item),null);assert.equal(restoreListingDraft(request.row,{...item,title:'Changed facts'}),null);assert.equal(restoreListingDraft(request.row,{...item,owner_id:randomUUID()}),null);
+ const malformed={...request.row,item_specifics:{collector_sale_review_v1:{...payload,scenarios:[null,{mode:'FAST_CASH'},{mode:'BALANCED'}]}}};assert.equal(restoreListingDraft(malformed,item),null);
  assert.throws(()=>prepareListingDraft(item,{...payload,listing:{...payload.listing,publicationStatus:'PUBLISHED'}}),/current item facts/);
 });
 test('lost draft acknowledgement is resolved by independent GET and replay never duplicates',async()=>{

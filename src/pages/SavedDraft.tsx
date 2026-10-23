@@ -7,6 +7,7 @@ import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
+import {provisionalMoney} from '../lib/catalogueSaleState'
 import {draftResearchDashboard} from '../lib/draftResearchAudit'
 import SaleEconomics from '../components/SaleEconomics'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
@@ -488,8 +489,8 @@ function SavedDraftRecord({id}:{id:string}){
     {!materialContradictsModel&&<div className="panel">
      <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
      <div className="valueSummary">
-      <div><small>Fast cash indication</small><strong>{money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.quick_sale??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')}</strong></div>
-      <div><small>Balanced range · provisional</small><strong>{money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_low??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')} – {money(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_high??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency||'GBP')}</strong></div>
+      <div><small>Fast cash indication</small><strong>{provisionalMoney(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.quick_sale??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency)}</strong></div>
+      <div><small>Balanced range · provisional</small><strong>{provisionalMoney(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_low??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency)} – {provisionalMoney(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_high??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency)}</strong></div>
      </div>
      {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
     </div>}
@@ -554,7 +555,7 @@ function SavedDraftRecord({id}:{id:string}){
          const dashboard=dashboardFor(memberIndex)
          return dashboard&&<section key={memberIndex} className="ci-pair-piece-research" aria-label={'Physical piece '+(memberIndex+1)+' research'}>
           <h4>Physical piece {memberIndex+1} · {member.working_title||'Original object'}</h4>
-          <ResearchProgress audit={dashboard.audit} history={dashboard.history} compact
+          <ResearchProgress announceError={false} audit={dashboard.audit} history={dashboard.history} compact
            objectLabel={'Physical piece '+(memberIndex+1)+' · '+(member.working_title||'Original object')}
            confidence={dashboard.confidence} loading={busy||checkingResearch} error={researchError}/>
          </section>
@@ -562,7 +563,7 @@ function SavedDraftRecord({id}:{id:string}){
         <button type="button" className="secondaryButton inlineButton" onClick={()=>setActiveTab('identification')}>Review both original pieces</button>
        </>:(()=>{
         const dashboard=dashboardFor(i)
-        return dashboard&&<ResearchProgress audit={dashboard.audit} history={dashboard.history} compact
+        return dashboard&&<ResearchProgress announceError={false} audit={dashboard.audit} history={dashboard.history} compact
          objectLabel={'Object '+(i+1)+' · '+title} confidence={dashboard.confidence}
          loading={busy||checkingResearch} error={researchError}
          onInvestigate={()=>{setResearchIndex(i);setActiveTab('market')}}/>
