@@ -848,3 +848,29 @@ body{font-size:var(--ci-body-size);line-height:1.5}
  .ci-research-progress td,.ci-research-progress th{padding:8px 5px}
  .ci-research-progress .panelHeader h2{font-size:1.1rem}
 }
+.ci-research-progress .secondaryButton{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.ci-audit-total{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:14px 0}
+.ci-audit-total strong{font-size:1.65rem;color:var(--text)}
+.ci-audit-total span{color:var(--muted);font-size:12px}
+.ci-research-progress progress{display:block;width:100%;height:10px;border:0;border-radius:12px;overflow:hidden;accent-color:#448d75;background:var(--line)}
+.ci-research-progress progress::-webkit-progress-bar{background:var(--line);border-radius:12px}
+.ci-research-progress progress::-webkit-progress-value{background:#448d75;border-radius:12px}
+.ci-research-progress progress::-moz-progress-bar{background:#448d75;border-radius:12px}
+.ci-audit-categories{display:grid;gap:0;border-bottom:1px solid var(--line);padding:4px 0 14px}
+.ci-audit-row{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(115px,210px);gap:12px;padding:14px 0;align-items:start}
+.ci-audit-icon{margin-top:2px;color:var(--muted)}
+.ci-audit-row[data-status="DONE_EVIDENCED"] .ci-audit-icon{color:#448d75}
+.ci-audit-row[data-status="RUNNING"] .ci-audit-icon{color:#4275c6}
+.ci-audit-row[data-status="BLOCKED"] .ci-audit-icon,.ci-audit-row[data-status="FAILED"] .ci-audit-icon{color:var(--accent)}
+.ci-audit-category{min-width:0;overflow-wrap:anywhere}
+.ci-audit-category>strong{display:block;font-size:14px;line-height:1.35}
+.ci-audit-category>p{margin:4px 0;color:var(--muted);font-size:12px;line-height:1.5}
+.ci-audit-category>details{font-size:12px;color:var(--muted)}
+.ci-audit-state{border:1px solid var(--line);border-radius:16px;padding:7px 12px;font-size:12px;line-height:1.4;text-align:center;overflow-wrap:anywhere;max-width:100%}
+.ci-research-progress-compact .ci-audit-row{grid-template-columns:18px minmax(0,1fr);gap:7px;padding:10px 0}
+.ci-research-progress-compact .ci-audit-state{grid-column:2;justify-self:start;text-align:left}
+@media(max-width:600px){
+ .ci-audit-row{grid-template-columns:20px minmax(0,1fr);gap:9px;padding:12px 0}
+ .ci-audit-state{grid-column:2;justify-self:start;text-align:left;padding:5px 10px}
+ .ci-audit-total strong{font-size:1.4rem}
+}

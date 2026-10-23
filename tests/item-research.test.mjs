@@ -21,8 +21,15 @@ test('claimed outcome fresh/stale states remain distinct without allowing paid r
  assert.equal(stage(itemResearchAudit(history([row]),[],Date.parse('2026-10-23T12:05:00Z')),'MAKER_ARCHIVE').status,'RUNNING')
  assert.equal(stage(itemResearchAudit(history([row]),[],Date.parse('2026-10-23T13:00:00Z')),'MAKER_ARCHIVE').status,'BLOCKED')
 })
+test('older complete work remains history without hiding a newer processing or failed execution',()=>{
+ const old=run({analysis_stage:'COMPLETE',research_summary:'Previous result',identification_update:{}})
+ const pending=run({analysis_stage:'PROCESSING',claimed_at:'2026-10-23T12:00:00Z'})
+ assert.equal(stage(itemResearchAudit(history([pending,old]),[],Date.parse('2026-10-23T12:05:00Z')),'MAKER_ARCHIVE').status,'RUNNING')
+ assert.equal(stage(itemResearchAudit(history([run({analysis_stage:'FAILED'}),old]),[]),'MAKER_ARCHIVE').status,'BLOCKED')
+})
 test('unknown original object mapping blocks inheritance instead of claiming never run',()=>{
  assert.ok(itemResearchAudit(history([],run({}),true),[]).receipts.every(r=>r.status==='BLOCKED'))
+ assert.ok(itemResearchAudit(history([run({analysis_stage:'COMPLETE',research_summary:'Known direct result'})],run({}),true),[]).receipts.every(r=>r.status==='BLOCKED'))
 })
 test('trusted sold source review completes only its own category, not maker/condition/whole item',()=>{
  const c={id:randomUUID(),item_id:item.id,venue:'Fixture',sale_date:'2026-09-12',date_checked:'2026-10-23',price_type:'HAMMER_REALIZED',price:50,currency:'GBP',source_url:'https://example.org/lot/1',verification_status:'VERIFIED_DIRECT'}

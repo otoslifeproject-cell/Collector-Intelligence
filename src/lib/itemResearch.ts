@@ -85,12 +85,14 @@ export function itemResearchAudit(history:ItemResearchHistory,trustedComparables
    const at=Date.parse(newest.result.claimed_at||newest.created_at)
    return {...base,status:Number.isFinite(at)&&now-at>=0&&now-at<15*60*1000?'RUNNING':'BLOCKED',detail:'A stored research request was dispatched. Category outcomes are unconfirmed; recover the same run before any paid retry.'} as ResearchReceipt
   }
+  if(newest?.status==='ERROR'||newest?.result?.analysis_stage==='FAILED')return {...base,status:'BLOCKED',detail:'The latest stored investigation failed. Its original record is retained; recover the outcome before resuming this check.'}
   if(history.lineageUnresolved)return {...base,status:'BLOCKED',detail:'Original report retained, but its object-to-catalogue mapping is incomplete. Earlier category work cannot be safely assigned.'}
   if(hasHistory)return {...base,status:'RECEIPT_MISSING',detail:'Historical research is stored. No separate verified category receipt was retained; this does not mean never attempted.'}
   return {type,status:'NOT_RUN',detail:history.runs.length?'Request staged but no stored dispatch or result.':'No stored attempt found in the completely read item history.'}
  })
+ if(history.lineageUnresolved)return auditResearch(receipts)
  const set=(type:ResearchType,receipt:Omit<ResearchReceipt,'type'>)=>{const i=receipts.findIndex(r=>r.type===type);receipts[i]={type,...receipt}}
- const completed=attempts.find(r=>r.result?.analysis_stage==='COMPLETE'&&typeof r.result.research_summary==='string')
+ const completed=newest?.result?.analysis_stage==='COMPLETE'&&typeof newest.result.research_summary==='string'?newest:undefined
  if(completed){
   const candidates=(Array.isArray(completed.result.comparables)?completed.result.comparables:[]).filter(plain)
   const refs=candidates.map((c:any)=>c.source_url||c.source_reference).filter((x:any)=>typeof x==='string'&&x.trim())

@@ -250,7 +250,7 @@ function ItemDetailRecord({id}:{id:string}) {
           <div className="eyebrow">{item.item_code}</div>
           <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
-          <div className="pillRow"><span className="pill accent">{(item.status==='SOLD'?'SOLD':item.sale_readiness || item.status).replaceAll('_',' ')}</span></div>
+          <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':'FINAL RESEARCH DECISION REQUIRED'}</span></div>
         </div>
         <div className="heroActions">
           <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
@@ -271,7 +271,7 @@ function ItemDetailRecord({id}:{id:string}) {
             <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
             <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
             <div><small>Fast cash · provisional</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
-            <div><small>Next action</small><strong>{item.status==='SOLD'?'Review sale history':(item.sale_readiness||'RESEARCH_FIRST').replaceAll('_',' ')}</strong></div>
+            <div><small>Next action</small><strong>{item.status==='SOLD'?'Review sale history':'Complete evidence review and final item assessment'}</strong></div>
           </div>
           <p>{item.condition_summary ? item.condition_summary.slice(0,180) : 'Condition not yet recorded.'}</p>
           <details><summary>Show identification and valuation confidence</summary>

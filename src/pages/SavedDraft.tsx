@@ -475,7 +475,6 @@ function SavedDraftRecord({id}:{id:string}){
        disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
        onClick={()=>runDraftResearch('standard')}>Standard research instead</button>}
      <button className="secondaryButton" disabled={checkingResearch||researching||busy||!!error||saving||approving||savingDisagreement||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={()=>void checkSavedResearch()}>{checkingResearch?'Checking saved research…':'Check saved research'}</button>
-     {researchError&&<p role="alert">{researchError}</p>}
      {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved complete responses · provisional</span>}
      {scopePending.length>0&&<p className="ci-page-meta">An unresolved attempt exists for this object. Check saved research before another paid request.</p>}
      {unfinishedResearch.length>0&&<details className="ci-archive-section">

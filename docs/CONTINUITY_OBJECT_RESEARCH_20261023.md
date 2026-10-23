@@ -87,3 +87,36 @@ marketplace publication, outreach or paid inference. No canonical source was pub
 
 Next: inspect all five candidate CI jobs and actual screenshots; fix any failure,
 retain failure evidence, then archive verified code/logs and private research in Drive.
+
+## First candidate and corrective checkpoint
+
+Candidate `d7062f9318ac76c1ff33514d35157fb22e5dcd4b`, Actions `39942084339`,
+completed with three successful jobs and two failures. This is not an all-green
+release: application, resolver and PostgreSQL passed; Auth/HTTP and photo/browser
+acceptance failed. The complete photo failure artifact (98 files) is retained,
+SHA-256 `d2f4c046ee5b353e13478fb3b2b4c433edcb66bb257ee55f20aff1c4511f4aa6`.
+
+Corrections retain the original assertions: unresolved legacy object lineage can
+no longer inherit a completed maker stage; newer processing/failure outcomes stay
+visible above older completions; duplicate alerts and duplicate summary text are
+removed; the upload fixture now supplies the actual required intake fields.
+The empty visual-reference fixture now declares its real source-scope columns.
+
+The requested reference has now been recovered and actually viewed:
+`Screenshot 2026-10-23 at 11.36.05.png` (Library `libfile_d8d80d41302c819184319367bb9c708d`).
+It is an explicitly illustrative research-audit design, not actual MEDINA progress.
+The core dashboard follows its count, green progress bar, category rows, status
+pills and visible inconclusive outcomes. Status controls remain read-only and
+derive from stored history; details retain evidence, limitations and history.
+The older missing-reference statement above is superseded by this receipt.
+
+Production build and 114 local checks pass after these corrections. Repeated
+genuine Auth/REST/Storage/browser CI is still required; visual and end-to-end
+acceptance are not declared complete at this checkpoint.
+
+Private MEDINA evidence is preserved in immutable Drive archive
+`1hePYjksrCqDnMRn6-ZAdXKTfaSjPJnj8`, 26 files / 6,904,907 bytes,
+SHA-256 `a5f1bf600d2de343889572cbd646b4f5d4c7d071bc31391658e659783d5eceb4`.
+Actual raw Drive readback, ZIP integrity and member hashes match. It preserves
+all ten original photographs, separately examined signatures, sources and doubts.
+It does not certify either maker, an exact pair valuation or listing readiness.
