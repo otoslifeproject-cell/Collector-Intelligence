@@ -12,7 +12,7 @@ check('inconclusive not treated as verified',()=>assert.equal(auditResearch([one
 check('evidenced run counts',()=>assert.equal(auditResearch([one('SIGNATURE_READING')]).complete,1))
 check('duplicate research type does not count',()=>assert.equal(auditResearch([one('SIGNATURE_READING'),one('SIGNATURE_READING')]).complete,0))
 const full=auditResearch(stages.map(x=>one(x)))
-const route={venue:'eBay',mode:'BALANCED',grossLow:40,grossHigh:60,feeRate:0.15,fixedCosts:9,shippingRisk:'MEDIUM',daysToSaleLow:7,daysToSaleHigh:30,sourceRefs:['comp-1'],eligible:true}
+const route={venue:'eBay',mode:'BALANCED',grossLow:40,grossHigh:60,feeRate:0.15,fixedCosts:9,shippingRisk:'MEDIUM',daysToSaleLow:7,daysToSaleHigh:30,sourceRefs:['comp-1'],eligible:true,priceBasis:'MARKETPLACE_SOLD',feeCheckedAt:'2026-10-23'}
 check('all research evidenced',()=>{assert.equal(full.percent,100);assert.equal(full.unresolved.length,0)})
 check('no comp, never pretend ready',()=>assert.equal(recommendSaleRoutes(empty,[route],false).status,'RESEARCH_FIRST'))
 check('no eligible route, never pretend ready',()=>assert.equal(recommendSaleRoutes(full,[],true).status,'RESEARCH_FIRST'))
@@ -27,4 +27,7 @@ check('Infinity fee must fail closed',()=>assert.equal(recommendSaleRoutes(full,
 check('empty source token rejected',()=>assert.equal(recommendSaleRoutes(full,[{...route,sourceRefs:['  ']}],true).status,'RESEARCH_FIRST'))
 check('empty venue rejected',()=>assert.equal(recommendSaleRoutes(full,[{...route,venue:' '}],true).status,'RESEARCH_FIRST'))
 check('blank research source fails completed stage',()=>assert.equal(auditResearch([{...one('SIGNATURE_READING'),sourceRefs:['  ']}]).complete,0))
+check('asking evidence cannot trigger selling recommendation',()=>assert.equal(recommendSaleRoutes(full,[{...route,priceBasis:'DEALER_ASKING'}],true).status,'RESEARCH_FIRST'))
+check('unverified price basis cannot trigger selling recommendation',()=>assert.equal(recommendSaleRoutes(full,[{...route,priceBasis:'UNVERIFIED'}],true).status,'RESEARCH_FIRST'))
+check('missing fee verification blocks recommendation',()=>assert.equal(recommendSaleRoutes(full,[{...route,feeCheckedAt:''}],true).status,'RESEARCH_FIRST'))
 console.log(count+' research-sale checks passed')
