@@ -13,6 +13,7 @@ export type AssessmentRequest={readonly ownerId:string;readonly itemId:string;re
 export type AssessmentSettlement={row:StoredItemAssessment;current:boolean}
 export class ItemAssessmentError extends Error{}
 export class ItemAssessmentUnavailableError extends ItemAssessmentError{}
+export class ItemAssessmentStaleMissingError extends ItemAssessmentError{}
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, sha=/^[0-9a-f]{64}$/
 const plain=(value:unknown):value is Record<string,any>=>!!value&&typeof value==='object'&&!Array.isArray(value)
 const stable=(value:unknown):string=>JSON.stringify(value,(_key,v)=>plain(v)?Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])):v)
@@ -102,7 +103,7 @@ async function inspect(client:SupabaseClient,request:AssessmentRequest,current:(
   await authenticate(client,request.ownerId,current)
   return {row,current:assessmentIsCurrent(row,context)}
  }
- if(context.facts_sha256!==request.context.facts_sha256||!equal(context.facts_snapshot,request.context.facts_snapshot))return fail('Item facts changed before this assessment was confirmed. Export the held advice and start a new review from current facts.')
+ if(context.facts_sha256!==request.context.facts_sha256||!equal(context.facts_snapshot,request.context.facts_snapshot))throw new ItemAssessmentStaleMissingError('Item facts changed and the exact held event was not found. Export the held advice and start a new review from current facts.')
  await authenticate(client,request.ownerId,current)
  return null
 }

@@ -6,6 +6,7 @@ import researchHandler from '../api/research-item.ts';
 import {createClient} from '@supabase/supabase-js';
 import {readItemResearch,readItemSaleRows,itemResearchAudit} from '../src/lib/itemResearch.ts';
 import {exerciseItemAssessments} from './test-item-assessments.mjs';
+import {exercisePaidScopeClaims} from './test-paid-scope-claims.mjs';
 
 export async function installResearchSessionFixtures(admin,read){
   await admin.query(await read('tests/fixtures/catalogue-storage-metadata.sql'));
@@ -24,6 +25,7 @@ export async function installResearchSessionFixtures(admin,read){
   await admin.query(await read('supabase/migrations/20261016_atomic_photo_first_approval_v1.sql'));
   await admin.query(await read('supabase/migrations/20261017_reviewed_material_evidence_on_catalogue_v6.sql'));
   await admin.query(await read('supabase/migrations/20261016_block_partial_analysis_catalogue_approval.sql'));
+  await admin.query(await read('supabase/proposals/scoped-paid-research-claim.sql'));
   await admin.query(`GRANT SELECT,INSERT,UPDATE ON public.sale_outcomes,public.listings TO authenticated;
     GRANT UPDATE ON public.items TO authenticated`);
   for(const file of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql',
@@ -48,6 +50,7 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
   const sdk=createClient(API,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
   const sdkLogin=await sdk.auth.signInWithPassword({email:'collector-ci-a@example.test',password:'Ci-disposable-fixture-4826!'});assert.equal(sdkLogin.error,null);
   await exerciseItemAssessments({admin,rest,check,A,B,anon,API,key,sdk});
+  await exercisePaidScopeClaims({admin,rest,check,A,B,anon});
   const historyItem=await post(A.token,'items',{source_analysis_run_id:draft.id,source_object_index:1});assert.equal(historyItem.status,201);const target=(await historyItem.json())[0];
   let directHistory;
   await check('item history SDK recovers101 real owner-scoped responses with exact pagination',async()=>{
@@ -166,12 +169,14 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
     assert.equal(url.href,'https://api.openai.com/v1/responses','Unknown external call blocked');
     providerCalls++;return providerReply?providerReply():reply();
   };
+  const handlerItems=new Map();
+  const stageHandler=async(overrides={})=>{const r=await post(A.token,'items',{});assert.equal(r.status,201);const fresh=(await r.json())[0];const run=await stage({...overrides,user_context:{item_id:fresh.id,...overrides.user_context}});handlerItems.set(run.id,fresh.id);return run;};
   const invoke=async(id,user=A)=>{
     const res={code:0,body:null,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
-    await researchHandler({method:'POST',headers:{authorization:'Bearer '+user.token},body:{item:{id:item.id},research_run_id:id,images:[]}},res);return res;
+    await researchHandler({method:'POST',headers:{authorization:'Bearer '+user.token},body:{item:{id:handlerItems.get(id)||item.id},research_run_id:id,images:[]}},res);return res;
   };
   try{
-    const concurrent=await stage();let successful;
+    const concurrent=await stageHandler();let successful;
     await check('concurrent real research handlers dispatch only one mocked provider request',async()=>{
       const callsBefore=providerCalls;let release,entered;
       const waiting=new Promise(resolve=>{entered=resolve;});const hold=new Promise(resolve=>{release=resolve;});
@@ -198,8 +203,8 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
     await check('research handler rejects other-owner source and staging before provider dispatch',async()=>{
       const callsBefore=providerCalls;assert.equal((await invoke(concurrent.id,B)).code,403);assert.equal(providerCalls,callsBefore);
     });
-    for(const [name,overrides] of [['photo count',{input_photo_count:1}],['source object',{user_context:{item_id:draft.id}}],['research depth',{user_context:{item_id:item.id,research_depth:'deep_dive'}}]]){
-      const mismatch=await stage(overrides);
+    for(const [name,overrides] of [['photo count',{input_photo_count:1}],['source object',{user_context:{item_id:draft.id}}],['research depth',{user_context:{research_depth:'deep_dive'}}]]){
+      const mismatch=await stageHandler(overrides);
       await check('research handler refuses mismatched '+name+' before claiming or provider dispatch',async()=>{
         const callsBefore=providerCalls;assert.equal((await invoke(mismatch.id)).code,409);assert.equal(providerCalls,callsBefore);
         assert.equal((await row(mismatch.id)).result.analysis_stage,'STAGED');
@@ -212,13 +217,13 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
       ['invalid structured output',()=>new Response(JSON.stringify({output_text:'not JSON'}),{status:200}),'PAID_RESEARCH_OUTPUT_INVALID'],
       ['null provider envelope',()=>new Response('null',{status:200}),'PAID_RESEARCH_OUTPUT_INVALID']
     ])await check(name+' retains claim and blocks a repeated provider dispatch',async()=>{
-      const run=await stage(),callsBefore=providerCalls;providerReply=provider;
+      const run=await stageHandler(),callsBefore=providerCalls;providerReply=provider;
       const failed=await invoke(run.id);assert.ok(failed.code>=500);assert.equal(failed.body.code,code);assert.equal(failed.body.research_run_id,run.id);assert.match(failed.body.error,/do not repeat paid research/i);
       assert.equal((await row(run.id)).result.analysis_stage,'PROCESSING');providerReply=null;
       const retry=await invoke(run.id);assert.equal(retry.code,409);assert.equal(providerCalls-callsBefore,1);
     });
     await check('unconfirmed result save returns recoverable output and never automatically pays again',async()=>{
-      const run=await stage(),callsBefore=providerCalls;saveFailure=true;
+      const run=await stageHandler(),callsBefore=providerCalls;saveFailure=true;
       let failed;try{failed=await invoke(run.id);}finally{saveFailure=false;}
       assert.equal(failed.code,503);assert.equal(failed.body.code,'PAID_RESEARCH_SAVE_NOT_CONFIRMED');assert.equal(failed.body.research_run_id,run.id);
       assert.equal(failed.body.result.research_summary,synthetic.research_summary);assert.equal(failed.body.result.analysis_stage,'COMPLETE');

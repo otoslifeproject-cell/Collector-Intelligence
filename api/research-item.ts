@@ -214,7 +214,7 @@ async function ownerScopedResearchRun(url:string,key:string,token:string,runId:s
  return rows[0];
 }
 async function claimResearchRun(url:string,key:string,token:string,runId:string){
- const response=await fetch(url+'/rest/v1/rpc/ci_claim_paid_research_v1',{
+ const response=await fetch(url+'/rest/v1/rpc/ci_claim_scoped_paid_research_v1',{
   method:'POST',headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json'},
   body:JSON.stringify({p_run_id:runId})
  });

@@ -41,6 +41,8 @@ function ItemDetailRecord({id}:{id:string}) {
     if(requested&&['overview','photos','identification','market','sales','catalogue'].includes(requested))setTab(requested)
   },[location.search,id])
   const [message,setMessage] = useState('')
+  const [saving,setSaving]=useState(false)
+  const saveLock=useRef(false),editRevision=useRef(0),savedRevision=useRef(0)
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
   const [photographsLoaded,setPhotographsLoaded]=useState(false)
@@ -152,13 +154,30 @@ function ItemDetailRecord({id}:{id:string}) {
     return ()=>window.clearInterval(timer)
   },[item?.id,researchHistory])
 
-  const update = (k:keyof Item,v:any)=> item && setItem({...item,[k]:v})
+  const update = (k:keyof Item,v:any)=>{editRevision.current++;if(item)setItem({...item,[k]:v})}
+  const refreshStoredFacts=async()=>{
+    if(!item||editRevision.current!==savedRevision.current)throw Error('Save your current catalogue edits before replacing the stored facts for a new review.')
+    const auth=await supabase.auth.getUser();if(auth.error||auth.data.user?.id!==item.owner_id)throw Error('Sign in as this object’s owner.')
+    const read=await supabase.from('items').select('*').eq('id',item.id).eq('owner_id',item.owner_id).maybeSingle()
+    if(!current()||read.error||!read.data)throw Error('Current stored catalogue facts could not be recovered.')
+    setItem(read.data as Item)
+  }
   const save = async () => {
-    if (!item) return
-    const copy:any = {...item}; delete copy.id; delete copy.item_code; delete copy.created_at; delete copy.updated_at
-    const {error} = await supabase.from('items').update(copy).eq('id',item.id)
-    setMessage(error ? error.message : 'Saved')
-    if (!error) setTimeout(()=>setMessage(''),1600)
+    if(!item||saveLock.current)return
+    saveLock.current=true;setSaving(true);const selected=item,revision=editRevision.current
+    const copy:any={...selected};delete copy.id;delete copy.item_code;delete copy.created_at;delete copy.updated_at
+    try{
+      const auth=await supabase.auth.getUser();if(!current())return
+      if(auth.error||auth.data.user?.id!==selected.owner_id)throw Error('Sign in as this object’s owner before saving.')
+      try{await supabase.from('items').update(copy).eq('id',selected.id).eq('owner_id',selected.owner_id)}catch{/* Independently read the outcome. */}
+      const read=await supabase.from('items').select('*').eq('id',selected.id).eq('owner_id',selected.owner_id).maybeSingle()
+      const confirmed=await supabase.auth.getUser();if(!current())return
+      if(confirmed.error||confirmed.data.user?.id!==selected.owner_id||read.error||!read.data||Object.entries(copy).some(([k,v])=>JSON.stringify(v)!==JSON.stringify(read.data[k])))throw Error('Save outcome is unconfirmed. Your edits remain here; recover stored catalogue facts before another assessment.')
+      savedRevision.current=revision
+      setItem(previous=>previous&&previous.id===selected.id?(revision===editRevision.current?read.data as Item:{...previous,updated_at:read.data.updated_at}):previous)
+      setMessage('Saved');setTimeout(()=>{if(current())setMessage('')},1600)
+    }catch(e){if(current())setMessage(e instanceof Error?e.message:'Save unconfirmed; your edits remain here.')}
+    finally{saveLock.current=false;if(current())setSaving(false)}
   }
 
   const upload = async (event:ChangeEvent<HTMLInputElement>) => {
@@ -264,7 +283,7 @@ function ItemDetailRecord({id}:{id:string}) {
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
       <ResearchProgress compact={tab!=='overview'} audit={researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
-      <ItemAssessment client={supabase} item={item} audit={!historyError&&researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
+      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?itemResearchAudit(researchHistory,trustedComps):undefined}/>
 
       {tab==='overview' && <div>
         <div className="panel">
@@ -335,7 +354,7 @@ function ItemDetailRecord({id}:{id:string}) {
           </div>
         </div>
           </div>
-          <div style={{marginTop:12}}><button className="primaryButton inlineButton" onClick={save}><Save size={17}/> Save changes</button></div>
+          <div style={{marginTop:12}}><button className="primaryButton inlineButton" onClick={save} disabled={saving}><Save size={17}/> {saving?'Checking saved facts…':'Save changes'}</button></div>
         </details>
       </div>}
 

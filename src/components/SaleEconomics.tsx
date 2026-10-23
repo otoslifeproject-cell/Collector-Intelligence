@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import {money} from '../lib/format'
+import {knownSaleCurrency} from '../lib/sellFastPlan'
 
 type Props={
  currency?:string
@@ -22,7 +23,7 @@ export default function SaleEconomics({currency='GBP',acquisitionPrice,initialSa
  const price=nonneg(sale),rate=nonneg(feePercent)
  const costs=[fixedFee,shipping,packing,insurance,otherSelling].map(nonneg)
  const investment=[purchase,inboundTransport,restoration].map(nonneg)
- const known=price!==null&&rate!==null&&rate<=100&&costs.every(n=>n!==null)
+ const known=knownSaleCurrency(currency)&&price!==null&&rate!==null&&rate<=100&&costs.every(n=>n!==null)
  const sellingCosts=known?price!*rate!/100+costs.reduce<number>((s,n)=>s+n!,0):null
  const invested=investment.every(n=>n!==null)?investment.reduce<number>((s,n)=>s+n!,0):null
  const net=sellingCosts!==null?price!-sellingCosts:null

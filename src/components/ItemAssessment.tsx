@@ -2,20 +2,21 @@ import {useEffect,useRef,useState} from 'react'
 import type {SupabaseClient} from '@supabase/supabase-js'
 import type {Item} from '../types'
 import type {ResearchAudit} from '../lib/researchSaleDecision'
-import {assessmentIsCurrent,prepareItemAssessment,readAssessmentHistory,settleItemAssessment} from '../lib/itemAssessment'
+import {assessmentIsCurrent,prepareItemAssessment,readAssessmentHistory,settleItemAssessment,ItemAssessmentStaleMissingError} from '../lib/itemAssessment'
 import type {AssessmentRequest,HoldAdvice,StoredItemAssessment} from '../lib/itemAssessment'
 
-type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit}
+type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>}
 const initial:HoldAdvice={decision:'DO_NOT_LIST_YET',rationale:'',unresolvedIssues:'',nextAction:'',routeGuidance:'',confidence:{identification:null,dating:null,valuation:null},sourceRefs:[]}
 export default function ItemAssessment(props:Props){
  return <AssessmentRecord key={`${props.item.owner_id}:${props.item.id}`} {...props}/>
 }
-function AssessmentRecord({client,item,audit}:Props){
+function AssessmentRecord({client,item,audit,onRefreshFacts}:Props){
  const [advice,setAdvice]=useState<HoldAdvice>(initial),[sourceText,setSourceText]=useState('')
  const [rows,setRows]=useState<StoredItemAssessment[]>([]),[currentId,setCurrentId]=useState<string|null>(null)
  const [pending,setPending]=useState<AssessmentRequest|null>(null),[message,setMessage]=useState(''),[error,setError]=useState('')
  const [busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false)
  const [canRetry,setCanRetry]=useState(false)
+ const [staleMissing,setStaleMissing]=useState(false)
  const alive=useRef(false),lock=useRef(false),serial=useRef(0),held=useRef<AssessmentRequest|null>(null)
  const current=()=>alive.current
  const load=async()=>{
@@ -44,7 +45,7 @@ function AssessmentRecord({client,item,audit}:Props){
    if(!current())return
    if(saved){held.current=null;setPending(null);setMessage(saved.current?'Final hold decision confirmed by stored readback. This does not certify research completion.':'Earlier hold decision recovered. Item facts changed; a new assessment is required.');await load()}
    else{setCanRetry(mode==='CHECK');setMessage(mode==='CHECK'?'No stored row confirmed for this exact held decision. Retry the same decision only after this check, or export it.':'Save outcome is not confirmed. Keep this page open and use Check saved decision before retrying. No sale-ready status was created.')}
-  }catch(e){if(current())setError(e instanceof Error?e.message:'The decision could not be confirmed. Keep the held advice and check again.')}
+  }catch(e){if(current()){setStaleMissing(mode==='CHECK'&&e instanceof ItemAssessmentStaleMissingError);setError(e instanceof Error?e.message:'The decision could not be confirmed. Keep the held advice and check again.')}}
   finally{lock.current=false;if(current())setBusy(false)}
  }
  const exportAdvice=()=>{
@@ -72,6 +73,7 @@ function AssessmentRecord({client,item,audit}:Props){
     <button className="primaryButton inlineButton" disabled={busy||!loaded||!audit||!!pending} onClick={()=>void run('SAVE')}>Save hold decision</button>
     {pending&&<><button className="secondaryButton inlineButton" disabled={busy} onClick={()=>void run('CHECK')}>Check saved decision</button><button className="secondaryButton inlineButton" disabled={busy||!canRetry} onClick={()=>void run('RETRY')}>Retry same held decision</button></>}
     <button className="secondaryButton inlineButton" onClick={exportAdvice}>Export hold review</button>
+    {pending&&staleMissing&&<button className="secondaryButton inlineButton" disabled={busy} onClick={async()=>{try{exportAdvice();await onRefreshFacts?.();if(!current())return;held.current=null;setPending(null);setCanRetry(false);setStaleMissing(false);setMessage('Earlier held advice exported. Review current stored facts before a new save.');await load()}catch(e){setError(e instanceof Error?e.message:'Current review could not be opened. Held advice remains here.')}}}>Export held advice and start current review</button>}
    </div>
    {pending&&<p>One immutable save is held for this object. Check reads the stored outcome only. A retry uses the same event and facts; do not refresh until confirmed or exported.</p>}
   </details>

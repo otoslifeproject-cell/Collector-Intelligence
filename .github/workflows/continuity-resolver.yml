@@ -75,6 +75,7 @@ on:
       - 'scripts/test-continuity-postgres.mjs'
       - 'scripts/test-continuity-http.mjs'
       - 'scripts/test-research-sessions.mjs'
+      - 'scripts/test-paid-scope-claims.mjs'
       - 'scripts/test-item-assessments.mjs'
       - 'scripts/test-intake-response-recovery.mjs'
       - 'scripts/test-catalogue-approval.mjs'
