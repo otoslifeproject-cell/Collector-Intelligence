@@ -37,6 +37,8 @@ on:
       - 'src/lib/inscriptionReview.ts'
       - 'src/lib/draftResearchAudit.ts'
       - 'src/lib/sellFastPlan.ts'
+      - 'src/lib/listingDraft.ts'
+      - 'tests/listing-draft.test.mjs'
       - 'src/components/ResearchProgress.tsx'
       - 'src/components/SellFastPlan.tsx'
       - 'tests/item-research.test.mjs'

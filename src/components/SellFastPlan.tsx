@@ -1,8 +1,11 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import type {Comparable, Item} from '../types'
 import {assessSaleScenario, chooseSaleScenario, emptySaleScenario, knownSaleCurrency, prepareListing, safeSourceUrl, salePlatforms, sellModes, storedPublication} from '../lib/sellFastPlan'
 import type {FinalResearchDecision, ListingReview, SaleScenario, SellMode, StoredListing} from '../lib/sellFastPlan'
 import type {ResearchAudit} from '../lib/researchSaleDecision'
+import {prepareListingDraft,restoreListingDraft,settleListingDraft} from '../lib/listingDraft'
+import type {ListingDraftRequest,SaleReviewDraft} from '../lib/listingDraft'
+import {supabase} from '../lib/supabase'
 
 type Props={item:Item;comparables:Comparable[];trustedComparableIds?:string[];listings?:StoredListing[];photoCount?:number;researchAudit?:ResearchAudit;finalDecision?:FinalResearchDecision}
 const modeTitle=(mode:SellMode)=>mode.replaceAll('_',' ')
@@ -23,6 +26,10 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
   const [draftMode,setDraftMode]=useState<SellMode>('FAST_CASH')
   const [showDraft,setShowDraft]=useState(false)
   const [exported,setExported]=useState(false)
+  const [draftBusy,setDraftBusy]=useState(false),[draftPending,setDraftPending]=useState<ListingDraftRequest|null>(null),[draftMessage,setDraftMessage]=useState(''),[storedDraftRows,setStoredDraftRows]=useState<StoredListing[]>([])
+  const [canRetryDraft,setCanRetryDraft]=useState(false)
+  const alive=useRef(false),saveLock=useRef(false),held=useRef<ListingDraftRequest|null>(null)
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[])
   const facts=JSON.stringify([item.maker,item.condition_summary,item.material,item.colour,item.object_type,item.marks_signatures_labels,item.dimensions,item.weight_g,item.status,(item as Item&{acquisition_intent?:string}).acquisition_intent])
   useEffect(()=>{setReview(initialReview);setShowDraft(false);setExported(false)},[facts])
   const today=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/London'})
@@ -30,7 +37,7 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
   const decision=chooseSaleScenario(assessments,objective)
   const selected=assessments.find(x=>x.scenario.mode===draftMode)!
   const draft=prepareListing(item,selected,{...review,photosReviewed:review.photosReviewed&&(photoCount===undefined||photoCount>0)},comparables)
-  const ownListings=listings.filter(row=>row.item_id===item.id&&row.owner_id===item.owner_id)
+  const ownListings=[...new Map([...listings,...storedDraftRows].filter(row=>row.item_id===item.id&&row.owner_id===item.owner_id).map(row=>[row.id,row])).values()]
   const updateScenario=(mode:SellMode,key:keyof SaleScenario,value:SaleScenario[keyof SaleScenario])=>{
     setScenarios(rows=>rows.map(row=>{
       if(row.mode!==mode)return row
@@ -50,11 +57,23 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${item.item_code.replace(/[^a-zA-Z0-9_-]/g,'_')}-sale-plan.json`;a.click()
     setTimeout(()=>URL.revokeObjectURL(url),1000);setExported(true)
   }
+  const saveDraft=async(submit:boolean)=>{
+    if(saveLock.current)return;saveLock.current=true;setDraftBusy(true);setDraftMessage('');setCanRetryDraft(false)
+    try{
+      if(!held.current){if(!submit)throw Error('No pending draft to check.');const payload:SaleReviewDraft={format:'collector-sale-review-v1',itemId:item.id,ownerId:item.owner_id,facts:item,scenarios,review,objective,draftMode,listing:draft,capturedAt:new Date().toISOString()};held.current=prepareListingDraft(item,payload);setDraftPending(held.current)}
+      const row=await settleListingDraft(supabase,held.current,()=>alive.current,submit)
+      if(!alive.current)return
+      if(row){setStoredDraftRows(rows=>[...rows.filter(r=>r.id!==row.id),row]);held.current=null;setDraftPending(null);setDraftMessage('Review draft confirmed from stored readback. Not published; research and current fee/cost checks still apply.')}
+      else{setCanRetryDraft(!submit);setDraftMessage('Review draft is not confirmed. Keep this page open and Check saved review draft before a deliberate retry. The same event is retained.')}
+    }catch(e){if(alive.current)setDraftMessage(e instanceof Error?e.message:'Draft save unconfirmed. Check before retrying.')}
+    finally{saveLock.current=false;if(alive.current)setDraftBusy(false)}
+  }
   return <section className="panel ci-sale-economics" aria-label="Sell Fast plan and listing preparation">
     <div className="panelHeader"><h2>Sell Fast plan</h2><span>{currency||'Currency unconfirmed'} · owner-entered scenarios</span></div>
-    <p className="ci-page-meta">Compare routes using reviewed achieved sales and complete selling costs. No platform fees, sale prices or sale times are filled in automatically. Your edits stay on this page until exported; refreshing loses them.</p>
+    <p className="ci-page-meta">Compare routes using reviewed achieved sales and complete selling costs. No platform fees, sale prices or sale times are filled in automatically. Your edits stay on this page until saved as a review draft or exported. Research approval and publication remain separate.</p>
     <p><strong>{finalDecision?.status==='SPECIALIST_REVIEW'?'DO NOT LIST YET — SPECIALIST REVIEW':decision.recommendation?'Research-complete item decision supplied':'DO NOT LIST YET — research / final assessment incomplete'}</strong></p>
     <p className="ci-page-meta">Sale readiness requires the stored research audit and an approved final item assessment documenting every available relevant identification and valuation check. Scenario inputs and generic wording cannot override that requirement.</p>
+    <fieldset disabled={draftBusy||!!draftPending} style={{border:0,padding:0,minWidth:0}}>
     <label style={{display:'grid',gap:6,maxWidth:300}}>Selling priority
       <select value={objective} onChange={e=>{setObjective(e.target.value as SellMode);setExported(false)}}>{sellModes.map(mode=><option key={mode} value={mode}>{modeTitle(mode)}</option>)}</select>
     </label>
@@ -122,6 +141,13 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
       </details>
       {draft.outstandingChecks.length>0&&<details style={{marginTop:12}} open><summary>Checks before this draft can be sale-ready</summary><ul>{draft.outstandingChecks.map(text=><li key={text}>{text}</li>)}</ul></details>}
     </div>}
+    </fieldset>
+    <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:16}}>
+      <button className="primaryButton inlineButton" disabled={draftBusy||!!draftPending||!currency} onClick={()=>void saveDraft(true)}>Save review draft</button>
+      {draftPending&&<><button className="secondaryButton inlineButton" disabled={draftBusy} onClick={()=>void saveDraft(false)}>Check saved review draft</button><button className="secondaryButton inlineButton" disabled={draftBusy||!canRetryDraft} onClick={()=>void saveDraft(true)}>Retry same review draft</button></>}
+    </div>
+    {draftMessage&&<p role="status">{draftMessage}</p>}
+    {ownListings.filter(r=>r.listing_status==='DRAFT').map(row=>{const saved=restoreListingDraft(row,item);return <div className="note" key={row.id}><strong>Saved {row.platform} review draft · not published</strong><p>{saved?'Catalogue facts match; assumptions require current evidence and cost review.':'Earlier or unsupported draft: catalogue facts or saved format differ. Original record is retained.'}</p>{saved&&<button className="secondaryButton inlineButton" disabled={draftBusy||!!draftPending} onClick={()=>{setScenarios(saved.scenarios);setReview(saved.review);setObjective(saved.objective);setDraftMode(saved.draftMode);setShowDraft(true);setExported(false);setDraftMessage('Saved review draft restored. No price, source or publication was verified by restoring it.')}}>Restore saved review draft</button>}</div>})}
     <details style={{marginTop:16}}><summary>Stored marketplace listing records · {ownListings.length}</summary>
       {ownListings.length===0?<p>No stored listing records found for this item.</p>:<ul>{ownListings.map(row=><li key={row.id}>{row.platform} · {storedPublication(row,item.id,item.owner_id).replaceAll('_',' ').toLowerCase()}{safeSourceUrl(row.listing_url)&&<> · <a href={row.listing_url} target="_blank" rel="noopener noreferrer">Recorded listing ↗</a></>}</li>)}</ul>}
       <p className="ci-page-meta">Published means the stored record includes a published status, timestamp and listing URL. Marketplace availability has not been independently checked here. Prepared/exported copy is never proof of publication.</p>
