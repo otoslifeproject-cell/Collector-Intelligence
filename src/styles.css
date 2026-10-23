@@ -885,3 +885,8 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-research-progress-compact .ci-audit-category>strong{font-size:11px}
 .ci-research-progress-compact .ci-audit-state{grid-column:auto;font-size:10px;padding:3px 5px;justify-self:stretch;text-align:center}
 .ci-research-progress-compact .ci-audit-icon{width:14px;height:14px}
+
+/* Independent owner QA: shared card metadata and readiness contrast. */
+.itemMeta{gap:6px 12px;flex-wrap:wrap;color:var(--muted)}
+.pill.accent{color:var(--accent);border-color:var(--accent)}
+.itemCardImage .ci-missing-photo{color:var(--text);background:var(--panel);border-color:var(--line)}

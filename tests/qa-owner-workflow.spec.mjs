@@ -13,9 +13,11 @@ async function login(page,path='/#/',theme='light'){
 }
 for(const width of [320,390,768,1440])for(const theme of ['light','dark'])test(`owner QA journey and core audit ${width}px ${theme}`,async({page},info)=>{
  await page.setViewportSize({width,height:1000});const item=await seed(),events=await login(page,'/#/',theme);
- const card=page.locator('.itemCard').filter({hasText:item.title});await expect(card).toHaveCount(1);await expect(card).toContainText('Final research decision required');await expect(card.locator('.itemMeta')).not.toContainText('SELL NOW');
+ const card=page.locator('.itemCard').filter({hasText:item.title});await expect(card).toHaveCount(1);await expect(card).toContainText('Final research decision required');await expect(card.locator('.itemMeta')).not.toContainText('SELL NOW');expect(await card.locator('.itemMeta').evaluate(el=>{const s=getComputedStyle(el);return s.flexWrap==='wrap'&&parseFloat(s.columnGap)>=8})).toBe(true);
  await page.screenshot({path:`test-artifacts/qa-dashboard-${width}-${theme}.png`,fullPage:true});
  await card.click(); // one navigation click from Dashboard
+ const badge=page.locator('.itemHero .pill.accent');await expect(badge).toContainText('FINAL RESEARCH DECISION REQUIRED');
+ const badgeContrast=await badge.evaluate(el=>{const rgb=s=>s.match(/[\d.]+/g).slice(0,3).map(Number);const lum=c=>c.map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4}).reduce((s,n,i)=>s+n*[.2126,.7152,.0722][i],0);const style=getComputedStyle(el),a=lum(rgb(style.color)),b=lum(rgb(style.backgroundColor));return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)});expect(badgeContrast).toBeGreaterThanOrEqual(4.5);
  const audit=page.getByRole('region',{name:'Research dashboard — '+item.item_code,exact:true});await expect(audit.getByRole('progressbar')).toHaveAttribute('max','7');await expect(audit.getByRole('listitem')).toHaveCount(7);await expect(audit.locator('.ci-research-next')).toContainText('Next action:');
  const disclosure=audit.getByText('Results, sources and unresolved issues',{exact:true}).first();await disclosure.focus();await expect(disclosure).toBeFocused();await page.keyboard.press('Enter');await expect(audit.getByText('Recorded category confidence: Not established',{exact:true}).first()).toBeVisible();await page.keyboard.press('Enter');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
