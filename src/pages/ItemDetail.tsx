@@ -46,6 +46,7 @@ function ItemDetailRecord({id}:{id:string}) {
   },[location.search,id])
   const [message,setMessage] = useState('')
   const [saving,setSaving]=useState(false)
+  const [assessmentMutating,setAssessmentMutating]=useState(false)
   const saveLock=useRef(false),editRevision=useRef(0),savedRevision=useRef(0)
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
@@ -94,7 +95,7 @@ function ItemDetailRecord({id}:{id:string}) {
   const retryPhotographs=async()=>{
     if(photoBusy.current||!pendingPhotographs.length)return
     invalidateReviewed();photoBusy.current=true;setUploading(true);setPhotographMessage('Checking the same pending photographs…')
-    try{await processPhotographs(pendingPhotographs)}finally{photoBusy.current=false;if(current())setUploading(false)}
+    try{await processPhotographs(pendingPhotographs)}finally{photoBusy.current=false;if(current()){invalidateReviewed();setUploading(false)}}
   }
   const [originalReportPaired,setOriginalReportPaired] = useState(false)
   const [researching,setResearching] = useState(false)
@@ -188,7 +189,7 @@ function ItemDetailRecord({id}:{id:string}) {
       setItem(previous=>previous&&previous.id===selected.id?(revision===editRevision.current?read.data as Item:{...previous,updated_at:read.data.updated_at}):previous)
       setMessage('Saved');setTimeout(()=>{if(current())setMessage('')},1600)
     }catch(e){if(current())setMessage(e instanceof Error?e.message:'Save unconfirmed; your edits remain here.')}
-    finally{saveLock.current=false;if(current())setSaving(false)}
+    finally{saveLock.current=false;if(current()){invalidateReviewed();setSaving(false)}}
   }
 
   const upload = async (event:ChangeEvent<HTMLInputElement>) => {
@@ -199,7 +200,7 @@ function ItemDetailRecord({id}:{id:string}) {
       const attempts=await preparePhotographAttempts(supabase,item.id,files,current)
       await processPhotographs(attempts)
     }catch(error){if(current())setPhotographMessage(error instanceof PhotographError?error.message:'The photographs could not be confirmed. Please retry.')}
-    finally{photoBusy.current=false;if(current())setUploading(false)}
+    finally{photoBusy.current=false;if(current()){invalidateReviewed();setUploading(false)}}
   }
 
   const runResearch = async () => {
@@ -271,7 +272,7 @@ function ItemDetailRecord({id}:{id:string}) {
     } finally {if(current()){setResearching(false);await reloadResearch(item)}}
   }
 
-  const reviewed=researching||uploading||saving?null:reviewedForItem(reviewedCandidate,item)
+  const reviewed=researching||uploading||saving||assessmentMutating?null:reviewedForItem(reviewedCandidate,item)
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
 
   return (
@@ -294,7 +295,7 @@ function ItemDetailRecord({id}:{id:string}) {
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
       <ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
-      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={invalidateReviewed} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>
+      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>
       {reviewedError&&<p className="ci-page-meta">{reviewedError}</p>}
       {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
 

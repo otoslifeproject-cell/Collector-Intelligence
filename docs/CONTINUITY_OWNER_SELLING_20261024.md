@@ -125,3 +125,7 @@ Safe engineering continues under the owner's explicit standing authorisation.
 Next: read actual five final CI logs/screenshots; fix defects, independently retest,
 archive verified receipts, then resolve team/owner evidence and controlled release
 approval. Never replace that sequence with a claim that fixtures sold real items.
+
+## Independent retest follow-up
+
+Independent QA reproduced an in-flight read started during photo upload restoring cached approval after the upload settled. Photo upload/retry and catalogue save now invalidate the review epoch at settlement as well as at start. Hold SAVE/RETRY reports its busy state to the parent and invalidates at both boundaries; GET-only CHECK does not start a mutation. Added a disposable browser regression that delays a real qualified projection response across an ambiguous, unwritten Storage attempt. Readiness remains withheld until a later deliberate current GET. Restored-listing recommendation assertions now select the recommendation status specifically, preserving the separate saved-draft confirmation. All final acceptance results must refer to the resulting application SHA.
