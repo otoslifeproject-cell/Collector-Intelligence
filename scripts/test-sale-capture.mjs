@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 
 export async function exerciseSaleCapture({admin,rest,check,A,B,anon,read}){
+ const preservedComparables=(await admin.query('select to_jsonb(c) as row from public.comparables c order by id')).rows;
  const originalSQL=await read('supabase/migrations/20261017_allow_loss_making_sales_v3.sql');
  const proposalSQL=await read('supabase/proposals/actual-sale-input-guards.sql');
  const post=(token,path,body)=>rest(token,path,{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});
@@ -116,7 +117,7 @@ export async function exerciseSaleCapture({admin,rest,check,A,B,anon,read}){
   try{await rejected(i,sale);}finally{await admin.query('DROP TRIGGER ci_fixture_reject_sold ON public.items; DROP FUNCTION public.ci_fixture_reject_sold()');}
  });
  await check('owner sale does not become a trusted comparable or Knowledge Brain claim',async()=>{
-  assert.equal((await admin.query('select count(*)::int n from public.comparables')).rows[0].n,0);assert.equal((await admin.query('select count(*)::int n from public.knowledge_records')).rows[0].n,0);
+  assert.deepEqual((await admin.query('select to_jsonb(c) as row from public.comparables c order by id')).rows,preservedComparables);assert.equal((await admin.query('select count(*)::int n from public.knowledge_records')).rows[0].n,0);
  });
  await check('sale candidate reinstall reversal and reapply preserve saved outcomes and fingerprints',async()=>{
   const before=await state(owned.id);await admin.query(proposalSQL);assert.deepEqual(await state(owned.id),before);await admin.query(originalSQL);assert.deepEqual(await state(owned.id),before);await admin.query(proposalSQL);const r=await record(owned.id,event,sale);assert.equal(r.status,200);assert.deepEqual(await r.json(),result);assert.deepEqual(await state(owned.id),before);
