@@ -2,6 +2,19 @@ name: Continuity resolver fixtures
 on:
   pull_request:
     paths:
+      - 'src/lib/researchArmy.ts'
+      - 'src/lib/lotOptimizer.ts'
+      - 'src/components/ResearchArmyWorkspace.tsx'
+      - 'src/components/LotPlanEditor.tsx'
+      - 'src/pages/LotOptimiser.tsx'
+      - 'src/App.tsx'
+      - 'src/components/Sidebar.tsx'
+      - 'supabase/proposals/research-army.sql'
+      - 'supabase/proposals/sale-groups.sql'
+      - 'scripts/test-research-army.mjs'
+      - 'scripts/test-sale-groups.mjs'
+      - 'tests/research-army*.mjs'
+      - 'tests/lot-optimizer*.mjs'
       - 'tests/continuity/**'
       - 'tests/fixtures/governing-v4/**'
       - 'tests/fixtures/source-archive/**'

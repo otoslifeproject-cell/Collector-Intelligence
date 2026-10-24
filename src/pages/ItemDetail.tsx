@@ -23,6 +23,7 @@ import {PhotographError,preparePhotographAttempts,readItemPhotographs,settlePhot
 import type {PhotographAttempt} from '../lib/itemPhotographs'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
+import ResearchArmyWorkspace from '../components/ResearchArmyWorkspace'
 
 export default function ItemDetail() {
   const {id}=useParams()
@@ -47,6 +48,7 @@ function ItemDetailRecord({id}:{id:string}) {
   const [message,setMessage] = useState('')
   const [saving,setSaving]=useState(false)
   const [assessmentMutating,setAssessmentMutating]=useState(false)
+  const [armyMutating,setArmyMutating]=useState(false)
   const saveLock=useRef(false),editRevision=useRef(0),savedRevision=useRef(0)
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
@@ -272,7 +274,7 @@ function ItemDetailRecord({id}:{id:string}) {
     } finally {if(current()){setResearching(false);await reloadResearch(item)}}
   }
 
-  const reviewed=researching||uploading||saving||assessmentMutating?null:reviewedForItem(reviewedCandidate,item)
+  const reviewed=researching||uploading||saving||assessmentMutating||armyMutating?null:reviewedForItem(reviewedCandidate,item)
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
 
   return (
@@ -410,6 +412,9 @@ function ItemDetailRecord({id}:{id:string}) {
         </div>
       </div>}
 
+      <div className="ci-research-workspace-shell" hidden={tab!=='market'}>
+        <ResearchArmyWorkspace key={item.id} item={item} onMutating={active=>{invalidateReviewed();setArmyMutating(active)}} onChanged={()=>void reloadResearch(item)}/>
+      </div>
       {tab==='market' && <div className="marketStack">
         <ComparableEvidence rows={comps} trustedIds={trustedComps.map(c=>c.id)} error={historyError}/>
         {photos.some(p=>!!photoUrls[p.id])&&
@@ -480,6 +485,7 @@ function ItemDetailRecord({id}:{id:string}) {
          <div><small>Previously recorded expected net</small><strong>{provisionalMoney(item.expected_net,item.currency)}</strong></div>
         </div>
         <p className="ci-page-meta">Previously recorded prices are not evidence of achieved sales. Do not automatically use dealer asking as a realised price.</p>
+        <Link className="secondaryButton inlineButton" to={'/lots?item='+item.id}>Compare separate and grouped selling</Link>
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        {historyError&&<p role="alert">{historyError} Sale recommendation and publication status cannot be confirmed.</p>}

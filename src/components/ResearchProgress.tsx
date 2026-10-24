@@ -55,9 +55,10 @@ export default function ResearchProgress({receipts=[],audit:savedAudit,history,e
   {!condensed&&<p className="ci-page-meta">Statuses come from stored work. Inconclusive investigations and missing historical receipts are distinct from never attempted.</p>}
   {!!history?.runs.length&&<details id={objectLabel?undefined:'item-research-history'}><summary>Stored execution history ({history.runs.length})</summary>{history.runs.map(run=>{
    const execution=run.result?.research_execution_v1
+   const army=run.result?.research_army_v1
    return <div className="note" key={run.id}><strong>{run.created_at} · {run.result?.analysis_stage||'Historical result'}</strong><div>Run {run.id} · {run.model||'Model not recorded'}</div>
-    <p>Recorded result: {typeof run.result?.research_summary==='string'?run.result.research_summary:'No confirmed research result. Recover this request before another paid run.'}</p>
-    {execution?.version===1&&execution.run_id===run.id?<p>Provider receipt {execution.provider_response_id||'ID unavailable'} · {Array.isArray(execution.web_search_calls)?execution.web_search_calls.length:0} recorded web tool calls. Sources still require independent review.</p>:<p>Historical category/tool receipt missing. Original result retained.</p>}
+    <p>Recorded result: {army?.version===1?(army.kind==='PLAN'?`Investigation plan: ${army.payload?.objective||'Original plan retained'}`:army.payload?.report?.summary||'Manual role investigation start; no result recorded.'):typeof run.result?.research_summary==='string'?run.result.research_summary:'No confirmed research result. Recover this request before another paid run.'}</p>
+    {army?.version===1?<p>Native workflow record · {army.kind} · {army.role?.replaceAll('_',' ').toLowerCase()||'seven tasks planned'}. Recorded work and final source qualification remain separate.</p>:execution?.version===1&&execution.run_id===run.id?<p>Provider receipt {execution.provider_response_id||'ID unavailable'} · {Array.isArray(execution.web_search_calls)?execution.web_search_calls.length:0} recorded web tool calls. Sources still require independent review.</p>:<p>Historical category/tool receipt missing. Original result retained.</p>}
    </div>
   })}</details>}
   </>}

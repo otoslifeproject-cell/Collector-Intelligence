@@ -4,10 +4,12 @@ import {auditResearch,researchTypes} from './researchSaleDecision.ts'
 import type {ResearchReceipt,ResearchType} from './researchSaleDecision'
 import {classifyComparables} from './comparableEvidence.ts'
 import {inscriptionObjectIndex} from './inscriptionReview.ts'
+import {parseArmyRecord} from './researchArmy.ts'
+import {readAssessmentContext} from './itemAssessment.ts'
 
 export type ItemResearchRun={id:string;owner_id:string;mode:string;status:string;model:string|null;created_at:string;input_photo_count:number;user_context:any;result:any}
 export type ResearchItemScope={id:string;owner_id:string;source_analysis_run_id?:string|null;source_object_index?:number|null}
-export type ItemResearchHistory={runs:ItemResearchRun[];original:ItemResearchRun|null;paired:boolean;lineageUnresolved:boolean;sourceObjectIndex?:number|null}
+export type ItemResearchHistory={runs:ItemResearchRun[];original:ItemResearchRun|null;paired:boolean;lineageUnresolved:boolean;sourceObjectIndex?:number|null;nativeFactsSha256?:string|null}
 const plain=(v:any)=>v!==null&&typeof v==='object'&&!Array.isArray(v)
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export class ItemResearchError extends Error{}
@@ -55,9 +57,10 @@ export async function readItemResearch(client:SupabaseClient,item:ResearchItemSc
   if(previous&&JSON.stringify(previous)!==JSON.stringify(row))return fail()
   unique.set(row.id,row)
  }
+ const nativeFactsSha256=[...unique.values()].some(r=>String(r.result?.analysis_stage||'').startsWith('ARMY_'))?(await readAssessmentContext(client,item,current)).facts_sha256:null
  const finalAuth=await client.auth.getUser();stop(current)
  if(finalAuth.error||finalAuth.data.user?.id!==item.owner_id)return fail()
- return {runs:[...unique.values()].sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.id.localeCompare(a.id)),original,paired,lineageUnresolved,sourceObjectIndex:item.source_object_index}
+ return {runs:[...unique.values()].sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.id.localeCompare(a.id)),original,paired,lineageUnresolved,sourceObjectIndex:item.source_object_index,nativeFactsSha256}
 }
 
 export async function readItemSaleRows(client:SupabaseClient,table:'comparables'|'trusted_comparables_v1'|'listings',item:ResearchItemScope,current:()=>boolean){
@@ -77,7 +80,7 @@ export async function readItemSaleRows(client:SupabaseClient,table:'comparables'
 // Stored execution is distinct from an independently verified finding. Legacy
 // results and arbitrary model receipt arrays never create completion certificates.
 export function itemResearchAudit(history:ItemResearchHistory,trustedComparables:Comparable[],now=Date.now()){
- const attempts=history.runs.filter(r=>r.result?.analysis_stage!=='STAGED')
+ const attempts=history.runs.filter(r=>r.result?.analysis_stage!=='STAGED'&&!String(r.result?.analysis_stage||'').startsWith('ARMY_'))
  const newest=attempts[0],hasHistory=!!history.original||attempts.length>0
  const receipts:ResearchReceipt[]=researchTypes.map(type=>{
   const base={type,runId:newest?.id||history.original?.id,checkedAt:newest?.created_at||history.original?.created_at}
@@ -89,7 +92,7 @@ export function itemResearchAudit(history:ItemResearchHistory,trustedComparables
   if(newest?.status==='ERROR'||newest?.result?.analysis_stage==='FAILED')return {...base,status:'BLOCKED',detail:'The latest stored investigation failed. Its original record is retained; recover the outcome before resuming this check.'}
   if(history.lineageUnresolved)return {...base,status:'BLOCKED',detail:'Original report retained, but its object-to-catalogue mapping is incomplete. Earlier category work cannot be safely assigned.'}
   if(hasHistory)return {...base,status:'RECEIPT_MISSING',detail:'Historical research is stored. No separate verified category receipt was retained; this does not mean never attempted.'}
-  return {type,status:'NOT_RUN',detail:history.runs.length?'Request staged but no stored dispatch or result.':'No stored attempt found in the completely read item history.'}
+  return {type,status:'NOT_RUN',detail:history.runs.some(r=>String(r.result?.analysis_stage||'').startsWith('ARMY_'))?'A saved role plan is not an execution receipt for this category.':history.runs.length?'Request staged but no stored dispatch or result.':'No stored attempt found in the completely read item history.'}
  })
  if(history.lineageUnresolved)return auditResearch(receipts)
  const set=(type:ResearchType,receipt:Omit<ResearchReceipt,'type'>)=>{const i=receipts.findIndex(r=>r.type===type);receipts[i]={type,...receipt}}
@@ -112,6 +115,19 @@ export function itemResearchAudit(history:ItemResearchHistory,trustedComparables
     confidence:scoped&&typeof mark.transcription_confidence==='number'&&Number.isFinite(mark.transcription_confidence)?mark.transcription_confidence:null,
     detail:scoped?`Stored candidate reading: ${typeof mark.candidate_transcription==='string'?mark.candidate_transcription:'illegible'}. This is provisional reading, not maker authentication.`:'The original report has an inscription review, but it is not independently scoped to this physical piece. Do not copy another piece’s reading or confidence.'})
   }
+ }
+ // Workflow roles declare the exact checks actually attempted. Planning and
+ // reviewer attestations never manufacture completion of all seven categories.
+ const army=history.runs.map(run=>parseArmyRecord(run,{id:run.user_context?.item_id,owner_id:run.owner_id})).filter(r=>r!==null)
+ for(const type of researchTypes){
+  const event=army.filter(r=>r.kind!=='PLAN'&&r.kind!=='ATTESTATION'&&r.payload.report.categoryIds.includes(type)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.eventId.localeCompare(a.eventId))[0]
+  if(!event||event.kind==='PLAN'||event.kind==='ATTESTATION')continue
+  const plan=army.find(r=>r.kind==='PLAN'&&r.workflowId===event.workflowId)
+  if(!plan||plan.kind!=='PLAN'||!plan.payload.tasks.some(t=>t.role===event.role&&t.taskId===event.taskId)||!event.payload.report.photoIds.every(id=>plan.payload.photoIds.includes(id)))continue
+  if(plan.factsSha256!==history.nativeFactsSha256){set(type,{status:'BLOCKED',runId:event.eventId,checkedAt:event.createdAt,sourceRefs:event.payload.report.sourceUrls,detail:'Historical manual investigation retained. Its catalogue facts are earlier or could not be confirmed current; recover the history and create a current-facts plan before resuming.'});continue}
+  const index=receipts.findIndex(r=>r.type===type),previous=receipts[index]
+  if(previous.checkedAt&&Date.parse(previous.checkedAt)>Date.parse(event.createdAt)&&previous.status!=='RECEIPT_MISSING')continue
+  set(type,{status:event.kind==='START'?'RUNNING':event.status==='FAILED'?'FAILED':event.status==='BLOCKED'?'BLOCKED':'INCONCLUSIVE',runId:event.eventId,checkedAt:event.createdAt,sourceRefs:event.payload.report.sourceUrls,detail:event.kind==='START'?'A scoped manual investigation start is recorded. Resume this work; its outcome is not confirmed.':`Recorded manual role investigation: ${event.payload.report.summary} Unresolved: ${event.payload.report.unresolvedIssues} Independent source verification remains separate.`})
  }
  // Caller must supply actual trusted-view rows, not the model's comparable array.
  for(const type of ['AUCTION_REALISED','MARKETPLACE_SOLD'] as const){
