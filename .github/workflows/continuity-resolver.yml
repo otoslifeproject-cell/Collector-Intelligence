@@ -134,6 +134,8 @@ on:
   workflow_dispatch:
 jobs:
   resolver-fixtures:
+    # Do not repeat broader acceptance until the focused browser gate succeeds.
+    needs: photo-storage-integration
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -159,6 +161,8 @@ jobs:
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@remote.example.com/ci_staging_fake' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: remote host permitted'; exit 1; else echo 'PASS: remote host rejected'; fi
           if CI_STAGING_DATABASE_URL='postgresql://fake:fake@db.bwdafrwkimjvwfoqomot.supabase.co/postgres' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: production guard allowed URL'; exit 1; else echo 'PASS: production URL rejected'; fi
   postgres-integration:
+    # Do not repeat broader acceptance until the focused browser gate succeeds.
+    needs: photo-storage-integration
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -189,6 +193,8 @@ jobs:
           CI_ISOLATED_STAGING_CONFIRMED: 'yes'
         run: node scripts/test-continuity-postgres.mjs
   supabase-http-integration:
+    # Do not repeat broader acceptance until the focused browser gate succeeds.
+    needs: photo-storage-integration
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -229,6 +235,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
   application-regression:
+    # Do not repeat broader acceptance until the focused browser gate succeeds.
+    needs: photo-storage-integration
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
