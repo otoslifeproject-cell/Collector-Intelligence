@@ -5,12 +5,12 @@ import type {ResearchAudit} from '../lib/researchSaleDecision'
 import {assessmentIsCurrent,prepareItemAssessment,readAssessmentHistory,settleItemAssessment,ItemAssessmentStaleMissingError} from '../lib/itemAssessment'
 import type {AssessmentRequest,HoldAdvice,StoredItemAssessment} from '../lib/itemAssessment'
 
-type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>;onChanged?:()=>void;onMutating?:(active:boolean)=>void}
+type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>;onChanged?:()=>void;onMutating?:(active:boolean)=>void;qualifiedReviewId?:string}
 const initial:HoldAdvice={decision:'DO_NOT_LIST_YET',rationale:'',unresolvedIssues:'',nextAction:'',routeGuidance:'',confidence:{identification:null,dating:null,valuation:null},sourceRefs:[]}
 export default function ItemAssessment(props:Props){
  return <AssessmentRecord key={`${props.item.owner_id}:${props.item.id}`} {...props}/>
 }
-function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged,onMutating}:Props){
+function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged,onMutating,qualifiedReviewId}:Props){
  const [advice,setAdvice]=useState<HoldAdvice>(initial),[sourceText,setSourceText]=useState('')
  const [rows,setRows]=useState<StoredItemAssessment[]>([]),[currentId,setCurrentId]=useState<string|null>(null)
  const [pending,setPending]=useState<AssessmentRequest|null>(null),[message,setMessage]=useState(''),[error,setError]=useState('')
@@ -54,12 +54,12 @@ function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged,onMutating
   const url=URL.createObjectURL(new Blob([JSON.stringify({format:'collector-item-hold-review-v1',exportedAt:new Date().toISOString(),storageConfirmation:'NOT_CONFIRMED_FOR_THIS_EXPORT',currentStoredDecisionId:currentId,review:data},null,2)],{type:'application/json'}))
   const a=document.createElement('a');a.href=url;a.download=`${item.item_code.replace(/[^a-zA-Z0-9_-]/g,'_')}-hold-review.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
  }
- const latest=rows.find(r=>r.id===currentId)
- return <section className="panel ci-item-assessment" aria-label={`Final item decision — ${item.item_code}`}>
-  <div className="panelHeader"><h2>Final item decision</h2><span>{latest?latest.decision.replaceAll('_',' '):'DO NOT LIST YET'}</span></div>
+ const latest=qualifiedReviewId?undefined:rows.find(r=>r.id===currentId)
+ return <section className="panel ci-item-assessment" aria-label={`Owner hold decision — ${item.item_code}`}>
+  <div className="panelHeader"><h2>Owner hold decision and guidance</h2><span>{latest?latest.decision.replaceAll('_',' '):loaded?'NO CURRENT OWNER HOLD':error?'OWNER HOLD HISTORY UNAVAILABLE':'READING OWNER HOLD HISTORY'}</span></div>
   <p className="ci-page-meta">Research and a final evidenced assessment are required before listing. An owner hold records advice and unresolved work; it cannot verify sources, complete a research stage or approve a sale.</p>
   {latest&&<div><strong>{latest.decision.replaceAll('_',' ')}</strong><p>{latest.assessment.rationale}</p><p>Unresolved: {latest.assessment.unresolvedIssues}</p><p>Next action: {latest.assessment.nextAction}</p><p>Selling guidance: {latest.assessment.routeGuidance}</p><small>Owner-reported, unverified · {latest.created_at} · {latest.id}</small></div>}
-  {!latest&&loaded&&<p>No final hold decision matches the current catalogue facts. {rows.length>0?'Earlier decisions remain in history.':'No stored decision was found.'}</p>}
+  {!latest&&loaded&&<p>{qualifiedReviewId?'The source-reviewed final assessment below governs current readiness. Earlier owner holds remain in history.':'No current owner hold is recorded for these catalogue facts. Research completion and a final source-reviewed decision are assessed separately.'}</p>}
   {error&&<p role="status">{error}</p>}{message&&<p role="status">{message}</p>}
   <button className="secondaryButton inlineButton" disabled={busy} onClick={()=>void load()}>Reload final decision history</button>
   <details style={{marginTop:12}}><summary>Record a hold decision and guidance</summary>
@@ -78,6 +78,6 @@ function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged,onMutating
    </div>
    {pending&&<p>One immutable save is held for this object. Check reads the stored outcome only. A retry uses the same event and facts; do not refresh until confirmed or exported.</p>}
   </details>
-  <details style={{marginTop:12}}><summary>Final decision history ({rows.length})</summary>{rows.map(row=><article key={row.id} style={{marginTop:12,overflowWrap:'anywhere'}}><strong>{row.decision.replaceAll('_',' ')} · {row.id===currentId?'current catalogue facts':'earlier catalogue facts'}</strong><p>{row.assessment.rationale}</p><p>Unresolved: {row.assessment.unresolvedIssues}</p><p>Next: {row.assessment.nextAction}</p><p>{row.assessment.routeGuidance}</p><small>{row.created_at} · {row.id} · owner-reported, unverified</small><details><summary>Full recorded advice, confidence and research snapshot</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>
+  <details style={{marginTop:12}}><summary>Final decision history ({rows.length})</summary>{rows.map(row=><article key={row.id} style={{marginTop:12,overflowWrap:'anywhere'}}><strong>{row.decision.replaceAll('_',' ')} · {row.id===currentId&&!qualifiedReviewId?'current catalogue facts':'historical owner hold'}</strong><p>{row.assessment.rationale}</p><p>Unresolved: {row.assessment.unresolvedIssues}</p><p>Next: {row.assessment.nextAction}</p><p>{row.assessment.routeGuidance}</p><small>{row.created_at} · {row.id} · owner-reported, unverified</small><details><summary>Full recorded advice, confidence and research snapshot</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>
  </section>
 }

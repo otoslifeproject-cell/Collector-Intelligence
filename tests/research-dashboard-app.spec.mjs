@@ -29,7 +29,7 @@ test('denied history is blocked rather than zero progress and GET-only recovery 
  await page.unroute('**/rest/v1/ai_analysis_runs*');await panel.getByRole('button',{name:'Reload saved research history',exact:true}).click();await expect(panel).toContainText('1 saved research executions');expect(events.paid).toEqual([]);
 });
 test('final hold survives a committed save with denied readback, GET-only Check and refresh',async({page})=>{
- const item=await seedItem();await research(item.id);const events=await login(page,'/#/item/'+item.id);const panel=page.getByRole('region',{name:'Final item decision — '+item.item_code,exact:true});
+ const item=await seedItem();await research(item.id);const events=await login(page,'/#/item/'+item.id);const panel=page.getByRole('region',{name:'Owner hold decision — '+item.item_code,exact:true});
  await expect(panel).toContainText('No stored decision was found.');await panel.getByText('Record a hold decision and guidance',{exact:true}).click();
  await panel.getByLabel('Decision',{exact:true}).selectOption('SPECIALIST_REVIEW');
  await panel.getByLabel('Decision rationale (at least 40 characters)',{exact:true}).fill('Both signatures require independent review and maker authentication remains unresolved.');
@@ -50,7 +50,7 @@ test('catalogue facts changing preserve earlier final hold and require a fresh d
  const {holdPayload}=await import('../src/lib/itemAssessment.ts');const {auditResearch}=await import('../src/lib/researchSaleDecision.ts');
  const payload=holdPayload({decision:'DO_NOT_LIST_YET',rationale:'Condition and maker attribution require investigation before sale is appropriate.',unresolvedIssues:'Condition and maker.',nextAction:'Review original bases.',routeGuidance:'Do not list until valuation is evidenced.',confidence:{identification:null,dating:null,valuation:null},sourceRefs:[]},auditResearch([]));
  const saved=await client.rpc('ci_record_item_hold_assessment_v1',{p_item_id:item.id,p_client_event_id:randomUUID(),p_expected_facts_sha256:context.data.facts_sha256,p_assessment:payload});expect(saved.error).toBeNull();
- const events=await login(page,'/#/item/'+item.id),panel=page.getByRole('region',{name:'Final item decision — '+item.item_code,exact:true});await expect(panel).toContainText('Condition and maker attribution require investigation');
+ const events=await login(page,'/#/item/'+item.id),panel=page.getByRole('region',{name:'Owner hold decision — '+item.item_code,exact:true});await expect(panel).toContainText('Condition and maker attribution require investigation');
  expect((await client.from('items').update({condition_summary:'New condition observation'}).eq('id',item.id)).error).toBeNull();await page.reload();await expect(panel).toContainText('Earlier decisions remain in history.');await panel.getByText('Final decision history (1)',{exact:true}).click();await expect(panel).toContainText('earlier catalogue facts');await expect(panel).toContainText(payload.rationale);expect(events.paid).toEqual([]);
 });
 test('oldest persisted item investigation survives more than100 newer attempts',async({page})=>{

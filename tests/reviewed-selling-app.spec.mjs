@@ -7,6 +7,7 @@ async function login(page){const paid=[],errors=[];page.on('pageerror',e=>errors
 test('independent stored review enables allthree costed routes and a persisted unpublished platform draft',async({page})=>{
  test.setTimeout(60000);
  await page.setViewportSize({width:1440,height:1000});const events=await login(page),audit=page.getByRole('region',{name:'Research dashboard — '+item.item_code,exact:true});await expect(audit.getByRole('progressbar')).toHaveAttribute('value','7');await expect(page.getByRole('region',{name:'Independently reviewed final assessment'})).toContainText('READY TO LIST');
+ const ownerHold=page.getByRole('region',{name:'Owner hold decision — '+item.item_code,exact:true});await expect(ownerHold).toContainText('NO CURRENT OWNER HOLD');await expect(ownerHold.locator('.panelHeader')).not.toContainText('DO NOT LIST YET');
  const plan=page.getByRole('region',{name:'Sell Fast plan and listing preparation',exact:true});
  const comp=await client.from('trusted_comparables_v1').select('*').eq('item_id',item.id).eq('price_type','HAMMER_REALIZED').single();expect(comp.error).toBeNull();
  for(const [i,mode]of ['FAST CASH','BALANCED','MAX VALUE'].entries()){
