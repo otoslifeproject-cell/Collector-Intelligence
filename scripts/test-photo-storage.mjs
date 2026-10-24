@@ -14,6 +14,7 @@ import {installReviewedAssessmentFixtures,seedReviewedAssessmentFixture} from '.
 import {exercisePhotoStorage} from './test-photo-storage-cases.mjs';
 import {exerciseResearchArmy} from './test-research-army.mjs';
 import {exerciseSaleGroups} from './test-sale-groups.mjs';
+import {installLotEvidenceFixtures,exerciseLotEvidence,seedLotEvidenceFixture} from './test-lot-evidence.mjs';
 
 const input=process.env.CI_STAGING_DATABASE_URL;
 const target=assertIsolatedDatabaseConfig(input,process.env.CI_ISOLATED_STAGING_CONFIRMED);
@@ -94,6 +95,7 @@ try{
  await admin.query(await read('tests/fixtures/research-session-support.sql'));
  await admin.query(await read('supabase/proposals/item-research-assessments.sql'));
  await installReviewedAssessmentFixtures(admin,read);
+ await installLotEvidenceFixtures(admin,read);
  await admin.query(await read('supabase/proposals/research-army.sql'));
  await admin.query(await read('supabase/proposals/sale-groups.sql'));
  // Install every application RPC before PostgREST builds its schema cache.
@@ -129,6 +131,8 @@ try{
  const integration={admin,rest,check,A,B,anon:anonKey,anonToken:anonKey,storageClient:A.client,API,key:publishableKey,sdk:A.client,credentials:{email:'photo-ci-a@example.test',password:'Ci-disposable-photo-4826!'}};
  await exerciseResearchArmy(integration);
  await exerciseSaleGroups(integration);
+ await exerciseLotEvidence(integration);
+ await seedLotEvidenceFixture(admin,A.id,{client:A.client,title:'SYNTHETIC browser qualified lot',quantity:3});
  await seedReviewedAssessmentFixture(admin,A.id,{client:A.client});
  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
   env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:900000,maxBuffer:4*1024*1024,

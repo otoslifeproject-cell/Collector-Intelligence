@@ -950,3 +950,8 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-lot-history details{margin:12px 0}
 .ci-lot-history summary{cursor:pointer;min-height:44px;padding:12px 0}
 .ci-lot-scroll{max-height:360px;max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.ci-lot-comparisons{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+.ci-lot-comparison dl{display:grid;gap:6px}
+.ci-lot-comparison dd{margin:0;font-weight:700}
+.ci-lot-allocation label{display:flex;align-items:flex-start;gap:8px}
+.ci-lot-allocation input[type=checkbox]{width:auto;flex:none;margin-top:4px}

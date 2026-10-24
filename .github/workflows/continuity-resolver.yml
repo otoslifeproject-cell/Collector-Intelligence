@@ -2,6 +2,10 @@ name: Continuity resolver fixtures
 on:
   pull_request:
     paths:
+      - 'src/lib/lotEvidence.ts'
+      - 'supabase/proposals/lot-comparable-composition.sql'
+      - 'scripts/test-lot-evidence.mjs'
+      - 'tests/lot-evidence*.mjs'
       - 'src/lib/researchArmy.ts'
       - 'src/lib/lotOptimizer.ts'
       - 'src/components/ResearchArmyWorkspace.tsx'

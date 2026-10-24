@@ -12,9 +12,9 @@ export type LotStrategy=typeof lotStrategies[number]
 export const lotStrategyTitles:Record<LotStrategy,string>={ALL_SOLO:'Separate items',MATCHED_SETS:'Matching sets',CURATED_BUNDLES:'Curated bundles',HYBRID:'Hybrid',AUCTION_OR_DEALER:'Auction / dealer clearance'}
 export type SaleGroupMember={itemId:string;photoIds:string[]}
 export type SaleGroupDraft={format:'collector-sale-group-v1';ownerId:string;groupId:string;revision:number;title:string;relation:GroupRelation;members:SaleGroupMember[];rationale:string;sourceRefs:string[];uncertainty:string;plans:LotPlan[]}
-export type LotComparable={id:string;ownerId:string;sourceUrl:string;sourceReference:string;venue:string;saleDate:string;currency:string;totalPrice:number|null;priceType:string;quantity:number;members:{description:string;makerConfidence:string;condition:string}[];unitPrice:null;compositionReviewId?:string;conversionSource?:string}
+export type LotComparable={id:string;ownerId:string;sourceUrl:string;sourceReference:string;venue:string;saleDate:string;currency:string;totalPrice:number|null;priceType:string;quantity:number;members:{description:string;makerConfidence:string;condition:string}[];unitPrice:null;compositionReviewId?:string;conversionSource?:string;targetItemIds?:string[];compositionRelationship?:'SINGLE_OBJECT'|GroupRelation;sourceItemId?:string;sourceSnapshotSha256?:string}
 export type LotCosts={sellerCommissionPercent:number|null;commissionVatPercent:number|null;minimumCommission:number|null;listingFee:number|null;unsoldFee:number|null;paymentPercent:number|null;paymentFixed:number|null;packing:number|null;delivery:number|null;insurance:number|null;breakageReturnAllowance:number|null;unsoldPreparation:number|null}
-export type LotLine={id:string;itemIds:string[];groupId:string|null;venue:string;comparableId:string;priceAdjustment:string;grossLow:number|null;grossHigh:number|null;grossBasis:'UNKNOWN'|'SELLER_GROSS'|'BUYER_TOTAL';costs:LotCosts;saleProbability:number|null;daysLow:number|null;daysHigh:number|null;workHours:number|null;feeSource:string;eligibilitySource:string;checkedAt:string;shippingInstructions:string}
+export type LotLine={id:string;itemIds:string[];groupId:string|null;venue:string;comparableId:string;compositionReviewId?:string;sourceSnapshotSha256?:string;priceAdjustment:string;grossLow:number|null;grossHigh:number|null;grossBasis:'UNKNOWN'|'SELLER_GROSS'|'BUYER_TOTAL';costs:LotCosts;saleProbability:number|null;daysLow:number|null;daysHigh:number|null;workHours:number|null;feeSource:string;eligibilitySource:string;checkedAt:string;shippingInstructions:string}
 export type LotPlan={id:string;strategy:LotStrategy;objective:SellMode;currency:string;itemIds:string[];lines:LotLine[]}
 export type LotInventoryMember={item:Item;photoIds:string[];research:ResearchSaleGate;specialistRisk:boolean;acquisitionCost?:number|null;acquisitionCurrency?:string|null}
 export type LotLineAssessment={line:LotLine;conditionalNetLow:number|null;conditionalNetHigh:number|null;expectedNetLow:number|null;expectedNetHigh:number|null;feesLow:number|null;feesHigh:number|null;blockers:string[]}
@@ -50,6 +50,13 @@ export function validateSaleGroup(group:SaleGroupDraft,inventory:LotInventoryMem
  if(['MATCHED_ORIGINAL_SET','SAME_MAKER_PATTERN'].includes(group.relation)&&!group.sourceRefs.length)errors.push('A matching-set or maker/pattern relationship needs documentary references; colour or UV glow is insufficient.')
  return [...new Set(errors)]
 }
+export function eligibleLotComparable(comp:LotComparable,itemIds:string[],strategy:LotStrategy,currency:string,ownerId:string):boolean{
+ const targets=comp.targetItemIds
+ return comp.ownerId===ownerId&&comp.currency===currency&&achieved.has(comp.priceType)&&comp.totalPrice!==null&&comp.quantity===itemIds.length&&!!comp.compositionReviewId&&uuid.test(comp.compositionReviewId)&&
+  unique(itemIds)&&unique(targets)&&targets.length===itemIds.length&&[...targets].sort().join(',')===[...itemIds].sort().join(',')&&
+  (itemIds.length===1?comp.compositionRelationship==='SINGLE_OBJECT':groupRelations.includes(comp.compositionRelationship as GroupRelation))&&
+  (strategy!=='MATCHED_SETS'||itemIds.length===1||['MATCHED_ORIGINAL_SET','SAME_MAKER_PATTERN'].includes(comp.compositionRelationship||''))
+}
 function assessLine(line:LotLine,plan:LotPlan,inventory:LotInventoryMember[],comparables:LotComparable[],qualifiedIds:string[],today:string):LotLineAssessment{
  const blockers:string[]=[];const c=line.costs||emptyLotCosts()
  const complete=Object.keys(c).length===costKeys.length&&costKeys.every(k=>money(c[k]))&&c.sellerCommissionPercent!<=100&&c.commissionVatPercent!<=100&&c.paymentPercent!<=100&&money(line.grossLow)&&money(line.grossHigh)&&line.grossHigh>=line.grossLow&&line.grossBasis==='SELLER_GROSS'
@@ -69,7 +76,8 @@ function assessLine(line:LotLine,plan:LotPlan,inventory:LotInventoryMember[],com
   if(m.item.currency!==plan.currency)blockers.push('Use one confirmed currency; no conversion is assumed.')
  }
  const comps=comparables.filter(x=>x.id===line.comparableId),comp=comps.length===1?comps[0]:undefined
- if(!comp||!qualifiedIds.includes(comp.id)||!achieved.has(comp.priceType)||comp.currency!==plan.currency||members.some(m=>m.item.owner_id!==comp.ownerId)||comp.totalPrice===null||comp.quantity!==line.itemIds.length||!comp.compositionReviewId||!uuid.test(comp.compositionReviewId))blockers.push('A separately source-reviewed achieved lot with verified complete composition and matching quantity is required; a group total cannot price one component.')
+ if(!comp||!qualifiedIds.includes(comp.id)||!eligibleLotComparable(comp,line.itemIds,plan.strategy,plan.currency,members[0]?.item.owner_id||''))blockers.push('A separately source-reviewed achieved lot with verified complete composition and this exact physical target set is required; a group total cannot price one component.')
+ if(comp&&(line.compositionReviewId!==comp.compositionReviewId||!sha.test(comp.sourceSnapshotSha256||'')||line.sourceSnapshotSha256!==comp.sourceSnapshotSha256))blockers.push('The selected source review pin is missing or stale. Reselect its current independently reviewed composition before saving or reserving.')
  if(comp&&(!/^\d{4}-\d{2}-\d{2}$/.test(comp.saleDate)||!Number.isFinite(Date.parse(comp.saleDate))||new Date(comp.saleDate).toISOString().slice(0,10)!==comp.saleDate||comp.saleDate>today))blockers.push('Comparable sale date must be a real recorded date, not a future or unreadable value.')
  if(comp?.priceType==='REALIZED_INCL_BP'&&!safeSourceUrl(comp.conversionSource))blockers.push('Document the premium-to-seller-gross conversion; buyer premium is not a seller fee.')
  if(!safeSourceUrl(line.feeSource)||!safeSourceUrl(line.eligibilitySource)||!validReviewDate(line.checkedAt,today))blockers.push('Record current fee/eligibility sources checked within 30 days.')
@@ -99,11 +107,43 @@ export function assessLotPlan(plan:LotPlan,inventory:LotInventoryMember[],compar
 export function compareLotPlans(assessments:LotPlanAssessment[],objective:SellMode='FAST_CASH'){
  const rank=(rows:LotPlanAssessment[])=>[...rows].sort((a,b)=>objective==='FAST_CASH'?(a.daysHigh??Infinity)-(b.daysHigh??Infinity)||(b.expectedNetLow??-Infinity)-(a.expectedNetLow??-Infinity):(b.expectedNetLow??-Infinity)-(a.expectedNetLow??-Infinity)||(a.workHours??Infinity)-(b.workHours??Infinity))
  // Plans must cover the same physical collection and currency to be compared.
- const first=assessments[0]?.plan,scope=first?[...first.itemIds].sort().join(','):''
- const comparable=assessments.filter(a=>a.plan.currency===first?.currency&&[...a.plan.itemIds].sort().join(',')===scope)
+ const first=assessments.find(a=>a.plan.objective===objective)?.plan,scope=first?[...first.itemIds].sort().join(','):''
+ const comparable=assessments.filter(a=>a.plan.objective===objective&&a.plan.currency===first?.currency&&[...a.plan.itemIds].sort().join(',')===scope)
  const recommendation=rank(comparable.filter(a=>a.ready))[0]||null
  const conditionalChoice=rank(comparable.filter(a=>a.expectedNetLow!==null&&a.daysHigh!==null&&a.workHours!==null))[0]||null
  return {recommendation,conditionalChoice,reason:recommendation?`${lotStrategyTitles[recommendation.plan.strategy]} is the best supported entered ${objective.replaceAll('_',' ')} plan, using ${objective==='FAST_CASH'?'the shorter assumed sale window, then conservative expected net':'conservative expected net, then practical workload'}. These are conditional plans, not guaranteed prices or publication approval.`:'No strategy has complete independent research, composition evidence and current economics. Any highlighted arithmetic remains hypothetical; there is no evidence-backed sale recommendation.'}
+}
+
+export type PartitionSearch={plans:LotPlan[];truncated:boolean;visited:number;reason:string}
+// Search only exact member sets for which somebody entered a complete lot line.
+// A source lot does not supply this object's gross, probability or shipping cost.
+// Canonical IDs make selection independent of inventory/upload order. Bounded
+// traversal is explicit: a bounded winner is never called a global optimum.
+export function candidateLotPartitions(itemIds:string[],currency:string,objective:SellMode,entered:LotPlan[],inventory:LotInventoryMember[]=[],limit=128):PartitionSearch{
+ const ids=[...new Set(itemIds)].sort(),scope=ids.join(','),max=Math.min(256,Math.max(1,Math.floor(limit)))
+ if(!unique(itemIds)||ids.length>12||!knownSaleCurrency(currency)||!sellModes.includes(objective))return {plans:[],truncated:false,visited:0,reason:'Choose at most twelve exact physical objects in one confirmed currency.'}
+ const key=(xs:string[])=>[...xs].sort().join(','),pool=new Map<string,LotLine>()
+ for(const plan of entered.filter(p=>p.currency===currency&&p.objective===objective&&key(p.itemIds)===scope))for(const line of plan.lines){
+  if(!unique(line.itemIds)||line.itemIds.some(id=>!ids.includes(id))||line.itemIds.length>1&&inventory.some(m=>line.itemIds.includes(m.item.id)&&m.specialistRisk))continue
+  // Keep different explicitly entered venue/cost scenarios, even for one subset.
+  const fingerprint=stable({...line,id:null,itemIds:[...line.itemIds].sort()})
+  if(!pool.has(fingerprint))pool.set(fingerprint,clone(line))
+ }
+ const lines=[...pool.entries()].sort(([a],[b])=>a.localeCompare(b)).slice(0,120).map(([,line])=>line)
+ const candidates:LotPlan[]=[],seen=new Set<string>();let visited=0,truncated=pool.size>120
+ const walk=(remaining:string[],chosen:LotLine[])=>{
+  if(candidates.length>=max||visited>=10000){truncated=true;return}visited++
+  if(!remaining.length){
+   const signature=chosen.map(l=>stable({...l,id:null,itemIds:[...l.itemIds].sort()})).sort().join('|');if(seen.has(signature))return;seen.add(signature)
+   const solo=chosen.some(l=>l.itemIds.length===1),grouped=chosen.some(l=>l.itemIds.length>1)
+   const partitionStrategy:LotStrategy=solo&&grouped?'HYBRID':grouped?'CURATED_BUNDLES':'ALL_SOLO'
+   candidates.push({id:crypto.randomUUID(),strategy:partitionStrategy,objective,currency,itemIds:ids,lines:chosen.map(l=>clone(l))});return
+  }
+  const next=remaining[0]
+  for(const line of lines){if(!line.itemIds.includes(next)||line.itemIds.some(id=>!remaining.includes(id)))continue;walk(remaining.filter(id=>!line.itemIds.includes(id)),[...chosen,line]);if(candidates.length>=max||visited>=10000){truncated=true;break}}
+ }
+ walk(ids,[])
+ return {plans:candidates,truncated,visited,reason:!lines.length?'Enter source-linked economics for individual objects and plausible groups before comparing alternate partitions.':truncated?'Compared a bounded selection of entered lot partitions; some combinations remain unexplored.':'Compared every exact-cover partition available from the entered lot assumptions. Missing lot assumptions were not invented.'}
 }
 
 export type StoredGroupRevision={id:string;owner_id:string;group_id:string;revision:number;client_event_id:string;group_data:SaleGroupDraft;member_graphs:Record<string,string>;created_at:string}
@@ -114,11 +154,11 @@ const checkSelected=(current:()=>boolean)=>{if(!current())throw Error('This owne
 async function owner(client:SupabaseClient,current:()=>boolean){checkSelected(current);const a=await client.auth.getUser();checkSelected(current);if(a.error||!a.data.user?.id)throw Error('Sign in again to read your private lot plans.');return a.data.user.id}
 async function completeRows(client:SupabaseClient,table:string,ownerId:string,current:()=>boolean){
  const all:any[]=[];let count:number|undefined
- do{const r=await client.from(table).select('*',{count:'exact'}).eq('owner_id',ownerId).order(table==='active_item_sale_claims_v1'?'item_id':'created_at',{ascending:true}).range(all.length,all.length+99).abortSignal(AbortSignal.timeout(20000));checkSelected(current)
-  if(r.error||!r.data||r.count===null||r.count>1000||(count!==undefined&&count!==r.count)||r.data.length!==Math.min(100,r.count-all.length))throw Error('Complete lot history is unavailable. Reload before saving or approving; missing history is not an empty collection.')
+ do{let query=client.from(table).select('*',{count:'exact'}).eq('owner_id',ownerId).order(table==='active_item_sale_claims_v1'?'item_id':'created_at',{ascending:true});if(table!=='active_item_sale_claims_v1')query=query.order('id',{ascending:true});const r=await query.range(all.length,all.length+99).abortSignal(AbortSignal.timeout(20000));checkSelected(current)
+  if(r.error||!r.data||r.count===null||r.count<0||r.count>1000||(count!==undefined&&count!==r.count)||r.data.length!==Math.min(100,r.count-all.length))throw Error('Complete lot history is unavailable. Reload before saving or approving; missing history is not an empty collection.')
   count=r.count;all.push(...r.data)
  }while(all.length<count)
- if(all.some(r=>r.owner_id!==ownerId))throw Error('Lot history belongs to a different account.');return all
+ if(all.some(r=>r.owner_id!==ownerId)||new Set(all.map(r=>table==='active_item_sale_claims_v1'?r.item_id:r.id)).size!==all.length)throw Error('Lot history has conflicting identities or belongs to a different account.');return all
 }
 export async function readSaleGroups(client:SupabaseClient,current:()=>boolean){
  const ownerId=await owner(client,current),[revisions,events,claims]=await Promise.all([completeRows(client,'sale_group_revisions',ownerId,current),completeRows(client,'sale_group_events',ownerId,current),completeRows(client,'active_item_sale_claims_v1',ownerId,current)])

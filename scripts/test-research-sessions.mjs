@@ -10,6 +10,7 @@ import {installReviewedAssessmentFixtures,exerciseReviewedItemAssessments} from 
 import {exercisePaidScopeClaims} from './test-paid-scope-claims.mjs';
 import {exerciseResearchArmy} from './test-research-army.mjs';
 import {exerciseSaleGroups} from './test-sale-groups.mjs';
+import {installLotEvidenceFixtures,exerciseLotEvidence} from './test-lot-evidence.mjs';
 
 export async function installResearchSessionFixtures(admin,read){
   await admin.query(await read('tests/fixtures/catalogue-storage-metadata.sql'));
@@ -35,6 +36,7 @@ export async function installResearchSessionFixtures(admin,read){
     '20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])
     await admin.query(await read('supabase/migrations/'+file));
   await installReviewedAssessmentFixtures(admin,read);
+  await installLotEvidenceFixtures(admin,read);
   await admin.query(await read('supabase/proposals/research-army.sql'));
   await admin.query(await read('supabase/proposals/sale-groups.sql'));
 }
@@ -60,6 +62,7 @@ export async function exerciseResearchSessions({admin,rest,check,A,B,anon,API,ke
   await exerciseReviewedItemAssessments({admin,rest,check,A,B,anon,API,key,sdk});
   await exerciseResearchArmy({admin,rest,check,A,B,anon,API,key,sdk});
   await exerciseSaleGroups({admin,rest,check,A,B,anon,API,key,sdk});
+  await exerciseLotEvidence({admin,rest,check,A,B,anon,API,key,sdk});
   const historyItem=await post(A.token,'items',{source_analysis_run_id:draft.id,source_object_index:1});assert.equal(historyItem.status,201);const target=(await historyItem.json())[0];
   let directHistory;
   await check('item history SDK recovers101 real owner-scoped responses with exact pagination',async()=>{

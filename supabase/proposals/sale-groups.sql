@@ -111,7 +111,7 @@ grant execute on function public.ci_save_sale_group_revision_v1(uuid,uuid,intege
 
 create function ci_sale_private.record_group_event_v1(p_event_id uuid,p_revision_id uuid,p_kind text,p_payload jsonb)
 returns public.sale_group_events language plpgsql security definer set search_path=pg_catalog as $$
-declare v_owner uuid:=auth.uid();v_revision public.sale_group_revisions%rowtype;v_old public.sale_group_events%rowtype;v_new public.sale_group_events%rowtype;v_last public.sale_group_events%rowtype;v_item uuid;v_ids uuid[];v_graph text;
+declare v_owner uuid:=auth.uid();v_revision public.sale_group_revisions%rowtype;v_old public.sale_group_events%rowtype;v_new public.sale_group_events%rowtype;v_last public.sale_group_events%rowtype;v_item uuid;v_ids uuid[];v_graph text;v_plan jsonb;v_scope uuid[];v_allocations uuid[];
 begin
  if v_owner is null or p_event_id is null or p_revision_id is null or p_kind is null or p_kind not in('APPROVE','RELEASE','SOLD') or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>20000 then raise exception 'Authenticated owner and bounded group event required';end if;
  select * into v_revision from public.sale_group_revisions where id=p_revision_id and owner_id=v_owner;
@@ -127,6 +127,17 @@ begin
   if p_payload->'ownerConfirmed' is distinct from 'true'::jsonb or length(btrim(coalesce(p_payload->>'rationale','')))<40 then raise exception 'Explicit owner plan reservation and rationale required; this does not publish';end if;
   if v_revision.revision<>(select max(revision) from public.sale_group_revisions where owner_id=v_owner and group_id=v_revision.group_id) then raise exception 'Approve the latest group revision only';end if;
   if v_last.kind in('APPROVE','SOLD') then raise exception 'The group is already reserved or sold';end if;
+  -- Legacy no-plan events reserve a physical owner plan only. A researched
+  -- plan reference must still match current independently reviewed lot sources
+  -- and allocate precisely this revision's objects at the point of reservation.
+  if p_payload ? 'planId' then
+   if (select count(*) from jsonb_array_elements(v_revision.group_data->'plans') p where p->>'id'=p_payload->>'planId')<>1 then raise exception 'Choose exactly one stored researched plan';end if;
+   select p into v_plan from jsonb_array_elements(v_revision.group_data->'plans') p where p->>'id'=p_payload->>'planId';
+   perform 1 from public.comparables c where c.owner_id=v_owner and c.id in(select (l->>'comparableId')::uuid from jsonb_array_elements(v_plan->'lines') l) order by c.id for update;
+   select array_agg(x::uuid order by x::uuid) into v_scope from jsonb_array_elements_text(v_plan->'itemIds') x;
+   select array_agg(x::uuid order by x::uuid) into v_allocations from jsonb_array_elements(v_plan->'lines') l cross join lateral jsonb_array_elements_text(l->'itemIds') x;
+   if v_scope is distinct from v_ids or v_allocations is distinct from v_ids or not public.ci_lot_plan_sources_current_v1(v_owner,v_plan) then raise exception 'Researched plan must cover these exact objects once and retain current independently reviewed source pins';end if;
+  end if;
   foreach v_item in array v_ids loop
    if exists(select 1 from public.sale_outcomes where item_id=v_item and owner_id=v_owner and gross_sale is not null) then raise exception 'A physical member already has an individual sold outcome';end if;
    if exists(select 1 from public.items where id=v_item and owner_id=v_owner and status='SOLD') then raise exception 'A physical member is already sold';end if;
@@ -169,7 +180,7 @@ begin
  if tg_op='DELETE' then v_owner:=old.owner_id;v_item:=old.item_id;else v_owner:=new.owner_id;v_item:=new.item_id;end if;
  if tg_op='UPDATE' and (old.owner_id is distinct from new.owner_id or old.item_id is distinct from new.item_id) then raise exception 'Listing physical owner/item identity is immutable';end if;
  perform 1 from public.items where id=v_item and owner_id=v_owner for update;
- if not found then raise exception 'Listing item does not belong to its owner';end if;
+ if not found then raise exception 'Listing item does not belong to its owner' using errcode='42501';end if;
  select * into v_claim from ci_sale_private.active_item_sale_claims where owner_id=v_owner and item_id=v_item;
  if tg_op<>'INSERT' and (old.listing_status='SOLD' or (v_claim.source_kind='LISTING' and v_claim.source_id=old.id and v_claim.state='SOLD')) and (tg_op='DELETE' or new.listing_status<>'SOLD') then raise exception 'A recorded individual sale cannot be reopened or erased; preserve its history';end if;
  if tg_op<>'DELETE' and new.listing_status in('READY','PUBLISHED','SOLD') then
@@ -200,7 +211,7 @@ begin
  if tg_op='UPDATE' and old.gross_sale is not null and old.gross_sale is distinct from new.gross_sale then raise exception 'Recorded achieved amount cannot be erased or replaced';end if;
  if new.gross_sale is null then return new;end if;
  perform 1 from public.items where id=new.item_id and owner_id=new.owner_id for update;
- if not found then raise exception 'Sale item does not belong to this owner';end if;
+ if not found then raise exception 'Sale item does not belong to this owner' using errcode='42501';end if;
  select * into v_claim from ci_sale_private.active_item_sale_claims where owner_id=new.owner_id and item_id=new.item_id;
  if found and not (v_claim.source_kind='OUTCOME' and v_claim.source_id=new.id and v_claim.state='SOLD') and not(v_claim.source_kind='LISTING' and v_claim.state='RESERVED') then raise exception 'Physical object is reserved or already sold by another route';end if;
  if exists(select 1 from public.sale_outcomes s where s.owner_id=new.owner_id and s.item_id=new.item_id and s.id<>new.id and s.gross_sale is not null) or exists(select 1 from public.listings l where l.owner_id=new.owner_id and l.item_id=new.item_id and l.listing_status='SOLD') then raise exception 'Physical object already has a recorded individual sale';end if;
