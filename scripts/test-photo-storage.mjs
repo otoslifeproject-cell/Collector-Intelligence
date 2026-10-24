@@ -134,10 +134,17 @@ try{
  await exerciseLotEvidence(integration);
  await seedLotEvidenceFixture(admin,A.id,{client:A.client,title:'SYNTHETIC browser qualified lot',quantity:3});
  await seedReviewedAssessmentFixture(admin,A.id,{client:A.client});
- const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
-  env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:900000,maxBuffer:4*1024*1024,
- }).catch(error=>{console.error(error.stdout,error.stderr);console.error('Browser process outcome',JSON.stringify({code:error.code??null,signal:error.signal??null,killed:error.killed??false,budget_ms:900000}));throw Error('Disposable photo application browser acceptance failed. See browser output and process outcome.');});
- console.log(browser.stdout,browser.stderr);
+ // The release checkpoint runs its two failed journeys first. Only after both
+ // pass do the remaining cases run, against the same disposable services.
+ // Separate output directories preserve both phases; no retries or skipped cases.
+ const checkpoint='reviewed whole-lot source enables|per-object seven-role plan';
+ for(const [phase,filter] of [['checkpoint',['--grep',checkpoint]],['remaining',['--grep-invert',checkpoint]]]){
+  console.log('Browser acceptance phase:',phase);
+  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line','--output',`test-artifacts/photo-app-${phase}-results`,...filter],{
+   env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:900000,maxBuffer:4*1024*1024,
+  }).catch(error=>{console.error(error.stdout,error.stderr);console.error('Browser process outcome',JSON.stringify({phase,code:error.code??null,signal:error.signal??null,killed:error.killed??false,budget_ms:900000}));throw Error('Disposable photo application browser acceptance failed. See browser output and process outcome.');});
+  console.log(browser.stdout,browser.stderr);
+ }
  console.log(`${passed} real Supabase Storage byte assertions passed. Disposable file backend with genuine Auth/Kong/REST/SDK; browser output covers the exercised full-application routes, not hosted S3/CDN or untested flows.`);
 }catch(error){
  for(const container of containers){try{const log=await exec('docker',['logs','--tail','45',container],{maxBuffer:2*1024*1024});console.error(container,log.stdout,log.stderr);}catch{}}
