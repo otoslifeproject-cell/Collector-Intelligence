@@ -77,7 +77,9 @@ export async function exerciseSaleGroups({admin,rest,check,A,B,anon,API,key,sdk,
  await check('individual SOLD status keeps an exclusive claim and cannot be reopened or deleted',async()=>{
   const f=await seedReviewedAssessmentFixture(admin,A.id,{client:storageClient,title:'SYNTHETIC individually sold claim'}),r=await rest(A.token,'listings',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({owner_id:A.id,item_id:f.item.id,platform:'eBay',listing_status:'SOLD'})});assert.equal(r.status,201,await r.clone().text());const listing=(await r.json())[0];
   assert.equal((await actual(f.item.id)).status,400);
-  for(const method of ['PATCH','DELETE'])assert.equal((await rest(A.token,'listings?id=eq.'+listing.id,{method,...(method==='PATCH'?{body:JSON.stringify({listing_status:'DRAFT'})}:{})})).status,400);
+  for(const method of ['PATCH','DELETE'])assert.equal((await rest(A.token,'listings?id=eq.'+listing.id,{method,...(method==='PATCH'?{body:JSON.stringify({listing_status:'DRAFT'})}:{})})).status,method==='DELETE'?403:400);
+  assert.equal((await admin.query('select listing_status from public.listings where id=$1',[listing.id])).rows[0].listing_status,'SOLD');
+  assert.equal((await admin.query('select state from ci_sale_private.active_item_sale_claims where owner_id=$1 and item_id=$2',[A.id,f.item.id])).rows[0].state,'SOLD');
   const held=await prepareSaleGroupRevision(sdk,draft(randomUUID(),[f]),()=>true),row=await settleSaleGroupRequest(sdk,held,()=>true,true);assert.equal((await rpc(A.token,await event(row,'APPROVE',approve))).status,400);
  });
  await check('individual outcome and group approval races serialize to exactly one physical sale route',async()=>{
