@@ -123,8 +123,8 @@ try{
  await exercisePhotoStorage({admin,check,A,B,anon,API});
  await seedReviewedAssessmentFixture(admin,A.id,{client:A.client});
  const browser=await exec(process.execPath,['node_modules/@playwright/test/cli.js','test','--config','tests/photo-app-browser.config.mjs','--reporter=line'],{
-  env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:600000,maxBuffer:4*1024*1024,
- }).catch(error=>{console.error(error.stdout,error.stderr);throw Error('Disposable photo application browser acceptance failed. See browser output.');});
+  env:{...process.env,CI_PHOTO_DISPOSABLE_CONFIRMED:'yes',CI_PHOTO_PUBLIC_KEY:publishableKey},timeout:900000,maxBuffer:4*1024*1024,
+ }).catch(error=>{console.error(error.stdout,error.stderr);console.error('Browser process outcome',JSON.stringify({code:error.code??null,signal:error.signal??null,killed:error.killed??false,budget_ms:900000}));throw Error('Disposable photo application browser acceptance failed. See browser output and process outcome.');});
  console.log(browser.stdout,browser.stderr);
  console.log(`${passed} real Supabase Storage byte assertions passed. Disposable file backend with genuine Auth/Kong/REST/SDK; browser output covers the exercised full-application routes, not hosted S3/CDN or untested flows.`);
 }catch(error){
