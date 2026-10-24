@@ -93,7 +93,7 @@ function ItemDetailRecord({id}:{id:string}) {
   useEffect(()=>{if(!uploading&&photographMessage)photoStatus.current?.focus()},[uploading,photographMessage])
   const retryPhotographs=async()=>{
     if(photoBusy.current||!pendingPhotographs.length)return
-    photoBusy.current=true;setUploading(true);setPhotographMessage('Checking the same pending photographs…')
+    invalidateReviewed();photoBusy.current=true;setUploading(true);setPhotographMessage('Checking the same pending photographs…')
     try{await processPhotographs(pendingPhotographs)}finally{photoBusy.current=false;if(current())setUploading(false)}
   }
   const [originalReportPaired,setOriginalReportPaired] = useState(false)
@@ -111,9 +111,10 @@ function ItemDetailRecord({id}:{id:string}) {
   const [reviewedHistory,setReviewedHistory]=useState<ReviewedAssessment[]>([])
   const [trustedComps,setTrustedComps]=useState<Comparable[]>([])
   const [listings,setListings]=useState<any[]>([])
-  const historyRead=useRef(0)
+  const historyRead=useRef(0),reviewEpoch=useRef(0)
+  function invalidateReviewed(){reviewEpoch.current++;setReviewed(null);setReviewedError('Final assessment must be rechecked after item facts or evidence change.')}
   const reloadResearch=async(record:Item)=>{
-    const serial=++historyRead.current
+    const serial=++historyRead.current,epoch=reviewEpoch.current
     const selected=()=>current()&&serial===historyRead.current
     setHistoryLoading(true);setHistoryError('');setTrustedComps([]);setListings([]);setReviewed(null);setReviewedError('');setReviewedHistory([])
     try{
@@ -123,7 +124,7 @@ function ItemDetailRecord({id}:{id:string}) {
       ])
       if(!selected())return
       setResearchHistory(history);setComps(comparables);setTrustedComps(trusted);setListings(storedListings)
-      try{const [verified,archive]=await Promise.all([readReviewedAssessment(supabase,record,selected),readReviewedHistory(supabase,record,selected)]);if(selected()){setReviewed(verified);setReviewedHistory(archive)}}catch(e){if(selected())setReviewedError(e instanceof Error?e.message:'Independent final review is unavailable.')}
+      try{const [verified,archive]=await Promise.all([readReviewedAssessment(supabase,record,selected),readReviewedHistory(supabase,record,selected)]);if(selected()){if(epoch===reviewEpoch.current)setReviewed(verified);setReviewedHistory(archive)}}catch(e){if(selected())setReviewedError(e instanceof Error?e.message:'Independent final review is unavailable.')}
       if(!selected())return
       setOriginalReportPaired(history.paired)
       setSavedResearchRuns(history.runs.filter(x=>x.status==='APPROVED'&&x.result?.research_summary))
@@ -158,14 +159,14 @@ function ItemDetailRecord({id}:{id:string}) {
     return ()=>{alive.current=false;photoRead.current++;itemRead.current++;historyRead.current++}
   },[id])
   useEffect(()=>{
-    if(!item||!researchHistory?.runs.some(run=>run.result?.analysis_stage==='PROCESSING'))return
+    if(!item||(!researching&&!researchHistory?.runs.some(run=>run.result?.analysis_stage==='PROCESSING')))return
     const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void reloadResearch(item)},15000)
     return ()=>window.clearInterval(timer)
-  },[item?.id,researchHistory])
+  },[item?.id,researchHistory,researching])
 
-  const update = (k:keyof Item,v:any)=>{setReviewed(null);editRevision.current++;if(item)setItem({...item,[k]:v})}
+  const update = (k:keyof Item,v:any)=>{invalidateReviewed();editRevision.current++;if(item)setItem({...item,[k]:v})}
   const refreshStoredFacts=async()=>{
-    setReviewed(null)
+    invalidateReviewed()
     if(!item||editRevision.current!==savedRevision.current)throw Error('Save your current catalogue edits before replacing the stored facts for a new review.')
     const auth=await supabase.auth.getUser();if(auth.error||auth.data.user?.id!==item.owner_id)throw Error('Sign in as this object’s owner.')
     const read=await supabase.from('items').select('*').eq('id',item.id).eq('owner_id',item.owner_id).maybeSingle()
@@ -174,7 +175,7 @@ function ItemDetailRecord({id}:{id:string}) {
   }
   const save = async () => {
     if(!item||saveLock.current)return
-    setReviewed(null);saveLock.current=true;setSaving(true);const selected=item,revision=editRevision.current
+    invalidateReviewed();saveLock.current=true;setSaving(true);const selected=item,revision=editRevision.current
     const copy:any={...selected};delete copy.id;delete copy.item_code;delete copy.created_at;delete copy.updated_at
     try{
       const auth=await supabase.auth.getUser();if(!current())return
@@ -193,7 +194,7 @@ function ItemDetailRecord({id}:{id:string}) {
   const upload = async (event:ChangeEvent<HTMLInputElement>) => {
     const files=Array.from(event.target.files||[]);event.target.value=''
     if(!item||!files.length||photoBusy.current||!photographsLoaded||pendingPhotographs.length)return
-    photoBusy.current=true;setUploading(true);setPhotographMessage('Saving original photographs and checking their links…')
+    invalidateReviewed();photoBusy.current=true;setUploading(true);setPhotographMessage('Saving original photographs and checking their links…')
     try{
       const attempts=await preparePhotographAttempts(supabase,item.id,files,current)
       await processPhotographs(attempts)
@@ -203,11 +204,11 @@ function ItemDetailRecord({id}:{id:string}) {
 
   const runResearch = async () => {
     if (!item) return
-    setResearching(true)
+    invalidateReviewed();setResearching(true)
     setMessage('Researching live market evidence…')
-    const {data:{session}} = await supabase.auth.getSession()
-    if (!session) { setResearching(false); return setMessage('Session expired. Sign in again.') }
     try {
+      const {data:{session}} = await supabase.auth.getSession()
+      if(!session)throw Error('Session expired. Sign in again.')
       // Re-read persisted attempts before staging another chargeable request.
       const history=await readItemResearch(supabase,item,current)
       if(history.runs.some(run=>run.result?.analysis_stage==='PROCESSING'))throw Error('An earlier research request has an unconfirmed outcome. Recover its stored history before any paid retry.')
@@ -241,12 +242,11 @@ function ItemDetailRecord({id}:{id:string}) {
       setResearchDraft(verified.result)
       setResearchAudit(verified.result.source_audit||null)
       setResearchRunId(staged.id)
-      await reloadResearch(item)
       setMessage('Online research saved and read back. Review sources before promoting any claim or price.')
     } catch (err:any) {
       setMessage(err?.message || 'Research failed')
     } finally {
-      setResearching(false)
+      if(current()){setResearching(false);await reloadResearch(item)}
     }
   }
 
@@ -257,7 +257,7 @@ function ItemDetailRecord({id}:{id:string}) {
       setMessage('Research draft could not be linked to a saved analysis run. Keep this draft open.')
       return
     }
-    setResearching(true)
+    invalidateReviewed();setResearching(true)
     try {
       const {error}=await supabase.from('ai_analysis_runs')
         .update({status:'APPROVED',approved_at:new Date().toISOString()})
@@ -268,10 +268,10 @@ function ItemDetailRecord({id}:{id:string}) {
       setMessage('Provisional research preserved in analysis history. Item attribution, values and comparables were NOT changed; original-source verification remains required.')
     } catch(err:any) {
       setMessage(err?.message || 'Research not saved; draft remains open.')
-    } finally {setResearching(false)}
+    } finally {if(current()){setResearching(false);await reloadResearch(item)}}
   }
 
-  const reviewed=reviewedForItem(reviewedCandidate,item)
+  const reviewed=researching||uploading||saving?null:reviewedForItem(reviewedCandidate,item)
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
 
   return (
@@ -294,7 +294,7 @@ function ItemDetailRecord({id}:{id:string}) {
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
       <ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
-      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onChanged={()=>{setReviewed(null);void reloadResearch(item)}}/>
+      <ItemAssessment client={supabase} item={item} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={invalidateReviewed} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>
       {reviewedError&&<p className="ci-page-meta">{reviewedError}</p>}
       {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
 

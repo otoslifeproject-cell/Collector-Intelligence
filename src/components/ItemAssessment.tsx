@@ -5,12 +5,12 @@ import type {ResearchAudit} from '../lib/researchSaleDecision'
 import {assessmentIsCurrent,prepareItemAssessment,readAssessmentHistory,settleItemAssessment,ItemAssessmentStaleMissingError} from '../lib/itemAssessment'
 import type {AssessmentRequest,HoldAdvice,StoredItemAssessment} from '../lib/itemAssessment'
 
-type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>;onChanged?:()=>void}
+type Props={client:SupabaseClient;item:Item;audit?:ResearchAudit;onRefreshFacts?:()=>Promise<void>;onChanged?:()=>void;onMutating?:()=>void}
 const initial:HoldAdvice={decision:'DO_NOT_LIST_YET',rationale:'',unresolvedIssues:'',nextAction:'',routeGuidance:'',confidence:{identification:null,dating:null,valuation:null},sourceRefs:[]}
 export default function ItemAssessment(props:Props){
  return <AssessmentRecord key={`${props.item.owner_id}:${props.item.id}`} {...props}/>
 }
-function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged}:Props){
+function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged,onMutating}:Props){
  const [advice,setAdvice]=useState<HoldAdvice>(initial),[sourceText,setSourceText]=useState('')
  const [rows,setRows]=useState<StoredItemAssessment[]>([]),[currentId,setCurrentId]=useState<string|null>(null)
  const [pending,setPending]=useState<AssessmentRequest|null>(null),[message,setMessage]=useState(''),[error,setError]=useState('')
@@ -31,6 +31,7 @@ function AssessmentRecord({client,item,audit,onRefreshFacts,onChanged}:Props){
  const run=async(mode:'SAVE'|'CHECK'|'RETRY')=>{
   if(lock.current)return;lock.current=true;setBusy(true);setError('');setMessage('')
   try{
+   if(mode!=='CHECK')onMutating?.()
    let request=held.current
    if(mode==='SAVE'){
     if(request)throw Error('Check the held decision before recording another assessment.')

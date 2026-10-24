@@ -133,3 +133,12 @@ Never claim scheduled automatic reviews can access unseen conversation history. 
 
 
 | CI-DEV-20261023-01 | Generic agent-team labels can imply capability, licence or source truth without proof | Five read-only pack/library reviews; 17-method proposal with actual paths/licences, independent Collector source verification and claim-specific price rules | Private register and 78-file archive raw Drive equality/member hashes verified; all selected paths exist; no runtime/app change | **ASSESSMENT VERIFIED; adoption and individual skill wiring NOT APPLIED** |
+
+
+## 24 October owner workflow learnings
+
+- Independently reviewed final readiness needs a private reviewer, exact item/evidence/source graph and latest-any-decision veto; current model answers and owner forms cannot certify it.
+- Invalidate cached qualification immediately on research/photo/hold mutation starts, including lost acknowledgements; epochs prevent late reads restoring stale approval. Requalify before every new prepared-draft insert; GET recovery retains immutable history.
+- Signature transcription and maker authentication need distinct, per-piece evidence. A generic final decision must not authorise affirmative maker copy from an owner URL.
+- Integration fixtures should preserve the complete existing comparable baseline rather than assume globally empty comparables after independently qualified fixtures are added.
+- Record overflow offenders before weakening no-overflow assertions. Grid minmax(0,1fr) and responsive value cards fix intrinsic unknown-text width. Test fully loaded zoom and restored economics, not only static headings.

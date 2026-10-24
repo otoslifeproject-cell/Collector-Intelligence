@@ -99,7 +99,7 @@ test('generic listing preserves reported MEDINA spelling without promoting maker
   assert.equal(draft.status,'PREPARED');assert.equal(draft.publicationStatus,'NOT_PUBLISHED')
   assert.equal(draft.title,'Red Glass Vase');assert.match(draft.description,/MEDINA \(owner reading\)/)
   assert.doesNotMatch(draft.title,/Harris|Mdina|Unconfirmed maker|1970/)
-  assert.equal(draft.itemSpecifics.Maker,'Unconfirmed');assert.equal(draft.recommendedPrice,50)
+  assert.equal(draft.itemSpecifics.Maker,'Unconfirmed');assert.equal(draft.recommendedPrice,50);assert.equal(draft.recommendedPriceBasis,'ALL_IN_ITEM_PRICE_OR_COLLECTION')
   assert.equal(draft.expectedNet.low,33.25);assert.equal(draft.comparableIds[0],comp.id)
   assert.ok(!JSON.stringify(draft).includes('profit'))
 })

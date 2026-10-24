@@ -37,7 +37,7 @@ export type ScenarioAssessment = {scenario:SaleScenario; netLow:number|null; net
 export type PreparedListing = {
   status:'PREPARED'|'REVIEW_REQUIRED'; publicationStatus:'NOT_PUBLISHED'; itemId:string; itemCode:string
   platform:SalePlatform; mode:SellMode; currency:string; title:string; description:string
-  recommendedPrice:number|null; priceRange:{low:number|null; high:number|null}; expectedNet:{low:number|null; high:number|null}
+  recommendedPrice:number|null; recommendedPriceBasis:'ALL_IN_ITEM_PRICE_OR_COLLECTION'; priceRange:{low:number|null; high:number|null}; expectedNet:{low:number|null; high:number|null}
   itemSpecifics:Record<string,string>; keywords:string[]; photographsNeeded:string[]; shippingInstructions:string
   comparableIds:string[]; sourceReferences:string[]; outstandingChecks:string[]
 }
@@ -168,7 +168,7 @@ export function prepareListing(item:Item, assessment:ScenarioAssessment, review:
     platform:s.platform,mode:s.mode,currency:s.currency,title,
     description:(short?[description[0],...description.slice(1)]:[`Item / SKU: ${item.item_code}`,...description]).join('\n\n'),
     // A range is a scenario, not an invented exact market appraisal. Use the conservative endpoint as the reviewable target.
-    recommendedPrice:assessment.ready?s.grossLow:null,priceRange:{low:s.grossLow,high:s.grossHigh},expectedNet:{low:assessment.netLow,high:assessment.netHigh},
+    recommendedPrice:assessment.ready?s.grossLow:null,recommendedPriceBasis:'ALL_IN_ITEM_PRICE_OR_COLLECTION',priceRange:{low:s.grossLow,high:s.grossHigh},expectedNet:{low:assessment.netLow,high:assessment.netHigh},
     itemSpecifics:{'Object type':item.object_type||'Unconfirmed','Material':item.material||'Unconfirmed','Colour':item.colour||'Unconfirmed','Maker':documentary?item.maker!:'Unconfirmed','Condition':condition,'SKU':item.item_code},
     keywords:[item.object_type,item.material,item.colour,documentary?item.maker:null].filter((x):x is string=>!!x),photographsNeeded,
     shippingInstructions:review.shippingInstructions||'Shipping / collection arrangements require confirmation.',comparableIds:comp?[comp.id]:[],

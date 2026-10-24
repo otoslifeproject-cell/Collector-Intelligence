@@ -326,3 +326,8 @@ Production code/main052a14d remains READY and public rootGET200/AI routesGET405;
 ## 23 October 2026 — Army Consideration Check and research-team proposal
 
 Continued draft PR #2 / head 3358bdc; five parallel read-only reviews of available kit archives and both libraries (15 folders) libraries. Confirmed Deep Research, Idea Council and strategy/due-diligence research structures. Proposed 17 MIT/Apache text methods across existing mission roles, with independent source/comparable verification and Collector-specific fixes before use. Full private register / 78-file evidence archive raw bytes and hashes verified; originals and prior code preserved. Proposal is not adoption or runtime installation. Explicit unread external resources/assets retained in scope report. See CONTINUITY_ARMY_CHECK_20261023.md for exact identities and gates. No app/API/SQL/dependency/test change, production mutation, paid inference/resource, merge or deployment. Existing 661-check app acceptance remains separate from this source/licence/path/archive assessment.
+
+
+## 24 October2026 — owner selling and independent QA
+
+Continued existing PR#2/branch. Persistent per-object audit, reviewed-source pricing/economics, recoverable unpublished platform drafts, private reviewed final assessment with current source graph and maker-specific approval; owner holds cannot certify research. Independent QA identified and corrected commercial, concurrency, history, mobile/contrast and stale-approval defects. See CONTINUITY_OWNER_SELLING_20261024.md for exact implementation and remaining access/evidence limits. Final status comes from same-SHA5CIchecks and verified private handover; no production writes/merge/manual deployment/publication/paid inference.
