@@ -899,3 +899,9 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .panelHeader>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
 .ci-research-progress p,.ci-item-assessment p,.ci-research-progress summary{overflow-wrap:anywhere}
 .ci-workspace-action-panel>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+
+/* Keep unknown valuation text from expanding narrow market grid tracks. */
+.marketStack{grid-template-columns:minmax(0,1fr);min-width:0}
+.marketStack>*{min-width:0;max-width:100%}
+.valueSummary{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.valueSummary>div{min-width:0;overflow-wrap:anywhere}

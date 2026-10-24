@@ -32,17 +32,17 @@ async function asReviewer(admin,actor,fn){
 // error in the isolated test DB. The production validator remains fail-closed.
 async function diagnoseReviewedFixture(admin,owner,item,payload,actor){
  const original=(await admin.query("SELECT pg_get_functiondef('public.ci_reviewed_item_payload_valid_v1(uuid,uuid,jsonb)'::regprocedure) definition")).rows[0].definition;
- let branch=0;const definition=original.replace('public.ci_reviewed_item_payload_valid_v1(', 'public.ci_reviewed_item_fixture_diagnostic_v1(')
+ let branch=0;const definition=original.replace('public.ci_reviewed_item_payload_valid_v1(', 'ci_private.ci_reviewed_item_fixture_diagnostic_v1(')
   .replace('exception when others then return false;', 'exception when others then raise;')
   .replaceAll('return false;',()=>`raise exception 'DISPOSABLE_REVIEW_VALIDATOR_BRANCH_${++branch}';`);
- await admin.query(definition);await admin.query('REVOKE ALL ON FUNCTION public.ci_reviewed_item_fixture_diagnostic_v1(uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role');
+ await admin.query(definition);await admin.query('REVOKE ALL ON FUNCTION ci_private.ci_reviewed_item_fixture_diagnostic_v1(uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role');
  try{
   const diagnostic={...payload,reviewerId:actor,verificationMethod:'INDEPENDENT_SOURCE_REVIEW'};
   const graph=(await admin.query("SELECT encode(sha256(convert_to(public.ci_item_review_graph_v1($1,$2)::text,'UTF8')),'hex') digest",[owner,item])).rows[0].digest;
   diagnostic.sourceGraphSha256=graph;
-  const result=(await admin.query('SELECT public.ci_reviewed_item_fixture_diagnostic_v1($1,$2,$3) valid',[owner,item,diagnostic])).rows[0].valid;
+  const result=(await admin.query('SELECT ci_private.ci_reviewed_item_fixture_diagnostic_v1($1,$2,$3) valid',[owner,item,diagnostic])).rows[0].valid;
   return 'validator='+result;
- }catch(error){return error.message;}finally{await admin.query('DROP FUNCTION public.ci_reviewed_item_fixture_diagnostic_v1(uuid,uuid,jsonb)');}
+ }catch(error){return error.message;}finally{await admin.query('DROP FUNCTION ci_private.ci_reviewed_item_fixture_diagnostic_v1(uuid,uuid,jsonb)');}
 }
 export async function seedReviewedAssessmentFixture(admin,owner,{client,title='Synthetic reviewed acceptance fixture'}={}){
  const actor=(await admin.query('SELECT id FROM auth.users WHERE id<>$1 ORDER BY id LIMIT 1',[owner])).rows[0]?.id;

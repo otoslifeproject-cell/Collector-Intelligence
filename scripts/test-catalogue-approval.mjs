@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 
 export async function exerciseCatalogueApproval({admin,rest,check,A,B,anon,read}){
+  const preservedComparables=(await admin.query('select to_jsonb(c) as row from public.comparables c order by id')).rows;
   const originalSQL=await read('supabase/migrations/20261017_reviewed_material_evidence_on_catalogue_v6.sql');
   const proposalSQL=await read('supabase/proposals/catalogue-approval-input-guards.sql');
   const post=(token,path,body)=>rest(token,path,{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});
@@ -73,7 +74,7 @@ export async function exerciseCatalogueApproval({admin,rest,check,A,B,anon,read}
   });
   await check('unverified AI evidence is never promoted to verified comparables or Knowledge Brain',async()=>{
     const evidence=await related('item_evidence',single.id);assert.ok(evidence.length);assert.ok(evidence.every(x=>x.verification_status==='UNVERIFIED'));assert.ok(evidence.every(x=>x.provenance==='INFERENCE'));
-    assert.equal((await admin.query('select count(*)::int n from public.comparables')).rows[0].n,0);assert.equal((await admin.query('select count(*)::int n from public.knowledge_records')).rows[0].n,0);
+    assert.deepEqual((await admin.query('select to_jsonb(c) as row from public.comparables c order by id')).rows,preservedComparables);assert.equal((await related('comparables',single.id)).length,0);assert.equal((await admin.query('select count(*)::int n from public.knowledge_records')).rows[0].n,0);
   });
   await check('other-owner catalogue and child queries remain empty under real RLS',async()=>{
     for(const table of ['items','item_photos','item_evidence','attribution_history','research_tasks']){
