@@ -102,5 +102,25 @@ export async function exerciseResearchArmy({admin,rest,check,A,B,anon,anonToken=
   assert.equal((await admin.query('SELECT count(*)::int n FROM public.ai_analysis_runs WHERE id=$1',[held.eventId])).rows[0].n,1);
   const read=await readResearchArmy(sdk,f2.item,current);assert.deepEqual(read.workflows[0].plan.payload.tasks.map(t=>t.role),[...armyRoles]);assert.ok(read.workflows[0].roles.every(r=>r.status==='NOT_RUN'));
  });
+ await check('native photo scope allows exact selected set and proper subset, rejects a foreign original without writing',async()=>{
+  const scoped=await seedReviewedAssessmentFixture(admin,A.id,{title:'SYNTHETIC Issue5 exact/subset photo scope',client:storageClient}),path=`${A.id}/issue5/${randomUUID()}/second-original.png`;
+  const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9XsAAAAASUVORK5CYII=','base64');
+  if(storageClient)assert.equal((await storageClient.storage.from('item-images').upload(path,bytes,{contentType:'image/png'})).error,null);
+  else await admin.query("INSERT INTO storage.objects(bucket_id,name) VALUES('item-images',$1)",[path]);
+  const second=(await admin.query("INSERT INTO public.item_photos(owner_id,item_id,storage_path,file_name) VALUES($1,$2,$3,'SYNTHETIC second original.png') RETURNING *",[A.id,scoped.item.id,path])).rows[0];
+  const request=await prepareArmyPlan(sdk,scoped.item,[scoped.photo.id,second.id],'SYNTHETIC Issue5 two selected originals: exact set, strict subset and foreign photograph rejection.',current);
+  await settleArmyRequest(sdk,request,current,true);
+  for(const [role,photoIds]of [['COORDINATOR',[scoped.photo.id,second.id]],['PHOTO_EXAMINER',[second.id]]]){
+   const before=await readResearchArmy(sdk,scoped.item,current),r={...report(),photoIds};
+   const start=await prepareArmyEvent(sdk,scoped.item,before.workflows[0],role,'START',r,current);
+   const forged=args(start,{p_event_id:randomUUID(),p_payload:{...start.payload,report:{...r,photoIds:[f.photo.id]}}});
+   const count=(await admin.query("SELECT count(*)::int n FROM public.ai_analysis_runs WHERE user_context->>'research_army_workflow_id'=$1",[request.workflowId])).rows[0].n;
+   const denied=await rpc(A.token,forged);assert.equal(denied.status,400);assert.match((await denied.json()).message,/unselected photograph/);
+   assert.equal((await admin.query("SELECT count(*)::int n FROM public.ai_analysis_runs WHERE user_context->>'research_army_workflow_id'=$1",[request.workflowId])).rows[0].n,count);
+   await settleArmyRequest(sdk,start,current,true);let recovered=await readResearchArmy(sdk,scoped.item,current);assert.equal(recovered.workflows[0].roles.find(r=>r.role===role).status,'RUNNING');
+   const result=await prepareArmyEvent(sdk,scoped.item,recovered.workflows[0],role,'RESULT',r,current);await settleArmyRequest(sdk,result,current,true);recovered=await readResearchArmy(sdk,scoped.item,current);assert.equal(recovered.workflows[0].roles.find(r=>r.role===role).status,'INCONCLUSIVE');
+   assert.equal(recovered.workflows[0].roles.length,7);assert.equal(recovered.workflows[0].roles.filter(r=>r.status==='EVIDENCED').length,0);
+  }
+ });
 
 }

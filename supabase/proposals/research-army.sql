@@ -110,7 +110,7 @@ begin
   if task is null or (select count(*) from jsonb_object_keys(payload))<>2 or not(payload ? 'report') or not(payload ? 'startEventId')
    or not ci_army_internal.report_valid_v1(payload->'report',p_kind='RESULT') then raise exception 'Complete actual role question/query/tool/results and uncertainty required'; end if;
   role_report:=payload->'report';
-  if not(plan->'payload'->'photoIds' @> role_report->'photoIds') then raise exception 'A role cannot inherit another object or unselected photograph'; end if;
+  if not((plan->'payload'->'photoIds') @> (role_report->'photoIds')) then raise exception 'A role cannot inherit another object or unselected photograph'; end if;
   select * into last_row from public.ai_analysis_runs where owner_id=auth.uid() and user_context->>'research_army_workflow_id'=p_workflow_id::text
    and result->'research_army_v1'->>'role'=p_role order by created_at desc,id desc limit 1;
   if p_kind='START' then
@@ -162,7 +162,7 @@ begin
    or jsonb_array_length(e->'sourceRefs')>100
    or exists(select 1 from jsonb_array_elements(e->'sourceRefs') x where jsonb_typeof(x)<>'string')
    or (select count(distinct x#>>'{}') from jsonb_array_elements(e->'sourceRefs') x)<>jsonb_array_length(e->'sourceRefs')
-   or not(a.assessment->'sourceRefs' @> e->'sourceRefs') then raise exception 'Role-specific independent rationale and exact existing source references required'; end if;
+   or not((a.assessment->'sourceRefs') @> (e->'sourceRefs')) then raise exception 'Role-specific independent rationale and exact existing source references required'; end if;
   select * into r from public.ai_analysis_runs where id=(e->>'resultEventId')::uuid and owner_id=p_owner and user_context->>'item_id'=p_item::text and result->'research_army_v1'->>'kind'='RESULT';
   if not found or r.result->'research_army_v1'->>'executorId'=auth.uid()::text or not ci_army_internal.report_valid_v1(r.result->'research_army_v1'->'payload'->'report',true) then raise exception 'Independent attestation requires a separate actual prior role result'; end if;
   select * into old_row from public.ai_analysis_runs where id=(e->>'eventId')::uuid;
@@ -187,8 +187,8 @@ begin
    -- not repeated model opinions, define which documentary/photo/sale is linked.
    if exists(select 1 from jsonb_array_elements_text(e->'sourceRefs') ref where not exists(
     select 1 from jsonb_array_elements(a.assessment->'evidenceSources') anchor where anchor->>'reference'=ref
-    and ((anchor->>'kind'='PHOTO' and r.result->'research_army_v1'->'payload'->'report'->'photoIds' ? (anchor->>'id'))
-      or (anchor->>'kind' in ('EVIDENCE','COMPARABLE') and r.result->'research_army_v1'->'payload'->'report'->'sourceUrls' ? ref))
+    and ((anchor->>'kind'='PHOTO' and (r.result->'research_army_v1'->'payload'->'report'->'photoIds') ? (anchor->>'id'))
+      or (anchor->>'kind' in ('EVIDENCE','COMPARABLE') and (r.result->'research_army_v1'->'payload'->'report'->'sourceUrls') ? ref))
     and case r.result->'research_army_v1'->>'role' when 'PHOTO_EXAMINER' then anchor->>'kind'='PHOTO'
      when 'COMPARABLE_SPECIALIST' then anchor->>'kind'='COMPARABLE'
      when 'ATTRIBUTION_RESEARCHER' then anchor->>'kind'='EVIDENCE'
@@ -228,7 +228,7 @@ begin
  select * into i from public.items where id=(receipt->>'itemId')::uuid and owner_id=auth.uid();if not found then return false;end if;
  select * into a from public.item_research_assessments where id=(receipt->'payload'->>'assessmentId')::uuid and owner_id=auth.uid() and item_id=i.id and review_status='SOURCE_REVIEWED';
  if not found or a.facts_snapshot is distinct from to_jsonb(i) or receipt->>'factsSha256' is distinct from encode(sha256(convert_to(to_jsonb(i)::text,'UTF8')),'hex') or a.assessment->>'reviewerId' is distinct from receipt->>'executorId'
-  or not(a.assessment->'sourceRefs' @> receipt->'payload'->'sourceRefs') then return false; end if;
+  or not((a.assessment->'sourceRefs') @> (receipt->'payload'->'sourceRefs')) then return false; end if;
  for x in select value from jsonb_array_elements(a.assessment->'evidenceSources') loop
   if x is distinct from public.ci_item_review_anchor_v1(a.owner_id,a.item_id,x->>'kind',(x->>'id')::uuid) then return false; end if;
  end loop;
