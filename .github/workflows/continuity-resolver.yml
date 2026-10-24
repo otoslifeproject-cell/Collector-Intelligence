@@ -1,0 +1,284 @@
+name: Continuity resolver fixtures
+on:
+  pull_request:
+    paths:
+      - 'src/lib/researchArmy.ts'
+      - 'src/lib/lotOptimizer.ts'
+      - 'src/components/ResearchArmyWorkspace.tsx'
+      - 'src/components/LotPlanEditor.tsx'
+      - 'src/pages/LotOptimiser.tsx'
+      - 'src/App.tsx'
+      - 'src/components/Sidebar.tsx'
+      - 'supabase/proposals/research-army.sql'
+      - 'supabase/proposals/sale-groups.sql'
+      - 'scripts/test-research-army.mjs'
+      - 'scripts/test-sale-groups.mjs'
+      - 'tests/research-army*.mjs'
+      - 'tests/lot-optimizer*.mjs'
+      - 'tests/continuity/**'
+      - 'tests/fixtures/governing-v4/**'
+      - 'tests/fixtures/source-archive/**'
+      - 'docs/source-reconciliation/**'
+      - 'scripts/check-source-review-bundle.mjs'
+      - 'scripts/continuity-kong-config.mjs'
+      - 'src/lib/approvedCanonicalSources.ts'
+      - 'src/lib/canonicalRuntime.ts'
+      - 'src/lib/canonicalArchive.ts'
+      - 'src/components/CanonicalArchivePanel.tsx'
+      - 'src/pages/Research.tsx'
+      - 'src/styles.css'
+      - 'tests/archive-browser.config.mjs'
+      - 'tests/canonical-archive.spec.mjs'
+      - 'tests/sale-outcome.spec.mjs'
+      - 'tests/fixtures/sale-outcome.*'
+      - 'src/lib/actualSale.ts'
+      - 'src/lib/researchSaleDecision.ts'
+      - 'src/lib/itemResearch.ts'
+      - 'src/lib/catalogueSaleState.ts'
+      - 'src/components/ItemCard.tsx'
+      - 'src/components/SaleEconomics.tsx'
+      - 'src/pages/Dashboard.tsx'
+      - 'src/pages/Sales.tsx'
+      - 'src/pages/Inventory.tsx'
+      - 'src/pages/Login.tsx'
+      - 'tests/qa-owner-workflow.spec.mjs'
+      - 'tests/catalogue-sale-state.test.mjs'
+      - 'src/lib/itemAssessment.ts'
+      - 'src/components/ItemAssessment.tsx'
+      - 'tests/item-assessment.test.mjs'
+      - 'src/lib/researchExecution.ts'
+      - 'src/lib/inscriptionReview.ts'
+      - 'src/lib/draftResearchAudit.ts'
+      - 'src/lib/sellFastPlan.ts'
+      - 'src/lib/listingDraft.ts'
+      - 'tests/listing-draft.test.mjs'
+      - 'src/lib/reviewedAssessment.ts'
+      - 'tests/reviewed-assessment.test.mjs'
+      - 'tests/reviewed-selling-app.spec.mjs'
+      - 'scripts/test-reviewed-item-assessments.mjs'
+      - 'src/components/ResearchProgress.tsx'
+      - 'src/components/SellFastPlan.tsx'
+      - 'tests/item-research.test.mjs'
+      - 'tests/inscription-review.test.mjs'
+      - 'tests/draft-research-audit.test.mjs'
+      - 'tests/sell-fast-plan.test.mjs'
+      - 'tests/research-dashboard-app.spec.mjs'
+      - 'src/lib/comparableEvidence.ts'
+      - 'src/components/ComparableEvidence.tsx'
+      - 'tests/comparable-evidence.test.mjs'
+      - 'tests/research-sale-decision.test.mjs'
+      - 'src/lib/itemPhotographs.ts'
+      - 'src/lib/intakeSession.ts'
+      - 'src/pages/AIIntake.tsx'
+      - 'src/lib/catalogueApproval.ts'
+      - 'src/lib/ownerReview.ts'
+      - 'src/lib/verdictCorrection.ts'
+      - 'src/lib/draftResearch.ts'
+      - 'src/lib/ownerCorrections.ts'
+      - 'tests/ownerCorrections.test.mjs'
+      - 'src/App.tsx'
+      - 'src/components/RecordSaleOutcome.tsx'
+      - 'src/pages/ItemDetail.tsx'
+      - 'src/pages/SavedDraft.tsx'
+      - 'tests/ui-layout.spec.mjs'
+      - 'tests/fixtures/canonical-archive.*'
+      - 'tests/fixtures/appearance-layout.html'
+      - 'api/analyse-intake.ts'
+      - 'api/research-item.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'scripts/check-continuity-staging.mjs'
+      - 'scripts/validate-staging-target.mjs'
+      - 'scripts/staging-migration-spike.mjs'
+      - 'scripts/test-continuity-postgres.mjs'
+      - 'scripts/test-continuity-http.mjs'
+      - 'scripts/test-research-sessions.mjs'
+      - 'scripts/test-paid-scope-claims.mjs'
+      - 'scripts/test-item-assessments.mjs'
+      - 'scripts/test-intake-response-recovery.mjs'
+      - 'scripts/test-catalogue-approval.mjs'
+      - 'scripts/test-sale-capture.mjs'
+      - 'scripts/test-photo-storage.mjs'
+      - 'scripts/test-photo-storage-cases.mjs'
+      - 'tests/photo-app-browser.config.mjs'
+      - 'tests/photo-app.spec.mjs'
+      - 'tests/intake-app.spec.mjs'
+      - 'tests/saved-intakes-app.spec.mjs'
+      - 'src/lib/savedIntakes.ts'
+      - 'src/pages/SavedIntakes.tsx'
+      - 'tests/catalogue-app.spec.mjs'
+      - 'tests/fixtures/research-session-support.sql'
+      - 'tests/fixtures/catalogue-storage-metadata.sql'
+      - 'supabase/migrations/001_core_schema.sql'
+      - 'supabase/migrations/002_rls_and_storage.sql'
+      - 'supabase/migrations/004_ai_intake.sql'
+      - 'supabase/migrations/20261016_atomic_photo_first_approval_v1.sql'
+      - 'supabase/migrations/20261016_block_partial_analysis_catalogue_approval.sql'
+      - 'supabase/migrations/20261017_append_only_owner_verdict_feedback.sql'
+      - 'supabase/migrations/20261017_reviewed_material_evidence_on_catalogue_v6.sql'
+      - 'supabase/migrations/20261017_atomic_actual_sale_capture_v1.sql'
+      - 'supabase/migrations/20261017_actual_sale_source_integrity_v2.sql'
+      - 'supabase/migrations/20261017_allow_loss_making_sales_v3.sql'
+      - 'supabase/migrations/20261017_sales_listing_item_owner_rls_hardening.sql'
+      - 'supabase/migrations/20261017_paid_research_claim_gate_v1.sql'
+      - 'supabase/migrations/20261017_owner_review_revision_cas_v1.sql'
+      - 'supabase/proposals/**'
+      - 'supabase/migrations/20261010_canonical_archive_photo_manifests_security.sql'
+      - 'supabase/migrations/20261020_canonical_publication_ledger_PREPRODUCTION.sql'
+      - '.github/workflows/continuity-resolver.yml'
+  workflow_dispatch:
+jobs:
+  resolver-fixtures:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run fail-closed fixture tests
+        run: |
+          node --experimental-strip-types tests/research-sale-decision.test.mjs
+          node --experimental-strip-types tests/comparable-evidence.test.mjs
+          node tests/continuity/test.mjs
+          node tests/continuity/multi-document.test.mjs
+          node tests/continuity/migration-guards.test.mjs
+          node tests/continuity/staging-target.test.mjs
+          node --experimental-strip-types --test tests/continuity/approved-reader.test.mjs
+          node --experimental-strip-types --test tests/continuity/runtime-gate.test.mjs tests/continuity/paid-route-gates.test.mjs
+          node --experimental-strip-types --test tests/continuity/source-review.test.mjs
+          node --experimental-strip-types scripts/check-source-review-bundle.mjs
+          node scripts/staging-migration-spike.mjs
+          node --check scripts/check-continuity-staging.mjs
+          if CI_STAGING_DATABASE_URL='postgresql://fake:fake@remote.example.com/ci_staging_fake' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: remote host permitted'; exit 1; else echo 'PASS: remote host rejected'; fi
+          if CI_STAGING_DATABASE_URL='postgresql://fake:fake@db.bwdafrwkimjvwfoqomot.supabase.co/postgres' CI_ISOLATED_STAGING_CONFIRMED=yes node scripts/check-continuity-staging.mjs; then echo 'ERROR: production guard allowed URL'; exit 1; else echo 'PASS: production URL rejected'; fi
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_fixture_only
+          POSTGRES_DB: ci_staging_ledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ci_staging_ledger"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated test driver
+        run: npm install --prefix /tmp/ci-ledger-driver --ignore-scripts --no-audit --no-fund --save-exact pg@8.13.1 && ln -s /tmp/ci-ledger-driver/node_modules node_modules
+      - name: Test DDL, owner RLS, publication, revocation, races and safety reversal
+        env:
+          CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_ledger
+          CI_ISOLATED_STAGING_CONFIRMED: 'yes'
+        run: node scripts/test-continuity-postgres.mjs
+  supabase-http-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_fixture_only
+          POSTGRES_DB: ci_staging_http
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ci_staging_http"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked SDK and test driver
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium for authenticated archive and sale acceptance
+        run: npx playwright install --with-deps chromium
+      - name: Exercise Auth, research, catalogue, sale transactions and source integrity
+        env:
+          CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_http
+          CI_ISOLATED_STAGING_CONFIRMED: 'yes'
+        run: node --experimental-strip-types scripts/test-continuity-http.mjs
+      - name: Preserve actual archive, sale and existing layout screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-source-archive-browser
+          path: test-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+  application-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check:api
+      - run: node --experimental-strip-types --test tests/*.test.mjs tests/continuity/archive-reader.test.mjs
+      - run: npm run build
+
+  photo-storage-integration:
+    runs-on: ubuntu-latest
+    # Dependency installation can take12minutes on hosted Ubuntu. Keep the
+    # existing bounded browser/test timeouts and allow setup+evidence upload.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci_fixture_only
+          POSTGRES_DB: ci_staging_storage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ci_staging_storage"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked SDK and PostgreSQL driver
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium for actual photo application acceptance
+        run: npx playwright install --with-deps chromium
+      - name: Test actual private Storage bytes and original-photo catalogue retention
+        env:
+          CI_STAGING_DATABASE_URL: postgresql://postgres:ci_fixture_only@127.0.0.1:5432/ci_staging_storage
+          CI_ISOLATED_STAGING_CONFIRMED: 'yes'
+        run: node scripts/test-photo-storage.mjs
+
+      - name: Preserve actual photo application screenshots and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-photo-application-browser
+          path: test-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,92 @@
+{
+  "status": "FIXES_UNDER_RETEST_NOT_OWNER_ACCEPTED",
+  "tested_baseline": "ed27f53ee4e070d06787409997753dc2182a9a09",
+  "baseline_run": 39958246267,
+  "baseline_result": "4PASS/1FAIL;200of201photo browser cases pass",
+  "defects": [
+    {
+      "id": "QA-J01",
+      "severity": "P1",
+      "finding": "Legacy readiness and unqualified values on Dashboard/cards/Sales/SavedDraft",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-J02",
+      "severity": "P2",
+      "finding": "Failed collection reads look empty",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-C01",
+      "severity": "P1",
+      "finding": "Mixed currencies summed and labelled GBP",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-C02",
+      "severity": "P1",
+      "finding": "Duplicate comparable table bypasses trusted-view qualification",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-C03",
+      "severity": "P2",
+      "finding": "Future-dated achieved sale accepted",
+      "observation": "LOCAL_EXECUTABLE_REPRO",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-C04",
+      "severity": "P2",
+      "finding": "Unknown legacy economics inputs silently zero",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-D01",
+      "severity": "P2",
+      "finding": "Repeated large audit blocks obstruct mobile task content",
+      "observation": "RENDERED_c712_SCREENSHOTS",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-A01",
+      "severity": "P2",
+      "finding": "Login feedback lacks live announcement",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-S01",
+      "severity": "P1",
+      "finding": "Distinct staged IDs can claim same physical paid scope",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-S02",
+      "severity": "P2",
+      "finding": "Stale catalogue timestamp blocks hold save",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-S03",
+      "severity": "P2",
+      "finding": "Stale uncommitted held review has no recovery action",
+      "observation": "SOURCE_ONLY",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    },
+    {
+      "id": "QA-H01",
+      "severity": "P1",
+      "finding": "Exact Decision accessible name cannot be selected",
+      "observation": "BROWSER_ed27_FAIL",
+      "status": "FIX_CANDIDATE_RETEST_REQUIRED"
+    }
+  ]
+}

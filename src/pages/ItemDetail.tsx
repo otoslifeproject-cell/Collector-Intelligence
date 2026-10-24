@@ -1,18 +1,36 @@
-import { ChangeEvent, useEffect, useState } from 'react'
+import { ChangeEvent, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { Camera, Check, ExternalLink, LoaderCircle, Save, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Comparable, Item, ItemPhoto } from '../types'
-import { date, money } from '../lib/format'
+import { date } from '../lib/format'
+import {provisionalMoney} from '../lib/catalogueSaleState'
+import {knownSaleCurrency} from '../lib/sellFastPlan'
 import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
+import ResearchProgress from '../components/ResearchProgress'
+import ComparableEvidence from '../components/ComparableEvidence'
+import {itemResearchAudit,readItemResearch,readItemSaleRows} from '../lib/itemResearch'
+import {readReviewedAssessment,readReviewedHistory,reviewedAudit,reviewedDecision,reviewedForItem} from '../lib/reviewedAssessment'
+import type {ReviewedAssessment} from '../lib/reviewedAssessment'
+import type {ItemResearchHistory} from '../lib/itemResearch'
+import SellFastPlan from '../components/SellFastPlan'
+import ItemAssessment from '../components/ItemAssessment'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
+import {applyConfirmedSaleStatus} from '../lib/actualSale'
+import {PhotographError,preparePhotographAttempts,readItemPhotographs,settlePhotographAttempt} from '../lib/itemPhotographs'
+import type {PhotographAttempt} from '../lib/itemPhotographs'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
+import ResearchArmyWorkspace from '../components/ResearchArmyWorkspace'
 
 export default function ItemDetail() {
-  const {id} = useParams()
+  const {id}=useParams()
+  if(!id)return <div role="alert">This collection object could not be identified.</div>
+  return <ItemDetailRecord key={id} id={id}/>
+}
+function ItemDetailRecord({id}:{id:string}) {
   const location = useLocation()
   const [item,setItem] = useState<Item|null>(null)
   const [photos,setPhotos] = useState<ItemPhoto[]>([])
@@ -28,8 +46,59 @@ export default function ItemDetail() {
     if(requested&&['overview','photos','identification','market','sales','catalogue'].includes(requested))setTab(requested)
   },[location.search,id])
   const [message,setMessage] = useState('')
+  const [saving,setSaving]=useState(false)
+  const [assessmentMutating,setAssessmentMutating]=useState(false)
+  const [armyMutating,setArmyMutating]=useState(false)
+  const saveLock=useRef(false),editRevision=useRef(0),savedRevision=useRef(0)
   const [uploading,setUploading] = useState(false)
   const [photoUrls,setPhotoUrls] = useState<Record<string,string>>({})
+  const [photographsLoaded,setPhotographsLoaded]=useState(false)
+  const [photographsLoading,setPhotographsLoading]=useState(true)
+  const [photographError,setPhotographError]=useState('')
+  const [photographMessage,setPhotographMessage]=useState('')
+  const [pendingPhotographs,setPendingPhotographs]=useState<PhotographAttempt[]>([])
+  const [loadError,setLoadError]=useState('')
+  const alive=useRef(false),photoRead=useRef(0),itemRead=useRef(0),photoBusy=useRef(false)
+  const photoInput=useRef<HTMLInputElement|null>(null),photoStatus=useRef<HTMLParagraphElement|null>(null)
+  const current=()=>alive.current
+  const loadPhotographs=async()=>{
+    const serial=++photoRead.current
+    setPhotographsLoading(true);setPhotographsLoaded(false);setPhotographError('');setPhotoUrls({})
+    try{
+      const {rows}=await readItemPhotographs(supabase,id,current)
+      const urls=await Promise.all(rows.map(async photo=>{
+        const signed=await supabase.storage.from('item-images').createSignedUrl(photo.storage_path,3600)
+        return [photo.id,signed.error?'':signed.data?.signedUrl||''] as const
+      }))
+      if(!current()||serial!==photoRead.current)return
+      setPhotos(rows);setPhotoUrls(Object.fromEntries(urls));setPhotographsLoaded(true)
+      if(urls.some(([,url])=>!url))setPhotographError('Some original photographs need a new secure preview. Reload photographs to try again.')
+    }catch(error){
+      if(!current()||serial!==photoRead.current)return
+      setPhotos([]);setPhotoUrls({});setPhotographError(error instanceof PhotographError?error.message:'Photographs could not be loaded. Reload before uploading.')
+    }finally{if(current()&&serial===photoRead.current)setPhotographsLoading(false)}
+  }
+  const processPhotographs=async(attempts:PhotographAttempt[])=>{
+    const pending:PhotographAttempt[]=[];let confirmed=0
+    for(const attempt of attempts){
+      if(!current())return
+      try{await settlePhotographAttempt(supabase,attempt,current);confirmed++}
+      catch{if(!current())return;pending.push(attempt)}
+    }
+    if(!current())return
+    setPendingPhotographs(pending)
+    await loadPhotographs()
+    if(!current())return
+    setPhotographMessage(pending.length?
+      `${confirmed} original photographs confirmed; ${pending.length} still need confirmation. Files that reached private storage are retained. Keep this page open and retry the pending photographs.`:
+      `${confirmed} original photographs saved and linked to this item.`)
+  }
+  useEffect(()=>{if(!uploading&&photographMessage)photoStatus.current?.focus()},[uploading,photographMessage])
+  const retryPhotographs=async()=>{
+    if(photoBusy.current||!pendingPhotographs.length)return
+    invalidateReviewed();photoBusy.current=true;setUploading(true);setPhotographMessage('Checking the same pending photographs…')
+    try{await processPhotographs(pendingPhotographs)}finally{photoBusy.current=false;if(current()){invalidateReviewed();setUploading(false)}}
+  }
   const [originalReportPaired,setOriginalReportPaired] = useState(false)
   const [researching,setResearching] = useState(false)
   const [researchDraft,setResearchDraft] = useState<any|null>(null)
@@ -37,85 +106,115 @@ export default function ItemDetail() {
   const [researchAudit,setResearchAudit] = useState<any>(null)
   const [savedResearchRuns,setSavedResearchRuns] = useState<any[]>([])
   const [pendingResearchRuns,setPendingResearchRuns] = useState<any[]>([])
+  const [researchHistory,setResearchHistory]=useState<ItemResearchHistory|null>(null)
+  const [historyLoading,setHistoryLoading]=useState(true)
+  const [historyError,setHistoryError]=useState('')
+  const [reviewedCandidate,setReviewed]=useState<ReviewedAssessment|null>(null)
+  const [reviewedError,setReviewedError]=useState('')
+  const [reviewedHistory,setReviewedHistory]=useState<ReviewedAssessment[]>([])
+  const [trustedComps,setTrustedComps]=useState<Comparable[]>([])
+  const [listings,setListings]=useState<any[]>([])
+  const historyRead=useRef(0),reviewEpoch=useRef(0)
+  function invalidateReviewed(){reviewEpoch.current++;setReviewed(null);setReviewedError('Final assessment must be rechecked after item facts or evidence change.')}
+  const reloadResearch=async(record:Item)=>{
+    const serial=++historyRead.current,epoch=reviewEpoch.current
+    const selected=()=>current()&&serial===historyRead.current
+    setHistoryLoading(true);setHistoryError('');setTrustedComps([]);setListings([]);setReviewed(null);setReviewedError('');setReviewedHistory([])
+    try{
+      const [history,comparables,trusted,storedListings]=await Promise.all([
+        readItemResearch(supabase,record,selected),readItemSaleRows(supabase,'comparables',record,selected),
+        readItemSaleRows(supabase,'trusted_comparables_v1',record,selected),readItemSaleRows(supabase,'listings',record,selected)
+      ])
+      if(!selected())return
+      setResearchHistory(history);setComps(comparables);setTrustedComps(trusted);setListings(storedListings)
+      try{const [verified,archive]=await Promise.all([readReviewedAssessment(supabase,record,selected),readReviewedHistory(supabase,record,selected)]);if(selected()){if(epoch===reviewEpoch.current)setReviewed(verified);setReviewedHistory(archive)}}catch(e){if(selected())setReviewedError(e instanceof Error?e.message:'Independent final review is unavailable.')}
+      if(!selected())return
+      setOriginalReportPaired(history.paired)
+      setSavedResearchRuns(history.runs.filter(x=>x.status==='APPROVED'&&x.result?.research_summary))
+      setPendingResearchRuns(history.runs.filter(x=>x.status==='DRAFT'&&x.result?.research_summary))
+    }catch(error){if(selected()){setResearchHistory(null);setSavedResearchRuns([]);setPendingResearchRuns([]);setHistoryError(error instanceof Error?error.message:'Saved history is unavailable. No new research was started.')}}
+    finally{if(selected())setHistoryLoading(false)}
+  }
 
   const load = async () => {
     if (!id) return
-    const [{data:itemData},{data:photoData},{data:compData}] = await Promise.all([
-      supabase.from('items').select('*').eq('id',id).single(),
-      supabase.from('item_photos').select('*').eq('item_id',id).order('position'),
-      supabase.from('comparables').select('*').eq('item_id',id).order('sale_date',{ascending:false})
-    ])
-    setItem(itemData as Item); setPhotos((photoData||[]) as ItemPhoto[]); setComps((compData||[]) as Comparable[])
+    const serial=++itemRead.current
+    setLoadError('')
+    const auth=await supabase.auth.getUser()
+    if(!current()||serial!==itemRead.current)return
+    if(auth.error||!auth.data.user){setItem(null);setLoadError('Sign in again to open this collection object.');return}
+    const ownerId=auth.data.user.id
+    const {data:itemData,error:itemError}=await supabase.from('items').select('*').eq('id',id).eq('owner_id',ownerId).maybeSingle()
+    if(!current()||serial!==itemRead.current)return
+    if(itemError||!itemData||itemData.owner_id!==ownerId){setItem(null);setLoadError('This collection object is unavailable for the signed-in account.');return}
+    setItem(itemData as Item)
     const [ev,ah] = await Promise.all([
       supabase.from('item_evidence').select('*').eq('item_id',id).order('created_at',{ascending:false}),
       supabase.from('attribution_history').select('*').eq('item_id',id).order('created_at',{ascending:false})
     ])
+    if(!current()||serial!==itemRead.current)return
     setEvidenceRecords(ev.data||[])
     setAttributionVersions(ah.data||[])
-    const originalItem=itemData as any
-    const parentId=originalItem?.source_analysis_run_id as string|null
-    const originalIndex=originalItem?.source_object_index as number|null
-    const [researchQuery,parentQuery]=await Promise.all([
-      supabase.from('ai_analysis_runs').select('id,result,created_at,status,user_context').eq('mode','research').in('status',['APPROVED','DRAFT']).order('created_at',{ascending:false}).limit(100),
-      parentId?supabase.from('ai_analysis_runs').select('result').eq('id',parentId).single():Promise.resolve({data:null})
-    ])
-    const snapshot=(parentQuery.data as any)?.result?.owner_review?.approved_snapshot?.[String(originalIndex)]
-    const wasPair=Array.isArray(snapshot?.pair_source_indices)&&snapshot.pair_source_indices.length===2
-    setOriginalReportPaired(wasPair)
-    const itemRuns=(researchQuery.data||[]).filter((x:any)=>{
-      if(!x.result?.research_summary)return false
-      if(x.user_context?.item_id===id)return true
-      if(!parentId||originalIndex===null||x.user_context?.source_analysis_run_id!==parentId)return false
-      const matchingIndex=Number(x.user_context?.source_object_index)===Number(originalIndex)
-      const originalResearchWasPair=Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2
-      return matchingIndex&&originalResearchWasPair===wasPair
-    })
-    setSavedResearchRuns(itemRuns.filter((x:any)=>x.status==='APPROVED'))
-    setPendingResearchRuns(itemRuns.filter((x:any)=>x.status==='DRAFT'))
-    const rows = (photoData || []) as ItemPhoto[]
-    if (rows.length) {
-      const signed = await Promise.all(rows.map(async p => {
-        const {data} = await supabase.storage.from('item-images').createSignedUrl(p.storage_path, 3600)
-        return [p.id, data?.signedUrl || ''] as const
-      }))
-      setPhotoUrls(Object.fromEntries(signed))
-    } else {
-      setPhotoUrls({})
-    }
+    await reloadResearch(itemData as Item)
   }
-  useEffect(()=>{load()},[id])
+  useEffect(()=>{
+    alive.current=true;void load();void loadPhotographs()
+    return ()=>{alive.current=false;photoRead.current++;itemRead.current++;historyRead.current++}
+  },[id])
+  useEffect(()=>{
+    if(!item||(!researching&&!researchHistory?.runs.some(run=>run.result?.analysis_stage==='PROCESSING')))return
+    const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void reloadResearch(item)},15000)
+    return ()=>window.clearInterval(timer)
+  },[item?.id,researchHistory,researching])
 
-  const update = (k:keyof Item,v:any)=> item && setItem({...item,[k]:v})
+  const update = (k:keyof Item,v:any)=>{invalidateReviewed();editRevision.current++;if(item)setItem({...item,[k]:v})}
+  const refreshStoredFacts=async()=>{
+    invalidateReviewed()
+    if(!item||editRevision.current!==savedRevision.current)throw Error('Save your current catalogue edits before replacing the stored facts for a new review.')
+    const auth=await supabase.auth.getUser();if(auth.error||auth.data.user?.id!==item.owner_id)throw Error('Sign in as this object’s owner.')
+    const read=await supabase.from('items').select('*').eq('id',item.id).eq('owner_id',item.owner_id).maybeSingle()
+    if(!current()||read.error||!read.data)throw Error('Current stored catalogue facts could not be recovered.')
+    setItem(read.data as Item)
+  }
   const save = async () => {
-    if (!item) return
-    const copy:any = {...item}; delete copy.id; delete copy.item_code; delete copy.created_at; delete copy.updated_at
-    const {error} = await supabase.from('items').update(copy).eq('id',item.id)
-    setMessage(error ? error.message : 'Saved')
-    if (!error) setTimeout(()=>setMessage(''),1600)
+    if(!item||saveLock.current)return
+    invalidateReviewed();saveLock.current=true;setSaving(true);const selected=item,revision=editRevision.current
+    const copy:any={...selected};delete copy.id;delete copy.item_code;delete copy.created_at;delete copy.updated_at
+    try{
+      const auth=await supabase.auth.getUser();if(!current())return
+      if(auth.error||auth.data.user?.id!==selected.owner_id)throw Error('Sign in as this object’s owner before saving.')
+      try{await supabase.from('items').update(copy).eq('id',selected.id).eq('owner_id',selected.owner_id)}catch{/* Independently read the outcome. */}
+      const read=await supabase.from('items').select('*').eq('id',selected.id).eq('owner_id',selected.owner_id).maybeSingle()
+      const confirmed=await supabase.auth.getUser();if(!current())return
+      if(confirmed.error||confirmed.data.user?.id!==selected.owner_id||read.error||!read.data||Object.entries(copy).some(([k,v])=>JSON.stringify(v)!==JSON.stringify(read.data[k])))throw Error('Save outcome is unconfirmed. Your edits remain here; recover stored catalogue facts before another assessment.')
+      savedRevision.current=revision
+      setItem(previous=>previous&&previous.id===selected.id?(revision===editRevision.current?read.data as Item:{...previous,updated_at:read.data.updated_at}):previous)
+      setMessage('Saved');setTimeout(()=>{if(current())setMessage('')},1600)
+    }catch(e){if(current())setMessage(e instanceof Error?e.message:'Save unconfirmed; your edits remain here.')}
+    finally{saveLock.current=false;if(current()){invalidateReviewed();setSaving(false)}}
   }
 
-  const upload = async (e:ChangeEvent<HTMLInputElement>) => {
-    if (!item || !e.target.files?.length) return
-    setUploading(true)
-    const {data:{user}} = await supabase.auth.getUser()
-    if (!user) return
-    for (const file of Array.from(e.target.files)) {
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_')
-      const path = `${user.id}/${item.item_code}/${Date.now()}-${safe}`
-      const {error} = await supabase.storage.from('item-images').upload(path,file)
-      if (!error) await supabase.from('item_photos').insert({item_id:item.id,storage_path:path,file_name:file.name,position:photos.length})
-    }
-    setUploading(false); await load()
+  const upload = async (event:ChangeEvent<HTMLInputElement>) => {
+    const files=Array.from(event.target.files||[]);event.target.value=''
+    if(!item||!files.length||photoBusy.current||!photographsLoaded||pendingPhotographs.length)return
+    invalidateReviewed();photoBusy.current=true;setUploading(true);setPhotographMessage('Saving original photographs and checking their links…')
+    try{
+      const attempts=await preparePhotographAttempts(supabase,item.id,files,current)
+      await processPhotographs(attempts)
+    }catch(error){if(current())setPhotographMessage(error instanceof PhotographError?error.message:'The photographs could not be confirmed. Please retry.')}
+    finally{photoBusy.current=false;if(current()){invalidateReviewed();setUploading(false)}}
   }
-
 
   const runResearch = async () => {
     if (!item) return
-    setResearching(true)
+    invalidateReviewed();setResearching(true)
     setMessage('Researching live market evidence…')
-    const {data:{session}} = await supabase.auth.getSession()
-    if (!session) { setResearching(false); return setMessage('Session expired. Sign in again.') }
     try {
+      const {data:{session}} = await supabase.auth.getSession()
+      if(!session)throw Error('Session expired. Sign in again.')
+      // Re-read persisted attempts before staging another chargeable request.
+      const history=await readItemResearch(supabase,item,current)
+      if(history.runs.some(run=>run.result?.analysis_stage==='PROCESSING'))throw Error('An earlier research request has an unconfirmed outcome. Recover its stored history before any paid retry.')
       const images=Object.values(photoUrls).filter(Boolean).slice(0,12)
       const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({
         mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:images.length,
@@ -150,7 +249,7 @@ export default function ItemDetail() {
     } catch (err:any) {
       setMessage(err?.message || 'Research failed')
     } finally {
-      setResearching(false)
+      if(current()){setResearching(false);await reloadResearch(item)}
     }
   }
 
@@ -161,7 +260,7 @@ export default function ItemDetail() {
       setMessage('Research draft could not be linked to a saved analysis run. Keep this draft open.')
       return
     }
-    setResearching(true)
+    invalidateReviewed();setResearching(true)
     try {
       const {error}=await supabase.from('ai_analysis_runs')
         .update({status:'APPROVED',approved_at:new Date().toISOString()})
@@ -172,10 +271,11 @@ export default function ItemDetail() {
       setMessage('Provisional research preserved in analysis history. Item attribution, values and comparables were NOT changed; original-source verification remains required.')
     } catch(err:any) {
       setMessage(err?.message || 'Research not saved; draft remains open.')
-    } finally {setResearching(false)}
+    } finally {if(current()){setResearching(false);await reloadResearch(item)}}
   }
 
-  if (!item) return <div className="empty">Loading object record…</div>
+  const reviewed=researching||uploading||saving||assessmentMutating||armyMutating?null:reviewedForItem(reviewedCandidate,item)
+  if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
 
   return (
     <div>
@@ -184,7 +284,7 @@ export default function ItemDetail() {
           <div className="eyebrow">{item.item_code}</div>
           <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
-          <div className="pillRow"><span className="pill accent">{(item.sale_readiness || item.status).replaceAll('_',' ')}</span></div>
+          <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':reviewed?reviewed.assessment.decision.replaceAll('_',' '):'FINAL RESEARCH DECISION REQUIRED'}</span></div>
         </div>
         <div className="heroActions">
           <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
@@ -196,15 +296,21 @@ export default function ItemDetail() {
       <div className="tabBar">
         {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
       </div>
+      <ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      <ItemAssessment client={supabase} item={item} qualifiedReviewId={reviewed?.id} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>
+      {reviewedError&&<p className="ci-page-meta">{reviewedError}</p>}
+      {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
+
+      {reviewedHistory.length>0&&<details className="panel"><summary>Independent final assessment history ({reviewedHistory.length})</summary><p>Historical decisions retain their original evidence. Only the current qualified assessment can establish readiness.</p>{reviewedHistory.map(row=><article key={row.id}><strong>{row.assessment.decision.replaceAll('_',' ')} · {row.id===reviewed?.id?'current independent source review':'historical decision — not current readiness'}</strong><p>{row.assessment.rationale}</p><small>{row.created_at} · {row.assessment.reviewReference}</small><details><summary>Original assessment and source references</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>}
 
       {tab==='overview' && <div>
         <div className="panel">
           <div className="panelHeader"><h2>At a glance</h2><span>{item.item_code}</span></div>
-          <div className="valueSummary">
+          <div className="valueSummary ci-item-value-summary">
             <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
             <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
-            <div><small>Fast cash · provisional</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
-            <div><small>Next action</small><strong>{(item.sale_readiness||'RESEARCH_FIRST').replaceAll('_',' ')}</strong></div>
+            <div><small>Fast cash · provisional</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
+            <div><small>Next action</small><strong>{item.status==='SOLD'?'Review sale history':'Complete evidence review and final item assessment'}</strong></div>
           </div>
           <p>{item.condition_summary ? item.condition_summary.slice(0,180) : 'Condition not yet recorded.'}</p>
           <details><summary>Show identification and valuation confidence</summary>
@@ -256,7 +362,7 @@ export default function ItemDetail() {
         </div>
 
         <div className="panel span2">
-          <div className="panelHeader"><h2>Values</h2><span>{item.currency || 'GBP'}</span></div>
+          <div className="panelHeader"><h2>Values</h2><span>{knownSaleCurrency(item.currency)?item.currency:'Currency unconfirmed'}</span></div>
           <div className="valueGrid">
             <label>Quick sale<input type="number" value={item.quick_sale_value??''} onChange={e=>update('quick_sale_value',e.target.value?Number(e.target.value):null)}/></label>
             <label>Balanced low<input type="number" value={item.balanced_value_low??''} onChange={e=>update('balanced_value_low',e.target.value?Number(e.target.value):null)}/></label>
@@ -266,18 +372,28 @@ export default function ItemDetail() {
           </div>
         </div>
           </div>
-          <div style={{marginTop:12}}><button className="primaryButton inlineButton" onClick={save}><Save size={17}/> Save changes</button></div>
+          <div style={{marginTop:12}}><button className="primaryButton inlineButton" onClick={save} disabled={saving}><Save size={17}/> {saving?'Checking saved facts…':'Save changes'}</button></div>
         </details>
       </div>}
 
-      {tab==='photos' && <div className="panel">
-        <div className="panelHeader"><div><h2>Photographs</h2><span>Original object evidence and listing imagery</span></div><label className="primaryButton inlineButton uploadButton"><Camera size={17}/>{uploading?'Uploading…':'Upload photos'}<input type="file" accept="image/*" multiple hidden onChange={upload}/></label></div>
-        <div className="photoGrid">
-          {photos.length===0 && <div className="empty">No photographs uploaded yet.</div>}
-          {photos.map(p=><div className="photoTile" key={p.id}>{photoUrls[p.id] ? <img src={photoUrls[p.id]} alt={p.caption||p.file_name||item.item_code}/> : <div className="photoPending">Generating secure preview…</div>}<div><strong>{p.photo_role||'Object photo'}</strong><span>{p.file_name}</span></div></div>)}
+      {tab==='photos' && <section className="panel" aria-label="Original photographs">
+        <div className="panelHeader ci-photo-header"><div><h2>Photographs</h2><span>Original object evidence and listing imagery</span></div>
+          <button type="button" className="primaryButton inlineButton" disabled={uploading||(!pendingPhotographs.length&&!photographsLoaded)} onClick={()=>pendingPhotographs.length?void retryPhotographs():photoInput.current?.click()}><Camera size={17}/>{uploading?'Checking photographs…':pendingPhotographs.length?'Retry pending photographs':'Upload photos'}</button>
+          <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple hidden disabled={uploading||!photographsLoaded||!!pendingPhotographs.length} onChange={upload}/>
         </div>
+        {photographsLoading&&<p>Loading private photographs…</p>}
+        {photographError&&<p className="note" role="alert">{photographError}</p>}
+        {photographError&&!uploading&&<button className="secondaryButton inlineButton" onClick={()=>void loadPhotographs()}>Reload photographs</button>}
+        <div className="photoGrid">
+          {photographsLoaded&&photos.length===0&&!photographError&&<div className="empty">No photographs linked to this item yet.</div>}
+          {photos.map(photo=><div className="photoTile" key={photo.id}>{photoUrls[photo.id]?<img src={photoUrls[photo.id]} alt={photo.caption||photo.file_name||item.item_code} onError={()=>{
+            if(!current())return
+            setPhotoUrls(previous=>({...previous,[photo.id]:''}));setPhotographError('A secure preview could not be displayed. Reload photographs to try again; the original is retained.')
+          }}/>:<div className="photoPending">{photographsLoading?'Loading secure preview…':'Preview unavailable'}</div>}<div><strong>{photo.photo_role||'Object photo'}</strong><span>{photo.file_name}</span></div></div>)}
+        </div>
+        {photographMessage&&<p className="note" role="status" tabIndex={-1} ref={photoStatus}>{photographMessage}</p>}
         <div className="note">Image previews use short-lived signed URLs from the private Supabase bucket.</div>
-      </div>}
+      </section>}
 
       {tab==='identification' && <div className="marketStack">
         <div className="panel">
@@ -296,7 +412,11 @@ export default function ItemDetail() {
         </div>
       </div>}
 
+      <div className="ci-research-workspace-shell" hidden={tab!=='market'}>
+        <ResearchArmyWorkspace key={item.id} item={item} onMutating={active=>{invalidateReviewed();setArmyMutating(active)}} onChanged={()=>void reloadResearch(item)}/>
+      </div>
       {tab==='market' && <div className="marketStack">
+        <ComparableEvidence rows={comps} trustedIds={trustedComps.map(c=>c.id)} error={historyError}/>
         {photos.some(p=>!!photoUrls[p.id])&&
          <VisualReferenceWorkbench
           itemId={item.id}
@@ -338,7 +458,7 @@ export default function ItemDetail() {
          description="Continue with the original item photographs. Saved research remains available above."
          primary={{
           label:researching?'Researching…':'Research online',
-          onClick:runResearch,disabled:researching,loading:researching
+          onClick:runResearch,disabled:researching||historyLoading||!!historyError||!!researchHistory?.runs.some(run=>run.result?.analysis_stage==='PROCESSING'),loading:researching
          }}
          secondary={<a href="https://lens.google.com/" target="_blank" rel="noopener noreferrer"
           className="ci-action-text-link">Manual image search ↗</a>}
@@ -354,26 +474,24 @@ export default function ItemDetail() {
          </div>
         </>}
 
-        <div className="panel">
-          <div className="panelHeader"><h2>Comparable evidence</h2><span>{comps.length} permanent records</span></div>
-          {comps.length===0 ? <div className="empty">No permanent comparable sales recorded yet.</div> :
-          <div className="tableWrap"><table><thead><tr><th>Venue</th><th>Date</th><th>Evidence class</th><th>Description</th><th>Price</th><th>Verification</th></tr></thead><tbody>{comps.map(c=><tr key={c.id}><td>{c.venue}</td><td>{date(c.sale_date)}</td><td>{c.price_type.replaceAll('_',' ')}</td><td>{c.description}</td><td>{money(c.price,c.currency||'GBP')}</td><td>{c.verification_status.replaceAll('_',' ')} {c.source_url && <a href={c.source_url} target="_blank"><ExternalLink size={13}/></a>}</td></tr>)}</tbody></table></div>}
-        </div>
       </div>}
 
       {tab==='sales' && <div className="marketStack">
        <div className="panel">
         <div className="panelHeader"><h2>Sales and listing record</h2><span>Original collection object</span></div>
         <div className="valueSummary">
-         <div><small>Acquisition · cash paid</small><strong>{money(item.acquisition_price,item.acquisition_currency||'GBP')}</strong></div>
-         <div><small>Indicative fast cash · gross</small><strong>{money(item.quick_sale_value,item.currency||'GBP')}</strong></div>
-         <div><small>Previously recorded expected net</small><strong>{money(item.expected_net,item.currency||'GBP')}</strong></div>
+         <div><small>Acquisition · cash paid</small><strong>{provisionalMoney(item.acquisition_price,item.acquisition_currency)}</strong></div>
+         <div><small>Indicative fast cash · gross</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
+         <div><small>Previously recorded expected net</small><strong>{provisionalMoney(item.expected_net,item.currency)}</strong></div>
         </div>
         <p className="ci-page-meta">Previously recorded prices are not evidence of achieved sales. Do not automatically use dealer asking as a realised price.</p>
+        <Link className="secondaryButton inlineButton" to={'/lots?item='+item.id}>Compare separate and grouped selling</Link>
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
-       <SaleEconomics currency={item.currency||'GBP'} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
-       <RecordSaleOutcome itemId={item.id} currency={item.currency||'GBP'} itemStatus={item.status}/>
+       {historyError&&<p role="alert">{historyError} Sale recommendation and publication status cannot be confirmed.</p>}
+       <SellFastPlan item={item} comparables={comps} trustedComparableIds={historyError?[]:trustedComps.map(c=>c.id)} listings={historyError?[]:listings} photoCount={photos.length} researchAudit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined}/>
+       <SaleEconomics currency={item.currency||''} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
+       <RecordSaleOutcome client={supabase} itemId={item.id} onSold={(soldId,ownerId)=>setItem(current=>applyConfirmedSaleStatus(current,soldId,ownerId))}/>
       </div>}
 
       {tab==='catalogue' && <div className="cataloguePreview">

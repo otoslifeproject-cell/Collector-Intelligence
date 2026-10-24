@@ -15,6 +15,8 @@ import Reports from './pages/Reports'
 import Login from './pages/Login'
 import AIIntake from './pages/AIIntake'
 import SavedDraft from './pages/SavedDraft'
+import SavedIntakes from './pages/SavedIntakes'
+import LotOptimiser from './pages/LotOptimiser'
 
 export default function App() {
   const [session,setSession] = useState<Session|null>(null)
@@ -32,7 +34,7 @@ export default function App() {
   if (!session) return <Login/>
 
   return (
-    <div className="appShell">
+    <div className="appShell" key={session.user.id}>
       <Sidebar appearance={appearance} onToggleAppearance={()=>setAppearance(v=>v==='dark'?'light':'dark')}/>
       <main className="mainContent">
         <Routes>
@@ -40,10 +42,13 @@ export default function App() {
           <Route path="/inventory" element={<Inventory/>}/>
           <Route path="/new" element={<NewItem/>}/>
           <Route path="/intake" element={<AIIntake/>}/>
+          <Route path="/uploads" element={<SavedIntakes/>}/>
+          <Route path="/uploads/:id" element={<SavedIntakes/>}/>
           <Route path="/draft/:id" element={<SavedDraft/>}/>
           <Route path="/item/:id" element={<ItemDetail/>}/>
           <Route path="/research" element={<Research/>}/>
           <Route path="/sales" element={<Sales/>}/>
+          <Route path="/lots" element={<LotOptimiser/>}/>
           <Route path="/contacts" element={<Contacts/>}/>
           <Route path="/reports" element={<Reports/>}/>
           <Route path="*" element={<Navigate to="/" replace/>}/>

@@ -14,6 +14,7 @@ const links = [
   ['/new', 'Add item', PlusCircle],
   ['/research', 'Research', FlaskConical],
   ['/sales', 'Sales', CircleDollarSign],
+  ['/lots', 'Lot optimiser', Boxes],
   ['/contacts', 'Contacts', UsersRound],
   ['/reports', 'Reports', ChartNoAxesCombined],
 ]

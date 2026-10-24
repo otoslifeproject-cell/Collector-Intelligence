@@ -9,6 +9,7 @@ import InfoDisclosure from '../components/InfoDisclosure'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
+  const [loadError,setLoadError]=useState(''),[reload,setReload]=useState(0)
   const [draftRuns,setDraftRuns] = useState<any[]>([])
   const [ownerMaterialCorrections,setOwnerMaterialCorrections]=useState<any[]>([])
   const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
@@ -50,7 +51,10 @@ export default function Inventory() {
       setDraftCovers(Object.fromEntries(results))
     })
     let cancelled=false
-    supabase.from('items').select('*').order('item_code').then(async ({data})=>{
+    setLoadError('')
+    supabase.from('items').select('*').order('item_code').then(async ({data,error:readError})=>{
+      if(cancelled)return
+      if(readError||!data){setItems([]);setLoadError('Catalogue unavailable. Reload inventory to recover saved objects.');return}
       const rows=(data||[]) as Item[]
       if(cancelled)return
       setItems(rows)
@@ -69,7 +73,7 @@ export default function Inventory() {
       if(!cancelled)setCovers(Object.fromEntries(urls))
     })
     return ()=>{cancelled=true}
-  },[])
+  },[reload])
 
   const filtered = useMemo(()=>items.filter(i=>{
     const text = [i.item_code,i.title,i.maker,i.current_attribution,i.object_type,i.category].filter(Boolean).join(' ').toLowerCase()
@@ -108,7 +112,8 @@ export default function Inventory() {
          ...['CATALOGUED','RESEARCH','ONE_QUICK_CHECK','SPECIALIST_REVIEW','READY_TO_SELL','LISTED','CONSIGNED','SOLD','ARCHIVED'].map(value=>({value,label:value.replaceAll('_',' ')}))
         ]}
       />
-      <div className="inventorySummary">{filtered.length} permanent catalogue items · {unfinished.length} unfinished draft lots/objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
+      {loadError&&<p role="alert">{loadError}<button className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory</button></p>}
+      <div className="inventorySummary">{loadError?'Catalogue count unavailable · ':''}{filtered.length} permanent catalogue items · {unfinished.length} unfinished draft lots/objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
       {showDrafts&&pendingSessions.length>0&&<section className="section">
         <h2 className="ci-section-title">Uploaded photographs awaiting a completed AI report <span>{pendingSessions.length} sessions</span></h2>
         <InfoDisclosure label="About incomplete uploads"><p>Original photos remain in private storage. An unfinished AI report cannot be approved as an item.</p></InfoDisclosure>

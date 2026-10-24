@@ -1,3 +1,8 @@
+import {applyInscriptionReview} from '../src/lib/inscriptionReview.ts';
+import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
+import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
+import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
+
 const schema = {
   type: "object",
   additionalProperties: false,
@@ -156,38 +161,7 @@ function markNeedsReview(result: any, context: any): boolean {
   }) || /\b(?:signed|signature|inscription)\b/i.test(String(context?.user_notes || ""));
 }
 
-function applyInscriptionReview(result: any, review: any) {
-  if (!review?.mark_visible || !Array.isArray(result?.objects)) return result;
-  const valid = new Set((review.evidence_image_indices || []).filter((x: any) => Number.isInteger(x)));
-  const description = review.candidate_transcription
-    ? `Second-pass candidate inscription: "${review.candidate_transcription}" (${review.transcription_confidence}% transcription confidence; NOT independently verified).`
-    : "Second-pass examination detected a mark but could not transcribe it reliably.";
-  for (const object of result.objects) {
-    if (!Array.isArray(object.image_indices) || !object.image_indices.some((x: number) => valid.has(x))) continue;
-    const indices = object.image_indices.filter((x: number) => valid.has(x)).join(", ");
-    const source = `Source image indices: ${indices || "not determined"}. ${review.rationale || ""}`;
-    object.marks_signatures_labels = [object.marks_signatures_labels, description].filter(Boolean).join(" ");
-    object.evidence = Array.isArray(object.evidence) ? object.evidence : [];
-    object.evidence.push({ claim: description, provenance: "INFERENCE", certainty_class: "POSSIBLE_ATTRIBUTION", stance: "SUPPORTS", notes: source });
-    if (review.candidate_maker && !object.maker) {
-      object.current_attribution = [review.candidate_maker, review.candidate_design].filter(Boolean).join(" — ") + " (candidate only; research needed)";
-      object.catalogue_note = `Unverified inscription-led candidate: ${object.current_attribution}. ${object.catalogue_note || ""}`;
-      // Image-only maker readings are hypotheses, never confirmed identities.
-      object.identification_confidence = Math.min(74, object.identification_confidence || 0); // A speculative second-pass maker must not increase object-level identification certainty.
-    }
-    if (review.candidate_period && !object.period_wording) object.period_wording = `Possible ${review.candidate_period}; unverified`;
-    if (review.candidate_maker) {
-      object.sale_readiness = "RESEARCH_FIRST";
-      object.status = "RESEARCH";
-      object.specialist_review = true;
-    }
-    // Do not request replacement photographs if the existing image already yields a candidate reading.
-    if (!review.needs_new_photograph && review.candidate_transcription && Array.isArray(object.next_evidence)) {
-      object.next_evidence = object.next_evidence.filter((e: any) => !/\b(?:inscription|signature|mark)\b/i.test(String(e.title || "")));
-    }
-  }
-  return result;
-}
+
 
 // Owner-confirmed material mistakes are reusable cautionary benchmarks, not
 // independent maker identifications or permission to override new photos.
@@ -211,7 +185,7 @@ async function loadOwnerMaterialLessons(url:string,key:string,token:string){
 // to verified attribution without corroborating its original source.
 async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userToken: string, result: any) {
   const objects = Array.isArray(result?.objects) ? result.objects : [];
-  const terms = [...new Set(objects.flatMap((o: any) =>
+  const terms = [...new Set<string>(objects.flatMap((o: any) =>
     [o.object_type, o.maker, o.current_attribution, o.marks_signatures_labels]
       .filter((v: any) => typeof v === "string")
       .flatMap((v: string) => v.toLowerCase().match(/[a-zÀ-ÿ]{4,}/g) || [])
@@ -269,20 +243,19 @@ function reconcileKnowledge(result: any, lookup: any) {
 }
 
 function extractText(payload: any) {
-  if (typeof payload.output_text === "string" && payload.output_text) return payload.output_text;
-  for (const item of payload.output || []) {
-    if (item.type === "message") {
-      for (const part of item.content || []) {
-        if (part.type === "output_text" && part.text) return part.text;
-      }
-    }
-  }
-  return "";
+  if (typeof payload?.output_text === "string" && payload.output_text) return payload.output_text;
+  return (Array.isArray(payload?.output)?payload.output:[]).flatMap((item:any)=>
+    item?.type==='message'&&Array.isArray(item.content)
+      ?item.content.flatMap((part:any)=>part?.type==='output_text'&&typeof part.text==='string'?[part.text]:[]):[]).join('');
 }
 
 // Owner-scoped, versioned canonical policy retrieval before paid inference.
 // Fail closed: never silently fall back to an out-of-date prompt.
 async function loadCanonicalContext(url: string, key: string, token: string) {
+  return loadCanonicalForCaller({url,key,token},'intake',process.env.COLLECTOR_CANONICAL_SOURCE_MODE,
+    ()=>loadLegacyCanonicalContext(url,key,token));
+}
+async function loadLegacyCanonicalContext(url: string, key: string, token: string) {
   const keys = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","01_PROJECT_INSTRUCTIONS.md","06_PHOTO_EXAMINATION.md"];
   const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at,source_version",is_current:"eq.true",document_key:"in.("+keys.join(",")+")",order:"ingested_at.desc",limit:"100"});
   const resp = await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{
@@ -317,7 +290,7 @@ async function verifyUser(token: string, supabaseUrl: string, supabaseKey: strin
 }
 
 async function readStagedRun(url:string,key:string,token:string,runId:string) {
-  const query=new URLSearchParams({select:'id,mode,status,input_photo_count,result',id:'eq.'+runId,limit:'1'});
+  const query=new URLSearchParams({select:'id,mode,status,model,input_photo_count,result',id:'eq.'+runId,limit:'1'});
   const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
     headers:{apikey:key,Authorization:'Bearer '+token}
   });
@@ -328,15 +301,16 @@ async function readStagedRun(url:string,key:string,token:string,runId:string) {
 }
 async function saveStagedAnalysis(url:string,key:string,token:string,runId:string,model:string,result:any) {
   const query=new URLSearchParams({id:'eq.'+runId,status:'eq.DRAFT',select:'id,result'});
-  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
+  try{const acknowledgement=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
     method:'PATCH',
-    headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'return=representation'},
+    headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'return=minimal'},
     body:JSON.stringify({model,result})
-  });
-  const rows=await response.json();
-  if(!response.ok||!Array.isArray(rows)||rows.length!==1)
-    throw Error('Completed AI analysis could not be written into the saved report ('+response.status+')');
-  return rows[0];
+  });await acknowledgement.arrayBuffer();}catch{/* A lost acknowledgement can hide a real commit; read it independently. */}
+  const saved=await readStagedRun(url,key,token,runId);
+  const stable=(value:any):string=>JSON.stringify(value,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+  if(saved.id!==runId||saved.status!=='DRAFT'||saved.model!==model||stable(saved.result)!==stable(result))
+    throw Error('Completed AI analysis could not be independently confirmed in its saved report.');
+  return saved;
 }
 
 export default async function handler(req: any, res: any) {
@@ -356,7 +330,7 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
-  let canonical: {instructions:string,hashes:Record<string,string>};
+  let canonical: CanonicalRuntimeContext;
   try { canonical = await loadCanonicalContext(supabaseUrl,supabaseKey,token); }
   catch (e) { return res.status(503).json({error:"Required Collector Intelligence policy cannot be loaded; AI analysis stopped to prevent policy drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"}); }
 
@@ -391,6 +365,8 @@ export default async function handler(req: any, res: any) {
       return res.status(409).json({error:'Source photo manifest does not match the owner-saved draft; no paid AI request made.'});
     if(Array.isArray(staged.result?.objects)&&staged.result.objects.length)
       return res.status(409).json({error:'This analysis is already saved. Open the original saved report; do not pay again.'});
+    if(staged.result?.analysis_stage!=='UPLOADED')
+      return res.status(409).json({error:'This photo session has already progressed or needs review. Check its saved response before another paid request.',code:'INTAKE_SESSION_NOT_READY',run_id});
   }catch(e:any){
     return res.status(503).json({error:e?.message||'Cannot verify saved intake manifest before AI request.'});
   }
@@ -416,6 +392,10 @@ export default async function handler(req: any, res: any) {
     ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
     : configuredModel.replace(/^openai\//, "");
 
+  // A publication change during photo/knowledge preflight must stop this dispatch.
+  try { canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical); }
+  catch(e){return res.status(503).json({error:'Approved source set changed or became unavailable before AI dispatch. No AI request made.',code:e instanceof Error?e.message:'CANONICAL_RECHECK_FAILED'});}
+
   const body = {
     model,
     reasoning: { effort: "medium" },
@@ -434,7 +414,9 @@ export default async function handler(req: any, res: any) {
     max_output_tokens: 12000
   };
 
-  const response = await fetch(
+  let response:Response,providerRaw:string;
+  try {
+   response = await fetch(
     useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
     {
     method: "POST",
@@ -444,18 +426,44 @@ export default async function handler(req: any, res: any) {
     },
       body: JSON.stringify(body)
     }
-  );
-
-  const payload = await response.json();
-  if (!response.ok) {
-    return res.status(response.status).json({ error: payload?.error?.message || "AI analysis failed", details: payload?.error || null });
+   );
+   providerRaw=await response.text();
+  } catch {
+   return res.status(503).json({error:'The AI request outcome is uncertain. Check the saved photo session; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTCOME_UNCONFIRMED',run_id});
+  }
+  let payload:any;
+  try {payload=JSON.parse(providerRaw)}catch{payload=null}
+  const providerArchive={provider_response_raw:providerRaw,provider_response_status:response.status,
+    provider_response_id:typeof payload?.id==='string'?payload.id:null};
+  const providerModel=typeof payload?.model==='string'?payload.model:body.model;
+  const retainUnparsed=async(stage:string)=>{
+   try {
+    await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,providerModel,{
+     ...staged.result,...providerArchive,analysis_stage:stage,
+     canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical)
+    });
+    return true;
+   }catch{return false}
+  };
+  const uncertainResponse=()=>({run_id,returned_response:{...providerArchive,model:providerModel},response_save_confirmed:false});
+  if(!response.ok){
+   const retained=await retainUnparsed('PROVIDER_ERROR_SAVED');
+   return res.status(response.status).json({error:(typeof payload?.error?.message==='string'?payload.error.message:'AI service returned an error')+'. Check the saved photo session before another paid request.',
+    code:'PAID_INTAKE_PROVIDER_ERROR',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
+  }
+  const text=extractText(payload);
+  if(!text){
+   const retained=await retainUnparsed('UNPARSED_RESPONSE_SAVED');
+   return res.status(502).json({error:'AI returned no readable structured output. Check the retained response; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTPUT_INVALID',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
   }
 
-  const text = extractText(payload);
-  if (!text) return res.status(502).json({ error: "Analysis returned no structured output" });
-
+  let firstPassSaved=false;
   try {
-    let result = JSON.parse(text);
+    const parsed=JSON.parse(text);
+    if(!parsed||typeof parsed!=='object'||typeof parsed.batch_summary!=='string'||!Array.isArray(parsed.objects)||!parsed.objects.length||parsed.objects.length>5)throw Error('Invalid structured intake output');
+    // Only schema fields become interpreted output. The complete original
+    // provider response, including unknown fields and whitespace, is archived.
+    let result:any={batch_summary:parsed.batch_summary,objects:parsed.objects};
     // Immutable JSON snapshot of the initial AI interpretation before any further review.
     const initialAiResult = JSON.parse(JSON.stringify(result));
     // Save the first paid model answer BEFORE enrichment, second-pass AI or client response.
@@ -477,15 +485,17 @@ export default async function handler(req: any, res: any) {
     result={...result,photo_index_audit:photoIndexAudit};
     try {
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,{
-        ...staged.result,...result,image_manifest:originalManifest,
+        ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
         initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
         image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
         canonical_policy_hashes:canonical.hashes,
+        canonical_source_audit:canonicalSourceAudit(canonical),
         knowledge_lookup:{status:'PENDING',matches:[]},
         material_correction_lessons_consulted:ownerMaterialLessons.length
       });
+      firstPassSaved=true;
     }catch(e:any){
-      return res.status(503).json({error:e?.message||'Paid analysis was returned but could not be persisted.',code:'FIRST_PASS_SAVE_FAILED',run_id});
+      return res.status(503).json({error:'AI returned an answer, but its save is not confirmed. Keep the returned response open; do not repeat paid analysis to recover it.',code:'FIRST_PASS_SAVE_FAILED',...uncertainResponse()});
     }
     let knowledge_lookup: any = {status:'NOT_ATTEMPTED',matches:[]};
     try { knowledge_lookup = await lookupKnowledge(supabaseUrl,supabaseKey,token,result); }
@@ -508,6 +518,9 @@ export default async function handler(req: any, res: any) {
         detailContent.push({type:"input_image",image_url:image.url,detail:"original"});
       }
       try {
+        // The first answer is already saved. A revoked/changed source blocks
+        // this additional paid pass while preserving that original answer.
+        canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical);
         const markResponse = await fetch(
           useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
           {
@@ -542,17 +555,18 @@ export default async function handler(req: any, res: any) {
           console.warn("Inscription review unavailable", markResponse.status);
         }
       } catch (err) {
-        inscription_review_status = 'REVIEW_ERROR';
+        inscription_review_status = err instanceof CanonicalSourceError?'SOURCE_GATE_'+err.code:'REVIEW_ERROR';
         console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
       }
     }
     result = reconcileKnowledge(result, knowledge_lookup);
     const savedResult={
-      ...staged.result,...result,image_manifest:originalManifest,
+      ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
       initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
       image_manifest_version:1,analysis_stage:'COMPLETE',
       inscription_review,inscription_review_status,knowledge_lookup,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     };
     try{
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,savedResult);
@@ -567,9 +581,12 @@ export default async function handler(req: any, res: any) {
       inscription_review,
       inscription_review_status,
       knowledge_lookup,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     });
   } catch {
-    return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
+    if(firstPassSaved)return res.status(503).json({error:'The first AI interpretation is saved, but later checks could not be interpreted. Open the original saved report; do not repeat paid analysis to recover it.',code:'INTAKE_ENRICHMENT_UNCONFIRMED',run_id});
+    const retained=await retainUnparsed('UNPARSED_RESPONSE_SAVED');
+    return res.status(502).json({error:'The returned analysis could not be interpreted. Check the retained original response; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTPUT_INVALID',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
   }
 }

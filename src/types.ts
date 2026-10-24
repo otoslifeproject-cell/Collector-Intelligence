@@ -1,5 +1,6 @@
 export type Item = {
   id: string
+  owner_id: string
   item_code: string
   title: string | null
   category: string | null
@@ -50,6 +51,7 @@ export type ItemPhoto = {
 
 export type Comparable = {
   id: string
+  owner_id?: string
   item_id: string
   venue: string
   sale_date: string | null
@@ -60,4 +62,11 @@ export type Comparable = {
   source_url: string | null
   verification_status: string
   comparability_grade: string | null
+  source_reference?: string | null
+  lot_item_id?: string | null
+  date_checked?: string | null
+  maker_attribution?: string | null
+  dimensions?: string | null
+  condition_summary?: string | null
+  notes?: string | null
 }

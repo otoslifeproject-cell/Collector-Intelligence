@@ -29,7 +29,7 @@ export default function Login() {
           <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={6} required /></label>
           <button className="primaryButton" type="submit">{mode === 'login' ? 'Sign in' : 'Create account'}</button>
         </form>
-        {message && <div className="formMessage">{message}</div>}
+        {message && <div className="formMessage" role="alert">{message}</div>}
         <button className="textButton" onClick={()=>setMode(mode === 'login' ? 'signup' : 'login')}>
           {mode === 'login' ? 'First use? Create the owner account' : 'Already created? Sign in'}
         </button>

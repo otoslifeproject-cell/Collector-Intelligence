@@ -34,7 +34,7 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
     <strong>{money(val.balanced_low,currency)} – {money(val.balanced_high,currency)}</strong>
     <span>{val.valuation_confidence??'—'}% valuation confidence</span></div>
    <div><small>Suggested selling route</small><strong title={routeTitle}>{short(routeTitle,92)}</strong>
-    <span>{text(route.sale_readiness)||'Unknown readiness'}</span></div>
+    <span>Model suggestion: {text(route.sale_readiness)||'Unknown readiness'}. Final research decision required before listing.</span></div>
   </div>
   {summary&&<div className="ci-research-brief-wrap">
     <p className="ci-research-brief">{short(summary,180)}</p>

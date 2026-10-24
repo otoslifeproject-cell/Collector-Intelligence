@@ -5,16 +5,20 @@ import { supabase } from '../lib/supabase'
 import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
 import StatCard from '../components/StatCard'
-import { money } from '../lib/format'
+import {provisionalCurrencyTotals} from '../lib/catalogueSaleState'
 
 export default function Dashboard() {
   const [items,setItems] = useState<Item[]>([])
   const [loading,setLoading] = useState(true)
+  const [error,setError]=useState(''),[reload,setReload]=useState(0)
   const [coverUrls,setCoverUrls] = useState<Record<string,string>>({})
 
   useEffect(() => {
+    let active=true;setLoading(true);setError('')
     supabase.from('items').select('*').order('updated_at',{ascending:false}).limit(50)
-      .then(async ({data}) => {
+      .then(async ({data,error}) => {
+        if(!active)return
+        if(error||!data){setItems([]);setLoading(false);setError('Collection unavailable. Reload the collection to recover saved objects.');return}
         const rows=(data||[]) as Item[]
         setItems(rows); setLoading(false)
         const ids=rows.slice(0,6).map(x=>x.id)
@@ -26,13 +30,14 @@ export default function Dashboard() {
           const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,3600)
           return [itemId,url?.signedUrl||''] as const
         }))
-        setCoverUrls(Object.fromEntries(signed))
+        if(active)setCoverUrls(Object.fromEntries(signed))
       })
-  },[])
+    return()=>{active=false}
+  },[reload])
 
-  const ready = items.filter(i=>i.sale_readiness === 'SELL_NOW' || i.status === 'READY_TO_SELL').length
+  const decisions = items.filter(i=>!['SOLD','ARCHIVED'].includes(i.status)).length
   const review = items.filter(i=>i.status === 'SPECIALIST_REVIEW').length
-  const quick = useMemo(()=>items.reduce((s,i)=>s + Number(i.quick_sale_value || 0),0),[items])
+  const quick = useMemo(()=>provisionalCurrencyTotals(items),[items])
 
   return (
     <div>
@@ -41,14 +46,14 @@ export default function Dashboard() {
       </div>
       <details style={{marginTop:12}}><summary style={{cursor:"pointer",color:"var(--muted)",fontWeight:700}}>Collection totals · {items.length} objects</summary><div className="statsGrid" style={{marginTop:12}}>
         <StatCard label="Objects catalogued" value={items.length} sub="Permanent CI records" icon={<Boxes/>}/>
-        <StatCard label="Ready to sell" value={ready} sub="Can move to listing" icon={<ListChecks/>}/>
-        <StatCard label="Quick-sale value" value={money(quick)} sub="Current visible inventory" icon={<CircleDollarSign/>}/>
+        <StatCard label="Final decisions required" value={decisions} sub="Research and evidenced assessment before listing" icon={<ListChecks/>}/>
+        <StatCard label="Provisional quick-sale indications" value={quick.text} sub={`Loaded records, up to50; no currency conversion. ${quick.unknown} values unknown.`} icon={<CircleDollarSign/>}/>
         <StatCard label="Specialist review" value={review} sub="Protected from underselling" icon={<ShieldAlert/>}/>
       </div></details>
 
       <section className="section" style={{marginTop:20}}>
         <div className="sectionHeader"><div><h2>Continue with an object</h2></div></div>
-        {loading ? <div className="empty">Loading…</div> :
+        {error?<div role="alert">{error}<button className="secondaryButton inlineButton" onClick={()=>setReload(n=>n+1)}>Reload collection</button></div>:loading ? <div className="empty">Loading…</div> :
           items.length === 0 ? <div className="empty"><h3>No items yet</h3><p>Your first five glass pieces can become CI-000001 onward.</p></div> :
           <div className="cardGrid">{items.slice(0,6).map(i=><ItemCard item={i} imageUrl={coverUrls[i.id]} key={i.id}/>)}</div>}
       </section>
