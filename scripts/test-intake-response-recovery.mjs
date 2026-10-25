@@ -40,6 +40,15 @@ export async function exerciseIntakeResponseRecovery({admin,rest,check,A,B,API,k
   assert.equal(response.status,201);return (await response.json())[0];
  };
  const row=async id=>(await admin.query('select * from public.ai_analysis_runs where id=$1',[id])).rows[0];
+ const assertClaimedNoAnswer=(record,saved)=>{
+  // The protected claim changes UPLOADED to PROCESSING BEFORE the model call.
+  // An ambiguous response cannot roll back that irreversible claim.
+  assert.equal(record.result.analysis_stage,'PROCESSING');
+  assert.equal(typeof record.result.claimed_at,'string');
+  assert.deepEqual(record.result.image_manifest,saved.result.image_manifest);
+  assert.deepEqual(record.user_context,saved.user_context);
+  assert.equal(record.result.provider_response_raw,undefined);
+ };
  const invoke=async(saved,user=A,overrides={})=>{const res={code:0,body:null,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
   await intake({method:'POST',headers:{authorization:'Bearer '+user.token},body:{mode:'single',run_id:saved.id,images:[{index:0,fileName:'Synthetic source.png',url:API+'/storage/v1/object/sign/item-images/'+saved.result.image_manifest[0].storage_path+'?token=synthetic-staging'}],context:{user_notes:'Synthetic owner observation'},...overrides}},res);return res;};
  const synthetic={batch_summary:'Synthetic intake response, not real object evidence',objects:[{working_title:'Synthetic vase',object_type:'Vase',maker:null,current_attribution:null,marks_signatures_labels:null,image_indices:[0],evidence:[],next_evidence:[]}]};
@@ -80,22 +89,22 @@ export async function exerciseIntakeResponseRecovery({admin,rest,check,A,B,API,k
    assert.equal((await invoke(saved)).code,409);assert.equal(calls,paid+1);
   });
   await check('intake connection loss returns its saved session identity and explicitly forbids a blind paid repeat',async()=>{
-   provider=()=>{throw Error('Synthetic provider connection loss')};const saved=await stage(),paid=calls,reply=await invoke(saved);assert.equal(reply.code,503);assert.equal(reply.body.code,'PAID_INTAKE_OUTCOME_UNCONFIRMED');assert.equal(reply.body.run_id,saved.id);assert.match(reply.body.error,/do not repeat paid analysis/i);assert.equal(calls,paid+1);assert.deepEqual((await row(saved.id)).result,saved.result);
+   provider=()=>{throw Error('Synthetic provider connection loss')};const saved=await stage(),paid=calls,reply=await invoke(saved);assert.equal(reply.code,503);assert.equal(reply.body.code,'PAID_INTAKE_OUTCOME_UNCONFIRMED');assert.equal(reply.body.run_id,saved.id);assert.match(reply.body.error,/do not repeat paid analysis/i);assert.equal(calls,paid+1);assertClaimedNoAnswer(await row(saved.id),saved);
   });
   await check('failed first-pass persistence returns the entire unconfirmed response without claiming it saved',async()=>{
-   provider=good;denyStage='FIRST_PASS_SAVED';try{const saved=await stage(),reply=await invoke(saved),actual=await row(saved.id);assert.equal(reply.code,503);assert.equal(reply.body.code,'FIRST_PASS_SAVE_FAILED');assert.equal(reply.body.run_id,saved.id);assert.equal(reply.body.response_save_confirmed,false);assert.equal(reply.body.returned_response.provider_response_raw,goodRaw);assert.deepEqual(actual.result,saved.result);}finally{denyStage=null;}
+   provider=good;denyStage='FIRST_PASS_SAVED';try{const saved=await stage(),reply=await invoke(saved),actual=await row(saved.id);assert.equal(reply.code,503);assert.equal(reply.body.code,'FIRST_PASS_SAVE_FAILED');assert.equal(reply.body.run_id,saved.id);assert.equal(reply.body.response_save_confirmed,false);assert.equal(reply.body.returned_response.provider_response_raw,goodRaw);assertClaimedNoAnswer(actual,saved);}finally{denyStage=null;}
   });
   await check('lost first-pass acknowledgement resolves the genuine saved result before continuing',async()=>{
    provider=good;ackMode='lost';firstWritten=false;try{const saved=await stage(),paid=calls,reply=await invoke(saved),actual=await row(saved.id);assert.equal(reply.code,200);assert.equal(calls,paid+1);assert.equal(actual.result.analysis_stage,'COMPLETE');assert.equal(actual.result.provider_response_raw,goodRaw);assert.ok(firstWritten);}finally{ackMode=null;}
   });
   await check('fabricated first-pass success without a committed row stops later work and retains the reply locally',async()=>{
-   provider=good;ackMode='fabricated';firstWritten=false;try{const saved=await stage(),paid=calls,reply=await invoke(saved);assert.equal(reply.code,503);assert.equal(reply.body.code,'FIRST_PASS_SAVE_FAILED');assert.equal(reply.body.response_save_confirmed,false);assert.equal(reply.body.returned_response.provider_response_raw,goodRaw);assert.deepEqual((await row(saved.id)).result,saved.result);assert.equal(calls,paid+1);}finally{ackMode=null;}
+   provider=good;ackMode='fabricated';firstWritten=false;try{const saved=await stage(),paid=calls,reply=await invoke(saved);assert.equal(reply.code,503);assert.equal(reply.body.code,'FIRST_PASS_SAVE_FAILED');assert.equal(reply.body.response_save_confirmed,false);assert.equal(reply.body.returned_response.provider_response_raw,goodRaw);assertClaimedNoAnswer(await row(saved.id),saved);assert.equal(calls,paid+1);}finally{ackMode=null;}
   });
   await check('denied first-pass confirmation keeps the real first answer and does not claim final success',async()=>{
    provider=good;ackMode='denied-read';firstWritten=false;try{const saved=await stage(),paid=calls,reply=await invoke(saved),actual=await row(saved.id);assert.equal(reply.code,503);assert.equal(reply.body.code,'FIRST_PASS_SAVE_FAILED');assert.equal(actual.result.analysis_stage,'FIRST_PASS_SAVED');assert.equal(actual.result.provider_response_raw,goodRaw);assert.equal(calls,paid+1);}finally{ackMode=null;}
   });
   await check('failed raw-response persistence returns complete text for page-local recovery and no false save claim',async()=>{
-   provider=()=>new Response(raw,{status:200});denyStage='UNPARSED_RESPONSE_SAVED';try{const saved=await stage(),reply=await invoke(saved);assert.equal(reply.code,502);assert.equal(reply.body.response_save_confirmed,false);assert.equal(reply.body.returned_response.provider_response_raw,raw);assert.deepEqual((await row(saved.id)).result,saved.result);}finally{denyStage=null;}
+   provider=()=>new Response(raw,{status:200});denyStage='UNPARSED_RESPONSE_SAVED';try{const saved=await stage(),reply=await invoke(saved);assert.equal(reply.code,502);assert.equal(reply.body.response_save_confirmed,false);assert.equal(reply.body.returned_response.provider_response_raw,raw);assertClaimedNoAnswer(await row(saved.id),saved);}finally{denyStage=null;}
   });
   await check('failed final enrichment persistence preserves the saved first interpretation and original provider text',async()=>{
    provider=good;denyStage='COMPLETE';try{const saved=await stage(),reply=await invoke(saved),actual=await row(saved.id);assert.equal(reply.code,503);assert.equal(reply.body.code,'FINAL_SAVE_FAILED');assert.equal(actual.result.analysis_stage,'FIRST_PASS_SAVED');assert.equal(actual.result.provider_response_raw,goodRaw);assert.deepEqual(actual.result.initial_ai_result,synthetic);assert.deepEqual(actual.result.image_manifest,saved.result.image_manifest);}finally{denyStage=null;}

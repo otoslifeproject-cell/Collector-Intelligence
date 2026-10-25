@@ -389,7 +389,8 @@ export default async function handler(req: any, res: any) {
   }catch(e:any){
     const reason=e?.message||'Cannot verify saved intake manifest before AI request.';
     const progressed=reason.includes('already progressed');
-    return res.status(progressed?409:503).json({error:reason,code:progressed?'INTAKE_SOURCE_ALREADY_PROCESSED':'INTAKE_SOURCE_UNAVAILABLE',run_id});
+    const mismatched=/Duplicate or missing requested photo index|Requested photograph does not match|Requested signed photo URL differs|Incoming owner notes differ|Incoming owner measurements differ/.test(reason);
+    return res.status(progressed||mismatched?409:503).json({error:reason,code:progressed?'INTAKE_SOURCE_ALREADY_PROCESSED':mismatched?'INTAKE_SOURCE_MISMATCH':'INTAKE_SOURCE_UNAVAILABLE',run_id});
   }
 
   const contextText = [
