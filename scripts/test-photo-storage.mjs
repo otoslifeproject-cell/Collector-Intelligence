@@ -12,6 +12,7 @@ import {assertIsolatedDatabaseConfig} from './validate-staging-target.mjs';
 import {continuityKongConfig} from './continuity-kong-config.mjs';
 import {installReviewedAssessmentFixtures,seedReviewedAssessmentFixture} from './test-reviewed-item-assessments.mjs';
 import {exercisePhotoStorage} from './test-photo-storage-cases.mjs';
+import {exercisePaidIntakeClaims} from './test-paid-intake-claims.mjs';
 import {exerciseResearchArmy} from './test-research-army.mjs';
 import {exerciseSaleGroups} from './test-sale-groups.mjs';
 import {installLotEvidenceFixtures,exerciseLotEvidence,seedLotEvidenceFixture} from './test-lot-evidence.mjs';
@@ -101,6 +102,8 @@ try{
  // Install every application RPC before PostgREST builds its schema cache.
  for(const path of ['20261017_atomic_actual_sale_capture_v1.sql','20261017_actual_sale_source_integrity_v2.sql','20261017_allow_loss_making_sales_v3.sql','20261017_sales_listing_item_owner_rls_hardening.sql'])await admin.query(await read('supabase/migrations/'+path));
  await admin.query(await read('supabase/proposals/actual-sale-input-guards.sql'));
+  // Disposable-only immutable paid-intake claim; not applied to production.
+  await admin.query(await read('supabase/proposals/immutable-paid-intake-claims.sql'));
  await admin.query('GRANT SELECT ON public.comparables TO authenticated; GRANT SELECT,INSERT,UPDATE ON public.sale_outcomes,public.listings TO authenticated');
  await admin.query(`GRANT SELECT,INSERT,UPDATE ON public.items,public.item_photos,public.item_evidence,public.attribution_history,public.research_tasks,public.ai_analysis_runs TO authenticated;
   GRANT USAGE,SELECT ON SEQUENCE public.item_code_seq TO authenticated`);
@@ -128,6 +131,7 @@ try{
  const [A,B]=users,anon=createClient(API,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
  await exercisePhotoStorage({admin,check,A,B,anon,API});
  const rest=(token,path,options={})=>fetch(API+'/rest/v1/'+path,{...options,headers:{apikey:publishableKey,Authorization:'Bearer '+token,'Content-Type':'application/json',...options.headers}});
+ await exercisePaidIntakeClaims({admin,rest,check,A,B,anon:anonKey});
  const integration={admin,rest,check,A,B,anon:anonKey,anonToken:anonKey,storageClient:A.client,API,key:publishableKey,sdk:A.client,credentials:{email:'photo-ci-a@example.test',password:'Ci-disposable-photo-4826!'}};
  await exerciseResearchArmy(integration);
  await exerciseSaleGroups(integration);

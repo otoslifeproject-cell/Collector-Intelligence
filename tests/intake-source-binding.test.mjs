@@ -1,0 +1,17 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {bindSavedIntakePhotos} from '../src/lib/intakeSourceBinding.ts';
+const owner='ab529675-993e-41a8-ac26-8ea52bebd2f7',id='75f96018-4017-4d20-9a5d-3d6fb8e6cc30';
+const sha='a'.repeat(64);
+const p=(index)=>({index,file_name:'Image '+index+'.jpg',storage_path:owner+'/intake/'+id+'/'+String(index).padStart(2,'0')+'-image.jpg',sha256:sha,byte_count:100});
+const src=(manifest=[p(0),p(1)])=>({id,owner_id:owner,mode:'batch',status:'DRAFT',input_photo_count:2,user_context:{user_notes:'Original retained notes'},result:{analysis_stage:'UPLOADED',image_manifest:manifest}});
+const images=(a=[0,1])=>a.map(index=>({index,fileName:'Image '+index+'.jpg',url:'https://attacker.invalid/different-photo'}));
+test('accepts ordered stored photo identity but does not depend on submitted image URL',()=>{const a=bindSavedIntakePhotos(src(),images(),'batch');assert.deepEqual(a.map(x=>x.index),[0,1]);assert.equal(a[0].storage_path,p(0).storage_path)});
+test('rejects repeated request index 0,0 before dispatch',()=>{assert.throws(()=>bindSavedIntakePhotos(src(),images([0,0]),'batch'),/Duplicate/ )});
+test('rejects repeated index in saved manifest',()=>{assert.throws(()=>bindSavedIntakePhotos(src([p(0),p(0)]),images(),'batch'),/Duplicate/ )});
+test('rejects saved path for another owner',()=>{assert.throws(()=>bindSavedIntakePhotos(src([p(0),{...p(1),storage_path:'other-owner/intake/'+id+'/01.jpg'}]),images(),'batch'),/owner/ )});
+test('rejects missing original content hash',()=>{assert.throws(()=>bindSavedIntakePhotos(src([p(0),{...p(1),sha256:''}]),images(),'batch'),/hash/ )});
+test('rejects changed client-side filename',()=>{assert.throws(()=>bindSavedIntakePhotos(src(),[{...images()[0],fileName:'other.jpg'},images()[1]],'batch'),/does not match/ )});
+test('rejects advanced/paid session replay',()=>{assert.throws(()=>bindSavedIntakePhotos({...src(),result:{...src().result,analysis_stage:'PROCESSING'}},images(),'batch'),/progressed/ )});
+test('rejects mismatched object count',()=>{assert.throws(()=>bindSavedIntakePhotos({...src(),input_photo_count:3},images(),'batch'),/count/ )});
+test('rejects missing owner context',()=>{assert.throws(()=>bindSavedIntakePhotos({...src(),user_context:null},images(),'batch'),/notes/ )});

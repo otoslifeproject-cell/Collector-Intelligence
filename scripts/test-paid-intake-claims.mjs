@@ -1,0 +1,56 @@
+// Real disposable Postgres/Auth/PostgREST receipt tests. Never uses paid provider.
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+export async function exercisePaidIntakeClaims({admin,rest,check,A,B,anon}){
+ const head={Prefer:'return=representation'};
+ const sha='e'.repeat(64);
+ const staged=async(hash=sha)=>{
+  const id=randomUUID();
+  const path=A.id+'/intake/'+id+'/00-original.png';
+  const r=await rest(A.token,'ai_analysis_runs',{method:'POST',headers:head,body:JSON.stringify({
+   id,mode:'single',model:'FIXTURE_NO_PROVIDER',status:'DRAFT',input_photo_count:1,
+   user_context:{user_notes:'Immutable owner note'},
+   result:{analysis_stage:'UPLOADED',image_manifest:[{index:0,file_name:'original.png',storage_path:path,sha256:hash,byte_count:100}]}
+  })});
+  assert.equal(r.status,201,await r.clone().text());return id;
+ };
+ const claim=(id,token=A.token)=>rest(token,'rpc/ci_claim_intake_paid_v1',{method:'POST',body:JSON.stringify({p_run_id:id})});
+ await check('protected intake claim permits ONE winner across eight concurrent sessions with same original digest',async()=>{
+  const runs=await Promise.all(Array.from({length:8},()=>staged()));
+  const results=await Promise.all(runs.map(id=>claim(id)));
+  const success=results.filter(r=>r.status===200);assert.equal(success.length,1,JSON.stringify(await Promise.all(results.map(r=>r.clone().text()))));
+  assert.equal(await success[0].json(),'CLAIMED');
+  assert.ok(results.filter(r=>r.status!==200).every(r=>r.status===400));
+  const rows=(await admin.query('select run_id,owner_id,photo_hashes,original_context from public.ci_paid_intake_claims_v1')).rows;
+  assert.equal(rows.length,1);assert.equal(rows[0].owner_id,A.id);
+  assert.deepEqual(rows[0].photo_hashes,[sha]);
+  assert.equal(rows[0].original_context.user_notes,'Immutable owner note');
+ });
+ await check('owner cannot PATCH or DELETE immutable paid claim receipt',async()=>{
+  const count=Number((await admin.query('select count(*) n from public.ci_paid_intake_claims_v1')).rows[0].n);
+  const update=await rest(A.token,'ci_paid_intake_claims_v1?owner_id=eq.'+A.id,{method:'PATCH',body:JSON.stringify({photo_hashes:[]})});
+  const removal=await rest(A.token,'ci_paid_intake_claims_v1?owner_id=eq.'+A.id,{method:'DELETE'});
+  assert.ok([401,403,405].includes(update.status),await update.clone().text());
+  assert.ok([401,403,405].includes(removal.status),await removal.clone().text());
+  assert.equal(Number((await admin.query('select count(*) n from public.ci_paid_intake_claims_v1')).rows[0].n),count);
+ });
+ await check('client can mutate/deactivate original staging without deleting the protected billing receipt',async()=>{
+  const one=(await admin.query('select run_id from public.ci_paid_intake_claims_v1 limit 1')).rows[0].run_id;
+  const changed=await rest(A.token,'ai_analysis_runs?id=eq.'+one,{method:'PATCH',body:JSON.stringify({result:{analysis_stage:'UPLOADED',image_manifest:[]}})});
+  assert.ok([200,204,400].includes(changed.status));
+  assert.equal((await claim(one)).status,400);
+  const ledger=(await admin.query('select count(*) n from public.ci_paid_intake_claims_v1 where run_id=$1',[one])).rows[0];
+  assert.equal(Number(ledger.n),1);
+ });
+ await check('foreign owner and anonymous clients cannot read or claim owner receipts',async()=>{
+  const one=(await admin.query('select run_id from public.ci_paid_intake_claims_v1 limit 1')).rows[0].run_id;
+  const foreign=await rest(B.token,'ci_paid_intake_claims_v1?select=run_id',{method:'GET'});
+  assert.equal(foreign.status,200);assert.deepEqual(await foreign.json(),[]);
+  for(const token of[B.token,anon]){const attempted=await claim(one,token);assert.ok([400,401,403].includes(attempted.status))}
+ });
+ await check('different original photo hashes can each be claimed independently',async()=>{
+  const other=await staged('f'.repeat(64)),r=await claim(other);
+  assert.equal(r.status,200,await r.clone().text());
+  assert.equal((await admin.query('select count(*) n from public.ci_paid_intake_claims_v1')).rows[0].n,'2');
+ });
+}

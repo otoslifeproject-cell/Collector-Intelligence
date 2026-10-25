@@ -1,4 +1,4 @@
-import {applyInscriptionReview} from '../src/lib/inscriptionReview.ts';
+import {bindSavedIntakePhotos} from '../src/lib/intakeSourceBinding.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
@@ -290,7 +290,7 @@ async function verifyUser(token: string, supabaseUrl: string, supabaseKey: strin
 }
 
 async function readStagedRun(url:string,key:string,token:string,runId:string) {
-  const query=new URLSearchParams({select:'id,mode,status,model,input_photo_count,result',id:'eq.'+runId,limit:'1'});
+  const query=new URLSearchParams({select:'id,owner_id,mode,status,model,input_photo_count,user_context,result',id:'eq.'+runId,limit:'1'});
   const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
     headers:{apikey:key,Authorization:'Bearer '+token}
   });
@@ -299,6 +299,26 @@ async function readStagedRun(url:string,key:string,token:string,runId:string) {
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Saved photo session not found or access denied');
   return rows[0];
 }
+// Server-issued signed URLs are bound to the owner-saved original path, never client URLs.
+async function signedOriginalURL(base:string,key:string,token:string,path:string):Promise<string>{
+ const root=base.endsWith('/')?base.slice(0,-1):base;
+ const encoded=path.split('/').map(encodeURIComponent).join('/');
+ const response=await fetch(root+'/storage/v1/object/sign/item-images/'+encoded,{
+   method:'POST',headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+   body:JSON.stringify({expiresIn:1800})
+ });
+ if(!response.ok)throw Error('Private original could not be signed; no paid request made ('+response.status+')');
+ const data=await response.json(),raw=data?.signedURL||data?.signedUrl;
+ if(typeof raw!=='string')throw Error('Private Storage returned no signed URL');
+ const absolute=raw.startsWith('/object/sign/')?root+'/storage/v1'+raw:
+   raw.startsWith('/storage/v1/object/sign/')?new URL(root).origin+raw:raw;
+ const u=new URL(absolute);
+ if(u.origin!==new URL(root).origin||!u.pathname.startsWith('/storage/v1/object/sign/item-images/')||
+    decodeURIComponent(u.pathname.slice('/storage/v1/object/sign/item-images/'.length))!==path||
+    !u.searchParams.has('token'))throw Error('Signed Storage URL does not bind to the original');
+ return u.href;
+}
+
 async function saveStagedAnalysis(url:string,key:string,token:string,runId:string,model:string,result:any) {
   const query=new URLSearchParams({id:'eq.'+runId,status:'eq.DRAFT',select:'id,result'});
   try{const acknowledgement=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
@@ -349,24 +369,23 @@ export default async function handler(req: any, res: any) {
   let ownerMaterialLessons:any[];
   try{ownerMaterialLessons=await loadOwnerMaterialLessons(supabaseUrl,supabaseKey,token);}
   catch(e:any){return res.status(503).json({error:'Owner correction retrieval unavailable. Stopped before paid AI to prevent repeating known material errors.',code:e?.message||'OWNER_CORRECTIONS_UNAVAILABLE'});}
-  const { mode = "single", images = [], context = {}, run_id } = req.body || {};
-  if (!Array.isArray(images) || images.length < 1) return res.status(400).json({ error: "At least one image is required" });
-  if (images.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
+  const { mode = "single", images:submittedImages = [], run_id } = req.body || {};
+  let images:any[]=[];
+  let context:any={};
+  if (!Array.isArray(submittedImages) || submittedImages.length < 1) return res.status(400).json({ error: "At least one image is required" });
+  if (submittedImages.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
   if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
     return res.status(400).json({error:'Save the source photograph session before starting paid AI analysis.'});
   let staged:any;
   try {
     staged=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
-    const manifest=staged.result?.image_manifest;
-    if(staged.status!=='DRAFT'||staged.mode!==mode||staged.input_photo_count!==images.length||
-       !Array.isArray(manifest)||manifest.length!==images.length||
-       !images.every((img:any)=>manifest.some((m:any)=>m.index===img.index&&m.file_name===img.fileName&&
-           typeof m.storage_path==='string')))
-      return res.status(409).json({error:'Source photo manifest does not match the owner-saved draft; no paid AI request made.'});
-    if(Array.isArray(staged.result?.objects)&&staged.result.objects.length)
-      return res.status(409).json({error:'This analysis is already saved. Open the original saved report; do not pay again.'});
-    if(staged.result?.analysis_stage!=='UPLOADED')
-      return res.status(409).json({error:'This photo session has already progressed or needs review. Check its saved response before another paid request.',code:'INTAKE_SESSION_NOT_READY',run_id});
+    const savedOriginals=bindSavedIntakePhotos(staged,submittedImages,mode);
+    context=staged.user_context;
+    // Do not use incoming client notes or signed URLs when constructing the model prompt.
+    images=await Promise.all(savedOriginals.map(async original=>({
+      index:original.index,fileName:original.file_name,
+      url:await signedOriginalURL(supabaseUrl,supabaseKey,token,original.storage_path)
+    })));
   }catch(e:any){
     return res.status(503).json({error:e?.message||'Cannot verify saved intake manifest before AI request.'});
   }
@@ -395,6 +414,21 @@ export default async function handler(req: any, res: any) {
   // A publication change during photo/knowledge preflight must stop this dispatch.
   try { canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical); }
   catch(e){return res.status(503).json({error:'Approved source set changed or became unavailable before AI dispatch. No AI request made.',code:e instanceof Error?e.message:'CANONICAL_RECHECK_FAILED'});}
+
+  // Immutable server-owned paid claim is mandatory. No legacy mutable-status fallback.
+  // If the proposal has not been installed on an isolated backend, STOP safely.
+  try {
+    const response=await fetch(supabaseUrl+'/rest/v1/rpc/ci_claim_intake_paid_v1',{
+      method:'POST',
+      headers:{apikey:supabaseKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({p_run_id:run_id})
+    });
+    if(!response.ok)return res.status(503).json({error:'Protected claim unavailable or already claimed. Open the saved report; no paid request made.',code:'INTAKE_CLAIM_DENIED',run_id});
+    const result=await response.json();
+    if(result!=='CLAIMED')return res.status(409).json({error:'The original session has already been claimed. Check saved analysis, not a second charge.',code:'INTAKE_CLAIM_ALREADY_USED',run_id});
+  } catch {
+    return res.status(503).json({error:'Paid claim acknowledgement uncertain. Check saved analysis; do not retry this request.',code:'INTAKE_CLAIM_UNCONFIRMED',run_id});
+  }
 
   const body = {
     model,
@@ -505,60 +539,10 @@ export default async function handler(req: any, res: any) {
     }
     let inscription_review = null;
     let inscription_review_status = 'NOT_TRIGGERED';
-    if (markNeedsReview(result, context)) {
-      inscription_review_status = 'ATTEMPTED';
-      // Only examine already uploaded images. Prefer recent close-ups while retaining overall views.
-      const selected = images.length <= 12 ? images : [images[0], images[1], ...images.slice(-10)];
-      const detailContent: any[] = [{
-        type: "input_text",
-        text: "Independently re-examine the ORIGINAL photographs for inscriptions and distinctive form. Images in this request are indexed using their original indices. The first-pass draft below is unverified and may have missed a legible inscription: " + JSON.stringify(result.objects.map((o: any) => ({image_indices:o.image_indices,marks:o.marks_signatures_labels,object_type:o.object_type,current_attribution:o.current_attribution}))) + ". Transcribe only letters/numbers actually visible, expressing uncertain characters with ?. Do not use internet research, assert an exact pattern without evidence, or pretend a maker attribution is confirmed. Indices must correspond to the source image containing the mark. If not readable leave null. Return a candidate maker/design only where form and mark jointly support it. New photographs are needed only if the supplied images do not already resolve the relevant detail."
-      }];
-      for (const image of selected) {
-        detailContent.push({type:"input_text",text:`IMAGE_INDEX=${image.index}; FILE=${image.fileName || "unnamed"}`});
-        detailContent.push({type:"input_image",image_url:image.url,detail:"original"});
-      }
-      try {
-        // The first answer is already saved. A revoked/changed source blocks
-        // this additional paid pass while preserving that original answer.
-        canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical);
-        const markResponse = await fetch(
-          useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
-          {
-            method:"POST",
-            headers:{"Content-Type":"application/json", Authorization:`Bearer ${apiKey}`},
-            body:JSON.stringify({
-              model,
-              reasoning:{effort:"high"},
-              instructions:"You are a cautious specialist examining faint lettering on glass. Compare each proposed character against repeated strokes in the ORIGINAL source images. Separate engraved characters from crossing scratches, label residue, optical refraction and shadows. Compare base geometry and rim silhouette; do not infer opaque white glass from bright reflections. Where uncertain, provide a literal partial reading with ? marks, alternatives and contradictions. If illegible, return null rather than guess. Never turn a candidate transcription into a verified maker or provenance. Always refer to original image indices.",
-              input:[{role:"user",content:detailContent}],
-              text:{format:{type:"json_schema",name:"collector_inscription_review",strict:true,schema:inscriptionSchema}},
-              max_output_tokens:1700
-            })
-          }
-        );
-        if (markResponse.ok) {
-          const markPayload = await markResponse.json();
-          const markText = extractText(markPayload);
-          if (markText) {
-            inscription_review = JSON.parse(markText);
-            inscription_review_status = inscription_review.mark_visible ? 'COMPLETED_MARK_VISIBLE' : 'COMPLETED_NO_MARK';
-            // Exclude invented indices before attaching review to physical-object evidence.
-            const uploadedIndices = new Set(images.map((image: any) => image.index));
-            inscription_review.evidence_image_indices = (inscription_review.evidence_image_indices || []).filter((i: number) => uploadedIndices.has(i));
-            result = applyInscriptionReview(result, inscription_review);
-          } else {
-            inscription_review_status = 'EMPTY_RESPONSE';
-          }
-        } else {
-          inscription_review_status = 'GATEWAY_ERROR_' + markResponse.status;
-          // A failed second look must not discard the already completed draft.
-          console.warn("Inscription review unavailable", markResponse.status);
-        }
-      } catch (err) {
-        inscription_review_status = err instanceof CanonicalSourceError?'SOURCE_GATE_'+err.code:'REVIEW_ERROR';
-        console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
-      }
-    }
+    // No automatic second billable HIGH model request. Preserve the original first pass.
+    // A separate immutable owner consent receipt and bounded charge must be implemented
+    // before offering optional inscription re-examination.
+    if (markNeedsReview(result, context)) inscription_review_status = 'OWNER_OPT_IN_REQUIRED';
     result = reconcileKnowledge(result, knowledge_lookup);
     const savedResult={
       ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
