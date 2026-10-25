@@ -151,7 +151,7 @@ export default function AIIntake(){
         {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
         <div className="intakeActions">
           <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse & draft catalogue</button>
-          <span>Nothing is written to the permanent catalogue until you approve the draft.</span>
+          <span>One requested AI analysis may incur a provider charge. Extra HIGH-cost inscription review is off unless separately approved. Nothing enters your catalogue until you approve.</span>
         </div>
 
 
