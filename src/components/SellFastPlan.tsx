@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import type {Comparable, Item} from '../types'
-import {assessSaleScenario, chooseSaleScenario, emptySaleScenario, knownSaleCurrency, prepareListing, safeSourceUrl, salePlatforms, sellModes, storedPublication} from '../lib/sellFastPlan'
+import {assessSaleScenario, chooseSaleScenario, emptySaleScenario, formatListingHandoff, knownSaleCurrency, prepareListing, safeSourceUrl, salePlatforms, sellModes, storedPublication} from '../lib/sellFastPlan'
 import type {FinalResearchDecision, ListingReview, SaleScenario, SellMode, StoredListing} from '../lib/sellFastPlan'
 import type {ResearchAudit} from '../lib/researchSaleDecision'
 import {prepareListingDraft,restoreListingDraft,settleListingDraft} from '../lib/listingDraft'
@@ -39,15 +39,26 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
   const decision=chooseSaleScenario(assessments,objective)
   const selected=assessments.find(x=>x.scenario.mode===draftMode)!
   const draft=prepareListing(item,selected,{...review,photosReviewed:review.photosReviewed&&(photoCount===undefined||photoCount>0)},comparables)
-  useEffect(()=>{setCopyStatus('')},[draft.title,draft.description,draftMode,item.id])
-  const copyDraft=async(field:'title'|'description')=>{
+  useEffect(()=>{setCopyStatus('')},[draft.title,draft.description,draftMode,draft.status,draft.recommendedPrice,item.id])
+  const handoffText=formatListingHandoff(draft)
+  const copyDraft=async(field:'title'|'description'|'handoff')=>{
     try {
       if(typeof navigator.clipboard?.writeText!=='function')throw Error('Clipboard unavailable')
-      await navigator.clipboard.writeText(field==='title'?draft.title:draft.description)
-      if(alive.current)setCopyStatus((field==='title'?'Title':'Description')+' copied for manual paste. '+(draft.status==='PREPARED'?'Prepared for owner review. ':'Research or selling checks remain. ')+'Not published.')
+      await navigator.clipboard.writeText(field==='title'?draft.title:field==='description'?draft.description:handoffText)
+      if(alive.current)setCopyStatus((field==='title'?'Title':field==='description'?'Description':'Full handoff pack')+' copied for manual paste. '+(draft.status==='PREPARED'?'Prepared for owner review. ':'Research or selling checks remain. ')+'Not published.')
     }catch{
       if(alive.current)setCopyStatus('Clipboard access unavailable. Select the read-only draft text and copy it manually. Not published.')
     }
+  }
+  const downloadHandoff=()=>{
+    const blob=new Blob([handoffText],{type:'text/plain;charset=utf-8'})
+    const url=URL.createObjectURL(blob)
+    const anchor=document.createElement('a')
+    anchor.href=url
+    anchor.download=`${item.item_code.replace(/[^a-zA-Z0-9_-]/g,'_')}-${draftMode.toLowerCase()}-listing-handoff.txt`
+    anchor.click()
+    setTimeout(()=>URL.revokeObjectURL(url),1000)
+    setCopyStatus('Listing handoff text downloaded for review. No photos were exported and nothing was published.')
   }
   const ownListings=[...new Map([...listings,...storedDraftRows].filter(row=>row.item_id===item.id&&row.owner_id===item.owner_id).map(row=>[row.id,row])).values()]
   const updateScenario=(mode:SellMode,key:keyof SaleScenario,value:SaleScenario[keyof SaleScenario])=>{
@@ -160,6 +171,8 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
       <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
         <button type="button" className="secondaryButton inlineButton" onClick={()=>void copyDraft('title')}>Copy draft title</button>
         <button type="button" className="secondaryButton inlineButton" onClick={()=>void copyDraft('description')}>Copy draft description</button>
+        <button type="button" className="secondaryButton inlineButton" onClick={()=>void copyDraft('handoff')}>Copy full listing pack</button>
+        <button type="button" className="secondaryButton inlineButton" onClick={downloadHandoff}>Download listing pack (.txt)</button>
       </div>
       {copyStatus&&<p role="status">{copyStatus}</p>}
       <details style={{marginTop:12}}><summary>Required photographs and platform handoff</summary><ul>{draft.photographsNeeded.map(text=><li key={text}>{text}</li>)}</ul>

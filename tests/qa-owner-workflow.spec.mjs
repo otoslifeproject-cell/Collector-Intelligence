@@ -209,6 +209,14 @@ test('listing handoff copies exact review-draft text without publishing or paid 
  expect(await page.evaluate(()=>window.__ciCopiedText)).toEqual(title);
  await review.getByRole('button',{name:'Copy draft description',exact:true}).click();
  expect(await page.evaluate(()=>window.__ciCopiedText)).toEqual(description);
+ await review.getByRole('button',{name:'Copy full listing pack',exact:true}).click();
+ const pack=await page.evaluate(()=>window.__ciCopiedText);
+ expect(pack).toContain(title);
+ expect(pack).toContain(description);
+ expect(pack).toContain('NOT PUBLISHED · NOT UPLOADED');
+ expect(pack).toContain('REVIEW ONLY — NOT READY TO LIST');
+ expect(pack).toContain('Suggested item price: NOT ESTABLISHED');
+ expect(pack).toContain('PHOTOGRAPH CHECKLIST');
  await expect(review.getByRole('status')).toContainText('Research or selling checks remain.');
  const stored=await client.from('listings').select('id').eq('item_id',item.id);
  expect(stored.error).toBeNull();expect(stored.data).toEqual([]);

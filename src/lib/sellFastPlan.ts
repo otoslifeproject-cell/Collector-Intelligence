@@ -174,3 +174,54 @@ export function prepareListing(item:Item, assessment:ScenarioAssessment, review:
     shippingInstructions:review.shippingInstructions||'Shipping / collection arrangements require confirmation.',comparableIds:comp?[comp.id]:[],
     sourceReferences:[comp?.source_url,s.feeSource,s.eligibilitySource,s.premiumAdjustmentSource,documentary?review.makerSource:null].filter((x):x is string=>safeSourceUrl(x)),outstandingChecks}
 }
+
+
+// Owner-only manual marketplace handoff. Source-traced review metadata is
+// intentionally separate from the public-facing draft copy. No publication,
+// upload, price approval, or platform integration is implied by formatting.
+export function formatListingHandoff(draft:PreparedListing):string {
+  const approved=draft.status==='PREPARED'
+  const price=approved&&draft.recommendedPrice!==null&&Number.isFinite(draft.recommendedPrice)
+    &&knownSaleCurrency(draft.currency)
+      ?new Intl.NumberFormat('en-GB',{style:'currency',currency:draft.currency}).format(draft.recommendedPrice)
+      :'NOT ESTABLISHED — DO NOT ENTER AN ASKING PRICE FROM THIS REVIEW PACK'
+  const specifics=Object.entries(draft.itemSpecifics).map(([key,value])=>'- '+key+': '+value)
+  const photographs=draft.photographsNeeded.map(value=>'- '+value)
+  const checks=draft.outstandingChecks.map(value=>'- '+value)
+  return [
+    'COLLECTOR INTELLIGENCE — MANUAL LISTING HANDOFF',
+    'NOT PUBLISHED · NOT UPLOADED · OWNER REVIEW REQUIRED',
+    '',
+    'Item reference: '+draft.itemCode,
+    'Intended venue: '+draft.platform,
+    'Selling strategy: '+draft.mode.replaceAll('_',' '),
+    'Review status: '+(approved?'PREPARED FOR OWNER REVIEW':'REVIEW ONLY — NOT READY TO LIST'),
+    'Suggested item price: '+price,
+    'Price basis: all-in item price including any delivery, OR collection price. Confirm the postage split before listing.',
+    '',
+    'TITLE — COPY INTO MARKETPLACE',
+    draft.title,
+    '',
+    'DESCRIPTION — COPY INTO MARKETPLACE',
+    draft.description,
+    '',
+    'ITEM SPECIFICS — CONFIRM BEFORE ENTERING',
+    ...specifics,
+    '',
+    'KEYWORDS — USE ONLY WHERE SUPPORTED BY EVIDENCE',
+    ...(draft.keywords.length?draft.keywords.map(value=>'- '+value):['- None confirmed']),
+    '',
+    'PHOTOGRAPH CHECKLIST — OWNER ORIGINALS, NOT INCLUDED IN THIS TEXT FILE',
+    ...photographs,
+    '',
+    'SHIPPING / COLLECTION — VERIFY COST, COVER AND EXCLUSIONS',
+    draft.shippingInstructions,
+    '',
+    'OUTSTANDING CHECKS',
+    ...(checks.length?checks:['- No currently recorded checks; final owner review and platform-specific fields still required']),
+    '',
+    'HANDOFF: Select the permitted venue/category, verify live fees and shipping, add the actual item photographs,',
+    'review every word and price, and publish manually only when authorised.',
+    'Preparing, copying or downloading this pack is never evidence of publication or a completed sale.'
+  ].join('\n')
+}

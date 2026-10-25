@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {assessSaleScenario, chooseSaleScenario, emptySaleScenario, prepareListing, storedPublication, validReviewDate} from '../src/lib/sellFastPlan.ts'
+import {assessSaleScenario, chooseSaleScenario, emptySaleScenario, formatListingHandoff, prepareListing, storedPublication, validReviewDate} from '../src/lib/sellFastPlan.ts'
 import {auditResearch, researchTypes} from '../src/lib/researchSaleDecision.ts'
 
 const item={id:'item-1',owner_id:'owner-1',item_code:'CI-000001',object_type:'Vase',material:'Glass',colour:'Red',maker:'Unconfirmed maker',currency:'GBP',condition_summary:'Light surface wear; no crack seen on owner inspection.',marks_signatures_labels:'MEDINA (owner reading)',weight_g:200,dimensions:{height_cm:12},status:'CATALOGUED',acquisition_price:null}
@@ -169,3 +169,29 @@ test('buyer-inclusive totals never calculate seller proceeds and premium comps n
   assert.equal(assess({...scenario,premiumAdjustmentSource:'https://example.org/premium-terms'},review,[premium]).ready,true)
   assert.equal(assess({...scenario,priceAdjustment:'same'}).ready,false)
 })
+
+
+test('manual listing handoff marks review-only material and never fabricates a sale-ready asking price',()=>{
+ const reviewOnly=prepareListing(item,assess({...scenario,comparableId:''}),review,[comp])
+ const handoff=formatListingHandoff(reviewOnly)
+ assert.match(handoff,/NOT PUBLISHED · NOT UPLOADED/)
+ assert.match(handoff,/REVIEW ONLY — NOT READY TO LIST/)
+ assert.match(handoff,/Suggested item price: NOT ESTABLISHED/)
+ assert.ok(handoff.includes(reviewOnly.title))
+ assert.ok(handoff.includes(reviewOnly.description))
+ assert.ok(handoff.includes('PHOTOGRAPH CHECKLIST'))
+ assert.ok(handoff.includes('OUTSTANDING CHECKS'))
+ assert.doesNotMatch(handoff,/Suggested item price: £50/)
+});
+test('sale-ready listing handoff preserves proven price basis, owner SKU and unedited draft fields',()=>{
+ const ready=prepareListing(item,assess(),review,[comp])
+ const text=formatListingHandoff(ready)
+ assert.match(text,/PREPARED FOR OWNER REVIEW/)
+ assert.match(text,/Suggested item price: £50\.00/)
+ assert.ok(text.includes(ready.itemCode))
+ assert.ok(text.includes(ready.title))
+ assert.ok(text.includes(ready.description))
+ assert.ok(text.includes(ready.shippingInstructions))
+ assert.ok(text.includes('Originals, not included')===false)
+ assert.match(text,/not evidence of publication/)
+});
