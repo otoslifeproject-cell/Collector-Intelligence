@@ -74,9 +74,17 @@ export default function Inventory() {
       setItems(rows)
       if(!rows.length){setCovers({});setLinkedPhotoIds([]);setPhotoReadStatus('ready');return}
       const ids=rows.map(i=>i.id)
-      const {data:photos,error}=await supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',ids).order('position',{ascending:true})
+      // A single .in() URL for 150–200 items can exceed proxy query limits.
+      // Keep reads bounded, preserve owner RLS and do not interpret any failed
+      // chunk as evidence that the catalogue has no photographs.
+      const batches:string[][]=[]
+      for(let index=0;index<ids.length;index+=30)batches.push(ids.slice(index,index+30))
+      const replies=await Promise.all(batches.map(part=>
+        supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',part).order('position',{ascending:true})
+      ))
       if(cancelled)return
-      if(error||!photos){setPhotoReadStatus('unavailable');return}
+      if(replies.some(reply=>reply.error||!reply.data)){setPhotoReadStatus('unavailable');return}
+      const photos=replies.flatMap(reply=>reply.data||[])
       const selected=new Map<string,string>()
       for(const p of (photos||[]).sort((a:any,b:any)=>Number(b.is_hero)-Number(a.is_hero))){
         if(!selected.has(p.item_id))selected.set(p.item_id,p.storage_path)
