@@ -118,7 +118,11 @@ test('Sales pipeline opens directly into its object selling workspace',async({pa
  await link.click();
  await expect(page).toHaveURL(new RegExp('/#/item/'+item.id+'\\?tab=sales$'));
  await expect(page.locator('.tabBar').getByRole('button',{name:'sales',exact:true})).toHaveClass(/active/);
- await expect(page.getByRole('region',{name:'Sell Fast plan and listing preparation',exact:true})).toBeVisible();
+ const sell=page.getByRole('region',{name:'Sell Fast plan and listing preparation',exact:true});
+ await expect(sell).toBeVisible();
+ const research=page.getByRole('region',{name:'Research dashboard — '+item.item_code,exact:true});
+ await expect(research).toBeVisible();
+ expect(await sell.evaluate((el,audit)=>Boolean(el.compareDocumentPosition(audit)&Node.DOCUMENT_POSITION_FOLLOWING),await research.elementHandle())).toBe(true);
  expect(events.paid).toEqual([]);
 });
 test('Dashboard reaches saved photo history with one navigation click',async({page})=>{
