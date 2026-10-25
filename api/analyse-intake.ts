@@ -387,7 +387,9 @@ export default async function handler(req: any, res: any) {
       url:await signedOriginalURL(supabaseUrl,supabaseKey,token,original.storage_path)
     })));
   }catch(e:any){
-    return res.status(503).json({error:e?.message||'Cannot verify saved intake manifest before AI request.'});
+    const reason=e?.message||'Cannot verify saved intake manifest before AI request.';
+    const progressed=reason.includes('already progressed');
+    return res.status(progressed?409:503).json({error:reason,code:progressed?'INTAKE_SOURCE_ALREADY_PROCESSED':'INTAKE_SOURCE_UNAVAILABLE',run_id});
   }
 
   const contextText = [

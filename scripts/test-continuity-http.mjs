@@ -106,6 +106,9 @@ try {
   await admin.query(await read('supabase/proposals/canonical-publication-workflow.sql'));
   await admin.query("CREATE ROLE ci_http_publisher LOGIN PASSWORD 'ci_fixture_only' IN ROLE ci_canonical_publisher;");
   await installResearchSessionFixtures(admin,read);
+  // Install only in disposable PostgreSQL/Auth/PostgREST fixture.
+  // Paid original-photo claims are protected server-owned state.
+  await admin.query(await read('supabase/proposals/immutable-paid-intake-claims.sql'));
   await start('rest','postgrest/postgrest:v14.18',{
     PGRST_DB_URI:databaseURL('authenticator'),PGRST_DB_SCHEMAS:'public',PGRST_DB_ANON_ROLE:'anon',
     PGRST_JWT_SECRET:jwtSecret,PGRST_JWT_AUD:'authenticated',

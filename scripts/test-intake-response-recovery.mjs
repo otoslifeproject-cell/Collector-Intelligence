@@ -15,6 +15,12 @@ export async function exerciseIntakeResponseRecovery({admin,rest,check,A,B,API,k
  globalThis.fetch=async(input,init)=>{
   const url=new URL(input);
   if(url.origin===API){
+   // Isolated HTTP suite: signing transport is synthetic; a distinct real
+   // Storage job verifies private original bytes and signed-link permissions.
+   if(init?.method==='POST'&&url.pathname.startsWith('/storage/v1/object/sign/item-images/')){
+    const suffix=url.pathname.slice('/storage/v1/object/sign/item-images/'.length);
+    return new Response(JSON.stringify({signedURL:'/object/sign/item-images/'+suffix+'?token=synthetic-staging'}),{status:200,headers:{'content-type':'application/json'}});
+   }
    if(denyStage&&url.pathname==='/rest/v1/ai_analysis_runs'&&init?.method==='PATCH'&&JSON.parse(init.body).result?.analysis_stage===denyStage)return new Response(JSON.stringify({message:'Synthetic stage save denied'}),{status:503});
    if(ackMode&&url.pathname==='/rest/v1/ai_analysis_runs'&&init?.method==='PATCH'&&JSON.parse(init.body).result?.analysis_stage==='FIRST_PASS_SAVED'){
     if(ackMode==='fabricated')return new Response(JSON.stringify([{id:url.searchParams.get('id').slice(3),...JSON.parse(init.body)}]),{status:200});
@@ -29,13 +35,13 @@ export async function exerciseIntakeResponseRecovery({admin,rest,check,A,B,API,k
   assert.equal(String(input),'https://api.openai.com/v1/responses','Unexpected external call blocked');calls++;return provider();
  };
  const stage=async()=>{
-  const id=randomUUID(),manifest=[{index:0,file_name:'Synthetic source.png',storage_path:A.id+'/intake/'+id+'/00-source.png',sha256:'a'.repeat(64),byte_count:77}];
+  const id=randomUUID(),manifest=[{index:0,file_name:'Synthetic source.png',storage_path:A.id+'/intake/'+id+'/00-source.png',sha256:createHash('sha256').update(id).digest('hex'),byte_count:77}];
   const response=await rest(A.token,'ai_analysis_runs',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({id,mode:'single',model:'PENDING',status:'DRAFT',input_photo_count:1,user_context:{user_notes:'Synthetic owner observation'},result:{image_manifest_version:1,image_manifest:manifest,analysis_stage:'UPLOADED'}})});
   assert.equal(response.status,201);return (await response.json())[0];
  };
  const row=async id=>(await admin.query('select * from public.ai_analysis_runs where id=$1',[id])).rows[0];
  const invoke=async(saved,user=A,overrides={})=>{const res={code:0,body:null,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
-  await intake({method:'POST',headers:{authorization:'Bearer '+user.token},body:{mode:'single',run_id:saved.id,images:[{index:0,fileName:'Synthetic source.png',url:API+'/storage/v1/synthetic-original.png'}],context:{user_notes:'Synthetic owner observation'},...overrides}},res);return res;};
+  await intake({method:'POST',headers:{authorization:'Bearer '+user.token},body:{mode:'single',run_id:saved.id,images:[{index:0,fileName:'Synthetic source.png',url:API+'/storage/v1/object/sign/item-images/'+saved.result.image_manifest[0].storage_path+'?token=synthetic-staging'}],context:{user_notes:'Synthetic owner observation'},...overrides}},res);return res;};
  const synthetic={batch_summary:'Synthetic intake response, not real object evidence',objects:[{working_title:'Synthetic vase',object_type:'Vase',maker:null,current_attribution:null,marks_signatures_labels:null,image_indices:[0],evidence:[],next_evidence:[]}]};
  const responseRaw=result=>' \n'+JSON.stringify({id:'synthetic-intake-answer',model:'fixture-intake-model',output_text:JSON.stringify(result)})+'\n';
  const goodRaw=responseRaw(synthetic);
