@@ -52,7 +52,7 @@ export default function Dashboard() {
       </div></details>
 
       <section className="section" style={{marginTop:20}}>
-        <div className="sectionHeader"><div><h2>Continue with an object</h2></div></div>
+        <div className="sectionHeader"><div><h2>Continue with an object</h2></div><Link to="/uploads">Resume saved photo sessions</Link></div>
         {error?<div role="alert">{error}<button className="secondaryButton inlineButton" onClick={()=>setReload(n=>n+1)}>Reload collection</button></div>:loading ? <div className="empty">Loading…</div> :
           items.length === 0 ? <div className="empty"><h3>No items yet</h3><p>Your first five glass pieces can become CI-000001 onward.</p></div> :
           <div className="cardGrid">{items.slice(0,6).map(i=><ItemCard item={i} imageUrl={coverUrls[i.id]} key={i.id}/>)}</div>}
