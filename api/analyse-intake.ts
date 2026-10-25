@@ -1,4 +1,4 @@
-import {bindSavedIntakePhotos} from '../src/lib/intakeSourceBinding.ts';
+import {bindSavedIntakePhotos,bindSavedIntakeContext} from '../src/lib/intakeSourceBinding.ts';
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
@@ -379,8 +379,8 @@ export default async function handler(req: any, res: any) {
   let staged:any;
   try {
     staged=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
-    const savedOriginals=bindSavedIntakePhotos(staged,submittedImages,mode);
-    context=staged.user_context;
+    const savedOriginals=bindSavedIntakePhotos(staged,submittedImages,mode,supabaseUrl);
+    context=bindSavedIntakeContext(staged.user_context,(req.body||{}).context);
     // Do not use incoming client notes or signed URLs when constructing the model prompt.
     images=await Promise.all(savedOriginals.map(async original=>({
       index:original.index,fileName:original.file_name,
