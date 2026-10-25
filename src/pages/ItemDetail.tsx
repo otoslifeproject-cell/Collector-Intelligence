@@ -276,11 +276,22 @@ function ItemDetailRecord({id}:{id:string}) {
 
   const reviewed=researching||uploading||saving||assessmentMutating||armyMutating?null:reviewedForItem(reviewedCandidate,item)
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
+  const heroPhoto=photos.find(photo=>photo.is_hero)||photos[0]
+  const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
 
   return (
     <div>
       <div className="itemHero">
-        <div>
+        <div className="ci-item-hero-media">
+          {heroUrl?
+            <img src={heroUrl} alt={`Original photograph of ${item.item_code}`} onError={()=>{
+              if(!current()||!heroPhoto)return
+              setPhotoUrls(previous=>({...previous,[heroPhoto.id]:''}))
+              setPhotographError('Secure photo preview unavailable. Reload photographs to refresh the link; the original is retained.')
+            }}/>:
+            <span role="status">{photographsLoading?'Checking original photograph…':photographError||!photographsLoaded?'Original photograph preview unavailable':heroPhoto?'Original photograph preview unavailable':'No photograph linked yet'}</span>}
+        </div>
+        <div className="ci-item-hero-details">
           <div className="eyebrow">{item.item_code}</div>
           <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>

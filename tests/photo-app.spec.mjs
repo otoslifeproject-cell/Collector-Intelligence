@@ -32,6 +32,10 @@ async function reauthenticate(page,letter){await page.evaluate(async letter=>{co
 for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(`actual photo route ${width}px ${theme}`,async({page})=>{
  await page.setViewportSize({width,height:900});const item=await seed();const requests=await visit(page,item.id,theme);await expect(page.getByText('No photographs linked to this item yet.',{exact:true})).toBeVisible();
  const files=await choose(page);await confirmed(page,2);await decoded(page,2);
+ const heroPhoto=page.locator('.itemHero .ci-item-hero-media img');
+ await expect(heroPhoto).toHaveCount(1);
+ await expect(heroPhoto).toHaveAttribute('alt',new RegExp('Original photograph of '+item.item_code));
+ await expect.poll(()=>heroPhoto.evaluate(image=>image.complete&&image.naturalWidth===2)).toBe(true);
  const saved=await rows(item.id);expect(saved.map(row=>row.position)).toEqual([0,1]);expect(saved.map(row=>row.file_name)).toEqual(files.map(file=>file.name));
  for(let index=0;index<saved.length;index++){expect(saved[index].owner_id).toBe(owner);await original(saved[index].storage_path,files[index].buffer);}
  const geometry=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));expect(geometry.scroll).toBeLessThanOrEqual(geometry.width+1);
