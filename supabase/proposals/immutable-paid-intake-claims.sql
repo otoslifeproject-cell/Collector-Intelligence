@@ -17,7 +17,13 @@ create policy ci_paid_intake_claims_v1_owner_read on public.ci_paid_intake_claim
 revoke all on public.ci_paid_intake_claims_v1 from public,anon,authenticated;
 grant select on public.ci_paid_intake_claims_v1 to authenticated;
 
-create or replace function public.ci_claim_intake_paid_v1(p_run_id uuid) returns text
+-- The old one-argument RPC permits a TOCTOU race between server preflight and
+-- claim. Remove the obsolete overload inside the disposable fixture.
+drop function if exists public.ci_claim_intake_paid_v1(uuid);
+create or replace function public.ci_claim_intake_paid_v1(
+ p_run_id uuid, p_expected_manifest jsonb, p_expected_context jsonb,
+ p_expected_mode text, p_expected_photo_count integer
+) returns text
 language plpgsql security definer set search_path=pg_catalog,public
 as $$
 declare
@@ -32,6 +38,13 @@ begin
   select * into v_run from public.ai_analysis_runs
     where id=p_run_id and owner_id=v_owner and mode in ('single','batch') for update;
   if not found then raise exception 'Owned saved intake session unavailable';end if;
+  -- Match the exact SERVER-READ scope used to build the model prompt before
+  -- locking the paid claim. A concurrent owner edit fails atomically.
+  if v_run.result->'image_manifest' is distinct from p_expected_manifest
+     or v_run.user_context is distinct from p_expected_context
+     or v_run.mode is distinct from p_expected_mode
+     or v_run.input_photo_count is distinct from p_expected_photo_count
+  then raise exception 'Saved owner photo/context scope changed before paid claim';end if;
   if v_run.status<>'DRAFT' or v_run.result->>'analysis_stage'<>'UPLOADED' or
      v_run.result ? 'objects' then
     raise exception 'Saved intake has already progressed or needs review';
@@ -67,5 +80,5 @@ begin
   if v_count<>1 then raise exception 'Claim save confirmation failed';end if;
   return 'CLAIMED';
 end $$;
-revoke all on function public.ci_claim_intake_paid_v1(uuid) from public,anon;
-grant execute on function public.ci_claim_intake_paid_v1(uuid) to authenticated;
+revoke all on function public.ci_claim_intake_paid_v1(uuid,jsonb,jsonb,text,integer) from public,anon;
+grant execute on function public.ci_claim_intake_paid_v1(uuid,jsonb,jsonb,text,integer) to authenticated;

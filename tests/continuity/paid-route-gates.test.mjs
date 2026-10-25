@@ -54,7 +54,16 @@ async function setup(t,caller,options={}){
     if(url.pathname==='/rest/v1/trusted_knowledge_v1'||url.pathname==='/rest/v1/ai_verdict_feedback'||url.pathname==='/rest/v1/trusted_comparables_v1')return json([]);
     if(url.pathname==='/rest/v1/items')return json([{id:I}]);
     if(url.pathname==='/rest/v1/ai_visual_reference_reviews')return json([],options.visualUnavailable?503:200);
-    if(url.pathname==='/rest/v1/rpc/ci_claim_scoped_paid_research_v1'||url.pathname==='/rest/v1/rpc/ci_claim_intake_paid_v1'){state.claims++;return json('CLAIMED');}
+    if(url.pathname==='/rest/v1/rpc/ci_claim_scoped_paid_research_v1'||url.pathname==='/rest/v1/rpc/ci_claim_intake_paid_v1'){
+      if(url.pathname.endsWith('ci_claim_intake_paid_v1')){
+        const posted=JSON.parse(init.body);
+        assert.equal(posted.p_expected_mode,'single');
+        assert.equal(posted.p_expected_photo_count,1);
+        assert.deepEqual(posted.p_expected_context,intakeContext);
+        assert.equal(posted.p_expected_manifest[0].storage_path,intakePath);
+      }
+      state.claims++;return json('CLAIMED');
+    }
     if(url.pathname==='/rest/v1/ai_analysis_runs'){
       if(init.method==='PATCH'){const body=JSON.parse(init.body);state.saves.push(body.result);if(caller==='intake'&&!options.saveUnavailable)state.intakeSaved=body;return json([{id:D,...body}],options.saveUnavailable?503:200);}
       if(caller==='intake')return json([{id:D,owner_id:A,status:'DRAFT',mode:'single',input_photo_count:1,user_context:intakeContext,result:{analysis_stage:'UPLOADED',image_manifest:[{index:0,file_name:'fixture.jpg',storage_path:intakePath,sha256:'a'.repeat(64),byte_count:100}]},...state.intakeSaved}]);

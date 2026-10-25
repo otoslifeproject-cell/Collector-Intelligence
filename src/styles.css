@@ -962,3 +962,14 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-item-hero-media span{color:var(--muted);font-size:12px;line-height:1.45;text-align:center;padding:10px;overflow-wrap:anywhere}
 .ci-item-hero-details{flex:1;min-width:0}
 @media(max-width:760px){.ci-item-hero-media{width:104px;height:104px;margin-bottom:12px}.ci-item-hero-details{min-width:0}}
+
+/* A 200% zoom must reflow the original-photo header, even on desktop.
+   UUID-length titles must not increase the document scroll width. */
+.appShell{grid-template-columns:248px minmax(0,1fr)}
+.mainContent{min-width:0}
+.itemHero{flex-wrap:wrap;align-items:flex-start}
+.ci-item-hero-details{flex:1 1 240px;min-width:0;max-width:100%}
+.ci-item-hero-details h1{overflow-wrap:anywhere;word-break:break-word;max-width:100%}
+.heroActions{flex-wrap:wrap;align-items:flex-start;max-width:100%}
+.heroActions button{max-width:100%;white-space:normal}
+@media(max-width:760px){.appShell{grid-template-columns:minmax(0,1fr)}}

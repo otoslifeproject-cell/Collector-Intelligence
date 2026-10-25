@@ -424,7 +424,13 @@ export default async function handler(req: any, res: any) {
     const response=await fetch(supabaseUrl+'/rest/v1/rpc/ci_claim_intake_paid_v1',{
       method:'POST',
       headers:{apikey:supabaseKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({p_run_id:run_id})
+      // Compare the exact server-verified pre-dispatch snapshot *inside*
+      // the RPC's row lock, not a later, owner-editable staging value.
+      body:JSON.stringify({
+        p_run_id:run_id,p_expected_manifest:staged.result.image_manifest,
+        p_expected_context:staged.user_context,p_expected_mode:staged.mode,
+        p_expected_photo_count:staged.input_photo_count
+      })
     });
     if(!response.ok)return res.status(503).json({error:'Protected claim unavailable or already claimed. Open the saved report; no paid request made.',code:'INTAKE_CLAIM_DENIED',run_id});
     const result=await response.json();
