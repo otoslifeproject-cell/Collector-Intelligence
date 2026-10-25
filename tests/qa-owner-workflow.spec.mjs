@@ -134,3 +134,40 @@ test('Dashboard reaches saved photo history with one navigation click',async({pa
  await expect(page.getByRole('heading',{name:'Saved uploads',exact:true})).toBeVisible();
  expect(events.paid).toEqual([]);
 });
+
+
+test('Inventory saved batch object B deep-links to its own evidence scope, not object A',async({page})=>{
+ const prefix='Batch boundary '+randomUUID();
+ const second=prefix+' object B',first=prefix+' object A';
+ const id=randomUUID();
+ const result={analysis_stage:'COMPLETE',image_manifest:[
+  {index:0,storage_path:owner+'/intake/'+id+'/00-a.png',file_name:'a.png',sha256:'a'.repeat(64),byte_count:77},
+  {index:1,storage_path:owner+'/intake/'+id+'/01-b.png',file_name:'b.png',sha256:'b'.repeat(64),byte_count:77}
+ ],objects:[
+  {working_title:first,object_type:'Vase',material:'Glass',image_indices:[0],identification_confidence:25},
+  {working_title:second,object_type:'Bowl',material:'Glass',image_indices:[1],identification_confidence:38}
+ ]};
+ const saved=await client.from('ai_analysis_runs').insert({id,owner_id:owner,mode:'batch',model:'FIXTURE_NO_PROVIDER',status:'DRAFT',input_photo_count:2,user_context:{user_notes:'Separate objects in synthetic owner acceptance'},result}).select('id').single();
+ expect(saved.error).toBeNull();
+ const events=await login(page,'/#/inventory');
+ await page.getByRole('textbox',{name:'Search inventory'}).fill(prefix);
+ const card=page.locator('.ci-record-card').filter({hasText:second});
+ if(!(await card.isVisible()))await page.locator('details.ci-archive-section>summary').click();
+ await expect(card).toBeVisible();
+ const link=card.getByRole('link',{name:/View report/});
+ await expect(link).toHaveAttribute('href','#/draft/'+id+'?object=1');
+ await link.click();
+ await expect(page).toHaveURL(new RegExp('/#/draft/'+id+'[?]object=1$'));
+ const selector=page.getByLabel('Choose object to research');
+ await expect(selector).toHaveValue('1');
+ await expect(page.getByRole('region',{name:'Research dashboard — '+second,exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Research dashboard — '+first,exact:true})).toHaveCount(0);
+ await page.reload();
+ await expect(selector).toHaveValue('1');
+ // A corrupt index cannot accidentally bind another object's data.
+ await page.goto('/#/draft/'+id+'?object=9999');
+ await expect(selector).toHaveValue('0');
+ await selector.selectOption('1');
+ await expect(page).toHaveURL(new RegExp('/#/draft/'+id+'[?]object=1$'));
+ expect(events.paid).toEqual([]);
+});

@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react'
 import {ArrowLeft,Bell} from 'lucide-react'
-import {Link,useNavigate,useParams} from 'react-router-dom'
+import {Link,useLocation,useNavigate,useParams} from 'react-router-dom'
 import ObjectCollectionToolbar from '../components/ObjectCollectionToolbar'
 import {supabase} from '../lib/supabase'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
@@ -34,6 +34,7 @@ function SavedDraftRecord({id}:{id:string}){
  const alive=useRef(false),approvalBusy=useRef(false),reviewBusy=useRef(false),correctionBusy=useRef(false),researchBusy=useRef(false),approvalStatus=useRef<HTMLParagraphElement|null>(null)
  const current=()=>alive.current
  const navigate=useNavigate()
+ const location=useLocation()
  const [run,setRun]=useState<SavedRun|null>(null)
  const [images,setImages]=useState<Record<number,string>>({})
  const [error,setError]=useState('')
@@ -57,6 +58,14 @@ function SavedDraftRecord({id}:{id:string}){
  const [researchError,setResearchError]=useState('')
  const [unconfirmedResearch,setUnconfirmedResearch]=useState<{runId:string;payload:any}|null>(null)
  const [researchIndex,setResearchIndex]=useState(0)
+ // Object indices refer only to the saved run's objects; never map by photo order.
+ // Invalid, hostile or stale links safely show object 0 without altering evidence.
+ useEffect(()=>{
+  const raw=new URLSearchParams(location.search).get('object')
+  const parsed=raw!==null&&/^(0|[1-9][0-9]*)$/.test(raw)?Number(raw):0
+  const count=Array.isArray(run?.result?.objects)?run.result.objects.length:0
+  setResearchIndex(Number.isSafeInteger(parsed)&&parsed>=0&&parsed<count?parsed:0)
+ },[location.search,run?.id])
  const [researchHistory,setResearchHistory]=useState<any[]>([])
  const [unfinishedResearch,setUnfinishedResearch]=useState<any[]>([])
  const [verdictFeedback,setVerdictFeedback]=useState<any[]>([])
@@ -396,7 +405,7 @@ function SavedDraftRecord({id}:{id:string}){
   {error&&<p role="alert">{error}</p>}
   {run&&<>
    {!paired&&(run.result?.objects||[]).length>1&&<label className="ci-research-scope-selector">Choose object to research
-    <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>setResearchIndex(Number(e.target.value))}>
+    <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>{const next=Number(e.target.value);setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>
      {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
     </select>
    </label>}

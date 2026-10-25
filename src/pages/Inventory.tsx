@@ -172,14 +172,14 @@ export default function Inventory() {
               <p>{object.condition_summary}</p>
               <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. {Array.isArray(run.result?.image_manifest)?'Original source photos saved and accessible through this report.':'Legacy report awaits verified source-photo linking.'}</p>
             </details>
-            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link>
+            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id+'?object='+index}>View report →</Link>
           </div>
         </article>)}</div>
       </section>}
       {showDrafts&&earlierDrafts.length>0&&<details className="ci-archive-section"><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
-          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">{Array.isArray(run.result?.image_manifest)&&run.result.image_manifest.length>0?'Photo preview unavailable':'Original photo link unconfirmed'}</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">{Array.isArray(run.result?.image_manifest)&&run.result.image_manifest.length>0?'Photo preview unavailable':'Original photo link unconfirmed'}</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id+'?object='+index}>View report →</Link></div>
         </article>)}</div>
       </details>}
       {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} photoFallbackText={photoReadStatus==='unavailable'?'Photo history unavailable':photoReadStatus==='checking'?'Checking photographs':linkedPhotoIds.includes(i.id)?'Photo preview unavailable':'No photograph linked'} key={i.id}/>)}</div>}
