@@ -153,7 +153,7 @@ export default function Inventory() {
             <div className="itemMeta"><span>Upload session</span><span>Not catalogued</span></div>
             <h3 className="ci-record-title">{run.input_photo_count} saved source photographs</h3>
             <p className="ci-record-stage">AI report not complete · No confirmed object identification</p>
-            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View saved session →</Link>
+            <Link className="primaryButton ci-card-action" to={'/uploads/'+run.id}>View saved session →</Link>
           </div>
         </article>)}</div>
       </section>}

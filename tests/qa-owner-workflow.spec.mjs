@@ -171,3 +171,22 @@ test('Inventory saved batch object B deep-links to its own evidence scope, not o
  await expect(page).toHaveURL(new RegExp('/#/draft/'+id+'[?]object=1$'));
  expect(events.paid).toEqual([]);
 });
+
+
+test('unfinished photo upload opens owner saved-session recovery, never incomplete report review',async({page})=>{
+ const id=randomUUID();
+ const save=await client.from('ai_analysis_runs').insert({id,owner_id:owner,mode:'single',model:'FIXTURE_NO_PROVIDER',status:'DRAFT',
+  input_photo_count:1,user_context:{user_notes:'Synthetic incomplete upload link test'},
+  result:{analysis_stage:'UPLOADED',image_manifest:[{index:0,file_name:'original.png',storage_path:owner+'/intake/'+id+'/00-original.png',sha256:'c'.repeat(64),byte_count:77}]}
+ }).select('id').single();
+ expect(save.error).toBeNull();
+ const events=await login(page,'/#/inventory');
+ const link=page.locator('a[href="#/uploads/'+id+'"]');
+ await expect(link).toHaveCount(1);
+ await expect(link).toHaveText('View saved session →');
+ await link.click();
+ await expect(page).toHaveURL(new RegExp('/#/uploads/'+id+'$'));
+ await expect(page.getByRole('heading',{name:'Saved photo session',exact:true})).toBeVisible();
+ await expect(page.getByText('Awaiting saved analysis',{exact:true})).toBeVisible();
+ expect(events.paid).toEqual([]);
+});
