@@ -66,3 +66,44 @@ test('unknown object currency stays unknown in detail and blocks monetary assump
  const item=await seed();expect((await client.from('items').update({currency:'',acquisition_currency:'',acquisition_price:10}).eq('id',item.id)).error).toBeNull();const events=await login(page,'/#/item/'+item.id);await expect(page.getByText('Currency unconfirmed',{exact:true}).first()).toBeVisible();await expect(page.locator('.valueSummary').first()).not.toContainText('£');
  await page.getByRole('button',{name:'Sell / route',exact:true}).click();const economics=page.locator('.ci-sale-economics').filter({has:page.getByRole('heading',{name:'Sale proceeds & profit scenarios',exact:true})});await expect(economics).toContainText('Currency unconfirmed');await expect(economics.getByRole('spinbutton',{name:'Expected gross sale',exact:true})).toBeDisabled();await expect(economics.locator('.ci-economics-results')).not.toContainText('£');expect(events.paid).toEqual([]);expect(events.errors).toEqual([]);
 });
+
+
+test('Inventory: denied saved-draft history never means zero drafts, and GET retry restores source',async({page})=>{
+ const title='Owner draft source '+randomUUID();
+ const saved=await client.from('ai_analysis_runs').insert({mode:'single',status:'DRAFT',model:'fixture-no-provider',input_photo_count:1,result:{analysis_stage:'COMPLETE',objects:[{working_title:title,object_type:'Vase',image_indices:[]}],image_manifest:[]}}).select('id').single();
+ expect(saved.error).toBeNull();
+ let denied=true;
+ await page.route('**/rest/v1/ai_analysis_runs*',route=>route.request().method()==='GET'&&denied?route.fulfill({status:403,json:{message:'Synthetic draft denial'}}):route.fallback());
+ const events=await login(page,'/#/inventory');
+ await expect(page.getByRole('alert').filter({hasText:'Saved draft history unavailable'})).toBeVisible();
+ await expect(page.locator('.inventorySummary')).toContainText('Saved draft count unavailable');
+ await expect(page.locator('.inventorySummary')).not.toContainText('0 unfinished draft');
+ denied=false;
+ await page.getByRole('button',{name:'Reload inventory sources',exact:true}).click();
+ await expect(page.getByText(title,{exact:true})).toBeVisible();
+ await expect(page.getByRole('alert').filter({hasText:'Saved draft history unavailable'})).toHaveCount(0);
+ expect(events.paid).toEqual([]);
+});
+test('Inventory: a denied photo-metadata read is not a missing-original verdict',async({page})=>{
+ const item=await seed();
+ let denied=true;
+ await page.route('**/rest/v1/item_photos*',route=>route.request().method()==='GET'&&denied?route.fulfill({status:403,json:{message:'Synthetic photo denial'}}):route.fallback());
+ const events=await login(page,'/#/inventory');
+ const card=page.locator('.itemCard').filter({hasText:item.title});
+ await expect(card).toContainText('Photo history unavailable');
+ await expect(card).not.toContainText('Photo not linked');
+ denied=false;
+ await page.getByRole('button',{name:'Reload inventory sources',exact:true}).click();
+ await expect(card).toContainText('No photograph linked');
+ expect(events.paid).toEqual([]);
+});
+test('Inventory: denied owner corrections remain explicit unknown until read-only retry',async({page})=>{
+ let denied=true;
+ await page.route('**/rest/v1/ai_verdict_feedback*',route=>route.request().method()==='GET'&&denied?route.fulfill({status:403,json:{message:'Synthetic correction denial'}}):route.fallback());
+ const events=await login(page,'/#/inventory');
+ await expect(page.getByRole('alert').filter({hasText:'Owner correction history unavailable'})).toBeVisible();
+ denied=false;
+ await page.getByRole('button',{name:'Reload inventory sources',exact:true}).click();
+ await expect(page.getByRole('alert').filter({hasText:'Owner correction history unavailable'})).toHaveCount(0);
+ expect(events.paid).toEqual([]);
+});

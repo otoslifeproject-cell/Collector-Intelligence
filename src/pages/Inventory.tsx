@@ -13,6 +13,10 @@ export default function Inventory() {
   const [draftRuns,setDraftRuns] = useState<any[]>([])
   const [ownerMaterialCorrections,setOwnerMaterialCorrections]=useState<any[]>([])
   const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
+  const [draftReadStatus,setDraftReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
+  const [correctionReadStatus,setCorrectionReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
+  const [photoReadStatus,setPhotoReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
+  const [linkedPhotoIds,setLinkedPhotoIds]=useState<string[]>([])
   const [covers,setCovers] = useState<Record<string,string>>({})
   const [query,setQuery] = useState('')
   const [status,setStatus] = useState('ALL')
@@ -22,13 +26,25 @@ export default function Inventory() {
   const changeView=(next:'tiles'|'list'|'compact')=>{setView(next);try{window.localStorage.setItem('ci-inventory-view',next)}catch{ /* Storage optional */ }}
 
   useEffect(()=>{
+    let cancelled=false
+    setLoadError('')
+    setDraftReadStatus('checking')
+    setCorrectionReadStatus('checking')
+    setPhotoReadStatus('checking')
     supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
       .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100)
-      .then(({data})=>setOwnerMaterialCorrections(data||[]))
+      .then(({data,error})=>{
+        if(cancelled)return
+        if(error||!data){setCorrectionReadStatus('unavailable');return}
+        setOwnerMaterialCorrections(data)
+        setCorrectionReadStatus('ready')
+      }).catch(()=>{if(!cancelled)setCorrectionReadStatus('unavailable')})
     supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
-      if(error)return
+      if(cancelled)return
+      if(error||!data){setDraftReadStatus('unavailable');return}
       const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects)||Array.isArray(run.result?.image_manifest))
       setDraftRuns(runs)
+      setDraftReadStatus('ready')
       const photoRequests:{key:string,path:string}[]=[]
       for(const run of runs){
         const manifest=Array.isArray(run.result?.image_manifest)?run.result.image_manifest:[]
@@ -48,30 +64,30 @@ export default function Inventory() {
         const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,1800)
         return [key,url?.signedUrl||''] as const
       }))
-      setDraftCovers(Object.fromEntries(results))
-    })
-    let cancelled=false
-    setLoadError('')
+      if(!cancelled)setDraftCovers(Object.fromEntries(results))
+    }).catch(()=>{if(!cancelled)setDraftReadStatus('unavailable')})
     supabase.from('items').select('*').order('item_code').then(async ({data,error:readError})=>{
       if(cancelled)return
-      if(readError||!data){setItems([]);setLoadError('Catalogue unavailable. Reload inventory to recover saved objects.');return}
+      if(readError||!data){setItems([]);setLoadError('Catalogue unavailable. Reload inventory to recover saved objects.');setPhotoReadStatus('unavailable');return}
       const rows=(data||[]) as Item[]
       if(cancelled)return
       setItems(rows)
-      if(!rows.length)return
+      if(!rows.length){setCovers({});setLinkedPhotoIds([]);setPhotoReadStatus('ready');return}
       const ids=rows.map(i=>i.id)
       const {data:photos,error}=await supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',ids).order('position',{ascending:true})
-      if(error||cancelled)return
+      if(cancelled)return
+      if(error||!photos){setPhotoReadStatus('unavailable');return}
       const selected=new Map<string,string>()
       for(const p of (photos||[]).sort((a:any,b:any)=>Number(b.is_hero)-Number(a.is_hero))){
         if(!selected.has(p.item_id))selected.set(p.item_id,p.storage_path)
       }
+      setLinkedPhotoIds([...selected.keys()])
       const urls=await Promise.all([...selected.entries()].map(async ([id,path])=>{
         const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,3600)
         return [id,url?.signedUrl||''] as const
       }))
-      if(!cancelled)setCovers(Object.fromEntries(urls))
-    })
+      if(!cancelled){setCovers(Object.fromEntries(urls));setPhotoReadStatus('ready')}
+    }).catch(()=>{if(!cancelled)setPhotoReadStatus('unavailable')})
     return ()=>{cancelled=true}
   },[reload])
 
@@ -113,7 +129,13 @@ export default function Inventory() {
         ]}
       />
       {loadError&&<p role="alert">{loadError}<button className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory</button></p>}
-      <div className="inventorySummary">{loadError?'Catalogue count unavailable · ':''}{filtered.length} permanent catalogue items · {unfinished.length} unfinished draft lots/objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
+      {(draftReadStatus==='unavailable'||correctionReadStatus==='unavailable'||photoReadStatus==='unavailable')&&<div role="alert">
+        {draftReadStatus==='unavailable'&&<p>Saved draft history unavailable. A failed read does not mean the drafts are missing; any displayed drafts are last-known only.</p>}
+        {correctionReadStatus==='unavailable'&&<p>Owner correction history unavailable. Material labels remain provisional until saved corrections can be checked.</p>}
+        {photoReadStatus==='unavailable'&&!loadError&&<p>Photograph history unavailable. Do not infer that stored originals are missing.</p>}
+        <button type="button" className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory sources</button>
+      </div>}
+      <div className="inventorySummary">{loadError?'Catalogue count unavailable':filtered.length+' permanent catalogue items'} · {draftReadStatus==='unavailable'?'Saved draft count unavailable':draftReadStatus==='checking'?'Checking saved drafts':unfinished.length+' unfinished draft lots/objects (recent 30 sessions)'}{draftReadStatus==='ready'&&pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''} · <Link to="/uploads">All saved uploads</Link></div>
       {showDrafts&&pendingSessions.length>0&&<section className="section">
         <h2 className="ci-section-title">Uploaded photographs awaiting a completed AI report <span>{pendingSessions.length} sessions</span></h2>
         <InfoDisclosure label="About incomplete uploads"><p>Original photos remain in private storage. An unfinished AI report cannot be approved as an item.</p></InfoDisclosure>
@@ -130,7 +152,7 @@ export default function Inventory() {
       {showDrafts&&currentDrafts.length>0&&<section className="section">
         <h2 className="ci-section-title">Most recent AI report <span>{currentDrafts.length} lot(s) / object(s)</span></h2> 
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
-          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index] ? <img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /> : <span className="ci-missing-photo">Photo not linked</span>}</div>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index] ? <img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /> : <span className="ci-missing-photo">{Array.isArray(run.result?.image_manifest)&&run.result.image_manifest.length>0?'Photo preview unavailable':'Original photo link unconfirmed'}</span>}</div>
           <div className="itemCardBody">
             <div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Draft '+String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
             <h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled object'}</h3>
@@ -149,10 +171,10 @@ export default function Inventory() {
       {showDrafts&&earlierDrafts.length>0&&<details className="ci-archive-section"><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
-          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">Photo not linked</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">{Array.isArray(run.result?.image_manifest)&&run.result.image_manifest.length>0?'Photo preview unavailable':'Original photo link unconfirmed'}</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
         </article>)}</div>
       </details>}
-      {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
+      {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} photoFallbackText={photoReadStatus==='unavailable'?'Photo history unavailable':photoReadStatus==='checking'?'Checking photographs':linkedPhotoIds.includes(i.id)?'Photo preview unavailable':'No photograph linked'} key={i.id}/>)}</div>}
     </div>
   )
 }
