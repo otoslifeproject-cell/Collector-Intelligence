@@ -107,3 +107,26 @@ test('Inventory: denied owner corrections remain explicit unknown until read-onl
  await expect(page.getByRole('alert').filter({hasText:'Owner correction history unavailable'})).toHaveCount(0);
  expect(events.paid).toEqual([]);
 });
+
+
+test('Sales pipeline opens directly into its object selling workspace',async({page})=>{
+ const item=await seed(),events=await login(page,'/#/sales');
+ const row=page.getByRole('row').filter({hasText:item.title});
+ await expect(row).toBeVisible();
+ const link=row.getByRole('link',{name:new RegExp(item.item_code)});
+ await expect(link).toHaveAttribute('href','#/item/'+item.id+'?tab=sales');
+ await link.click();
+ await expect(page).toHaveURL(new RegExp('/#/item/'+item.id+'\\?tab=sales$'));
+ await expect(page.locator('.tabBar').getByRole('button',{name:'sales',exact:true})).toHaveClass(/active/);
+ await expect(page.getByRole('region',{name:'Sell Fast plan and listing preparation',exact:true})).toBeVisible();
+ expect(events.paid).toEqual([]);
+});
+test('Dashboard reaches saved photo history with one navigation click',async({page})=>{
+ const events=await login(page,'/#/');
+ const link=page.getByRole('link',{name:'Resume saved photo sessions',exact:true});
+ await expect(link).toHaveAttribute('href','#/uploads');
+ await link.click();
+ await expect(page).toHaveURL(/\/#\/uploads$/);
+ await expect(page.getByRole('heading',{name:'Saved uploads',exact:true})).toBeVisible();
+ expect(events.paid).toEqual([]);
+});
