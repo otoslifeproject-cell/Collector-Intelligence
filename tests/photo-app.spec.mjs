@@ -42,7 +42,15 @@ for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(
  await page.reload();await decoded(page,2);expect((await rows(item.id)).map(row=>row.id)).toEqual(saved.map(row=>row.id));expect(requests.uploads).toHaveLength(2);expect(requests.posts).toHaveLength(2);expect(requests.errors).toEqual([]);expect(requests.paid).toEqual([]);
 });
 test('keyboard reaches native file chooser and completion status',async({page})=>{
- const item=await seed();await visit(page,item.id);await uploadButton(page).focus();const event=page.waitForEvent('filechooser');await page.keyboard.press('Enter');const chooser=await event;await chooser.setFiles(inputFiles([40]));await confirmed(page);await decoded(page,1);
+ const item=await seed();await visit(page,item.id);
+ // An initially disabled Upload button must not be focused until the owner's
+ // private photograph history has loaded. Otherwise Enter has no target.
+ await expect(uploadButton(page)).toBeEnabled();
+ await uploadButton(page).focus();
+ await expect(uploadButton(page)).toBeFocused();
+ const event=page.waitForEvent('filechooser');
+ await page.keyboard.press('Enter');
+ const chooser=await event;await chooser.setFiles(inputFiles([40]));await confirmed(page);await decoded(page,1);
 });
 test('lost metadata acknowledgement resolves from real readback without another INSERT or upload',async({page})=>{
  const item=await seed();const requests=await visit(page,item.id);
