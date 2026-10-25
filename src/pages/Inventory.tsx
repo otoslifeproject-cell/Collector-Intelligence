@@ -31,15 +31,15 @@ export default function Inventory() {
     setDraftReadStatus('checking')
     setCorrectionReadStatus('checking')
     setPhotoReadStatus('checking')
-    supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
-      .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100)
+    void Promise.resolve(supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
+      .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100))
       .then(({data,error})=>{
         if(cancelled)return
         if(error||!data){setCorrectionReadStatus('unavailable');return}
         setOwnerMaterialCorrections(data)
         setCorrectionReadStatus('ready')
       }).catch(()=>{if(!cancelled)setCorrectionReadStatus('unavailable')})
-    supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
+    void Promise.resolve(supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30)).then(async ({data,error})=>{
       if(cancelled)return
       if(error||!data){setDraftReadStatus('unavailable');return}
       const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects)||Array.isArray(run.result?.image_manifest))
@@ -66,7 +66,7 @@ export default function Inventory() {
       }))
       if(!cancelled)setDraftCovers(Object.fromEntries(results))
     }).catch(()=>{if(!cancelled)setDraftReadStatus('unavailable')})
-    supabase.from('items').select('*').order('item_code').then(async ({data,error:readError})=>{
+    void Promise.resolve(supabase.from('items').select('*').order('item_code')).then(async ({data,error:readError})=>{
       if(cancelled)return
       if(readError||!data){setItems([]);setLoadError('Catalogue unavailable. Reload inventory to recover saved objects.');setPhotoReadStatus('unavailable');return}
       const rows=(data||[]) as Item[]
