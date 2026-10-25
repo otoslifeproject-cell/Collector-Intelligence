@@ -10,6 +10,9 @@ import {canonicalCallerKeys} from '../../src/lib/approvedCanonicalSources.ts';
 const A='00000000-0000-4000-8000-000000000001',D='00000000-0000-4000-8000-000000000002';
 const E='00000000-0000-4000-8000-000000000003',I='00000000-0000-4000-8000-000000000004';
 const cfg={url:'https://synthetic.invalid',key:'fixture',token:'fixture'};
+const intakePath=A+'/intake/'+D+'/00-fixture.jpg';
+const intakeUrl=cfg.url+'/storage/v1/object/sign/item-images/'+intakePath+'?token=fixture';
+const intakeContext={};
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers});
 async function setup(t,caller,options={}){
   const env={NEXT_PUBLIC_SUPABASE_URL:cfg.url,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:cfg.key,
@@ -39,6 +42,8 @@ async function setup(t,caller,options={}){
     }
     assert.equal(url.origin,cfg.url,'Unexpected network request was intercepted');
     if(url.pathname==='/auth/v1/user')return json({id:A},options.invalidAuth?401:200);
+    if(init.method==='POST'&&url.pathname==='/storage/v1/object/sign/item-images/'+intakePath)
+      return json({signedURL:'/storage/v1/object/sign/item-images/'+intakePath+'?token=fixture'});
     if(url.pathname==='/rest/v1/ci_canonical_approved_v1'){
       state.reads++;let data=sources;
       if(options.missing || (options.revokeAfterRead && state.reads>1) || (options.revokeBeforeSecondPass && state.reads>2))data=[];
@@ -49,17 +54,17 @@ async function setup(t,caller,options={}){
     if(url.pathname==='/rest/v1/trusted_knowledge_v1'||url.pathname==='/rest/v1/ai_verdict_feedback'||url.pathname==='/rest/v1/trusted_comparables_v1')return json([]);
     if(url.pathname==='/rest/v1/items')return json([{id:I}]);
     if(url.pathname==='/rest/v1/ai_visual_reference_reviews')return json([],options.visualUnavailable?503:200);
-    if(url.pathname==='/rest/v1/rpc/ci_claim_scoped_paid_research_v1'){state.claims++;return json('CLAIMED');}
+    if(url.pathname==='/rest/v1/rpc/ci_claim_scoped_paid_research_v1'||url.pathname==='/rest/v1/rpc/ci_claim_intake_paid_v1'){state.claims++;return json('CLAIMED');}
     if(url.pathname==='/rest/v1/ai_analysis_runs'){
       if(init.method==='PATCH'){const body=JSON.parse(init.body);state.saves.push(body.result);if(caller==='intake'&&!options.saveUnavailable)state.intakeSaved=body;return json([{id:D,...body}],options.saveUnavailable?503:200);}
-      if(caller==='intake')return json([{id:D,status:'DRAFT',mode:'single',input_photo_count:1,result:{analysis_stage:'UPLOADED',image_manifest:[{index:0,file_name:'fixture.jpg',storage_path:'SYNTHETIC_ONLY'}]},...state.intakeSaved}]);
+      if(caller==='intake')return json([{id:D,owner_id:A,status:'DRAFT',mode:'single',input_photo_count:1,user_context:intakeContext,result:{analysis_stage:'UPLOADED',image_manifest:[{index:0,file_name:'fixture.jpg',storage_path:intakePath,sha256:'a'.repeat(64),byte_count:100}]},...state.intakeSaved}]);
       const result=options.savedComplete?{analysis_stage:'COMPLETE',research_summary:'Saved fixture',response_id:'saved-response'}:{analysis_stage:'STAGED'};
       return json([{id:D,status:'DRAFT',mode:'research',...(url.searchParams.get('select').split(',').includes('model')?{model:'saved-model'}:{}),input_photo_count:0,result,user_context:{item_id:I}}]);
     }
     throw Error('Unhandled synthetic request: '+url.pathname);
   };
   const req={method:'POST',headers:{authorization:'Bearer '+cfg.token},body:caller==='intake'
-    ?{mode:'single',run_id:D,images:[{index:0,fileName:'fixture.jpg',url:cfg.url+'/storage/v1/synthetic'}]}
+    ?{mode:'single',run_id:D,context:intakeContext,images:[{index:0,fileName:'fixture.jpg',url:intakeUrl}]}
     :{item:{id:I},research_run_id:D,images:[]}};
   const res={code:0,body:null,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
   await (caller==='intake'?intake:research)(req,res);
