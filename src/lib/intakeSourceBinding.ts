@@ -22,7 +22,7 @@ export function bindSavedIntakePhotos(saved:SavedRun, submitted:unknown, mode:un
  for(const item of submitted){
   if(!item||typeof item!=='object')throw Error('Invalid requested image');
   const p=item as IncomingPhoto;
-  if(!Number.isSafeInteger(p.index)||!seen.has(p.index)||requests.has(p.index))throw Error('Duplicate or missing requested photo index');
+  if(typeof p.index!=='number'||!Number.isSafeInteger(p.index)||!seen.has(p.index)||requests.has(p.index))throw Error('Duplicate or missing requested photo index');
   const original=photos.find(x=>x.index===p.index);
   if(!original||p.fileName!==original.file_name)throw Error('Requested photograph does not match the saved original');
   // Reject swapped/private-link substitutions as well as offsite URLs.
