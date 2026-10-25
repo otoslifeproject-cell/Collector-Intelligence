@@ -190,3 +190,27 @@ test('unfinished photo upload opens owner saved-session recovery, never incomple
  await expect(page.getByText('Awaiting saved analysis',{exact:true})).toBeVisible();
  expect(events.paid).toEqual([]);
 });
+
+
+test('listing handoff copies exact review-draft text without publishing or paid requests',async({page})=>{
+ await page.addInitScript(()=>{
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+   writeText:async(value)=>{window.__ciCopiedText=value}
+  }});
+ });
+ const item=await seed(),events=await login(page,'/#/item/'+item.id+'?tab=sales');
+ const sale=page.getByRole('region',{name:'Sell Fast plan and listing preparation',exact:true});
+ await sale.getByRole('button',{name:'Prepare review draft',exact:true}).click();
+ const review=sale.getByRole('region',{name:'Listing review draft',exact:true});
+ const title=await review.getByLabel('Draft title',{exact:true}).inputValue();
+ const description=await review.getByLabel('Draft description',{exact:true}).inputValue();
+ await review.getByRole('button',{name:'Copy draft title',exact:true}).click();
+ await expect(review.getByRole('status')).toContainText('Not published.');
+ expect(await page.evaluate(()=>window.__ciCopiedText)).toEqual(title);
+ await review.getByRole('button',{name:'Copy draft description',exact:true}).click();
+ expect(await page.evaluate(()=>window.__ciCopiedText)).toEqual(description);
+ await expect(review.getByRole('status')).toContainText('Research or selling checks remain.');
+ const stored=await client.from('listings').select('id').eq('item_id',item.id);
+ expect(stored.error).toBeNull();expect(stored.data).toEqual([]);
+ expect(events.paid).toEqual([]);
+});

@@ -27,6 +27,7 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
   const [draftMode,setDraftMode]=useState<SellMode>('FAST_CASH')
   const [showDraft,setShowDraft]=useState(false)
   const [exported,setExported]=useState(false)
+  const [copyStatus,setCopyStatus]=useState('')
   const [draftBusy,setDraftBusy]=useState(false),[draftPending,setDraftPending]=useState<ListingDraftRequest|null>(null),[draftMessage,setDraftMessage]=useState(''),[storedDraftRows,setStoredDraftRows]=useState<StoredListing[]>([])
   const [canRetryDraft,setCanRetryDraft]=useState(false)
   const alive=useRef(false),saveLock=useRef(false),held=useRef<ListingDraftRequest|null>(null)
@@ -38,6 +39,16 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
   const decision=chooseSaleScenario(assessments,objective)
   const selected=assessments.find(x=>x.scenario.mode===draftMode)!
   const draft=prepareListing(item,selected,{...review,photosReviewed:review.photosReviewed&&(photoCount===undefined||photoCount>0)},comparables)
+  useEffect(()=>{setCopyStatus('')},[draft.title,draft.description,draftMode,item.id])
+  const copyDraft=async(field:'title'|'description')=>{
+    try {
+      if(typeof navigator.clipboard?.writeText!=='function')throw Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(field==='title'?draft.title:draft.description)
+      if(alive.current)setCopyStatus((field==='title'?'Title':'Description')+' copied for manual paste. '+(draft.status==='PREPARED'?'Prepared for owner review. ':'Research or selling checks remain. ')+'Not published.')
+    }catch{
+      if(alive.current)setCopyStatus('Clipboard access unavailable. Select the read-only draft text and copy it manually. Not published.')
+    }
+  }
   const ownListings=[...new Map([...listings,...storedDraftRows].filter(row=>row.item_id===item.id&&row.owner_id===item.owner_id).map(row=>[row.id,row])).values()]
   const updateScenario=(mode:SellMode,key:keyof SaleScenario,value:SaleScenario[keyof SaleScenario])=>{
     setScenarios(rows=>rows.map(row=>{
@@ -146,6 +157,11 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
         <label>Draft title<input readOnly value={draft.title}/></label>
         <label>Draft description<textarea rows={9} readOnly value={draft.description}/></label>
       </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
+        <button type="button" className="secondaryButton inlineButton" onClick={()=>void copyDraft('title')}>Copy draft title</button>
+        <button type="button" className="secondaryButton inlineButton" onClick={()=>void copyDraft('description')}>Copy draft description</button>
+      </div>
+      {copyStatus&&<p role="status">{copyStatus}</p>}
       <details style={{marginTop:12}}><summary>Required photographs and platform handoff</summary><ul>{draft.photographsNeeded.map(text=><li key={text}>{text}</li>)}</ul>
         <p>{draft.platform==='eBay'?'Review category, item specifics, Buy It Now price, offers, SKU and shipping settings.':draft.platform==='Vinted'?'Confirm eligible category/account, condition, parcel size/weight and selected photos.':draft.platform==='Etsy'?'Confirm current category/vintage eligibility, period evidence, tags and shipping profile.':draft.platform==='Auction / specialist'?'Send the catalogue description, dimensions, condition, mark photographs and documentary evidence for consignment review.':'Confirm the agreed price, exact lot, payment and collection/delivery arrangements.'}</p>
         <p className="ci-page-meta">Known fields: {Object.entries(draft.itemSpecifics).map(([k,v])=>`${k}: ${v}`).join(' · ')}. Keywords: {draft.keywords.join(', ')||'None confirmed'}.</p>
