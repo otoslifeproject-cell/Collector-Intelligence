@@ -95,10 +95,13 @@ for(const caller of ['intake','research']){
     const r=await setup(t,caller,{invalidAuth:true});assert.equal(r.res.code,401);assert.equal(r.reads,0);assert.equal(r.paid,0);
   });
 }
-test('intake: revocation after first report blocks second paid pass and retains first answer',async t=>{
+test('intake: inscription never starts a second paid pass without explicit owner consent',async t=>{
+  // The former implicit HIGH pass was removed. A changed approval cannot
+  // trigger another request because no optional paid pass is dispatched.
   const r=await setup(t,'intake',{inscription:true,revokeBeforeSecondPass:true});
-  assert.equal(r.res.code,200);assert.equal(r.paid,1);assert.equal(r.saves.length,2);
-  assert.equal(r.res.body.inscription_review_status,'SOURCE_GATE_CANONICAL_RESULT_INCOMPLETE');
+  assert.equal(r.res.code,200,JSON.stringify(r.res.body));
+  assert.equal(r.paid,1);assert.equal(r.claims,1);assert.equal(r.saves.length,2);
+  assert.equal(r.res.body.inscription_review_status,'OWNER_OPT_IN_REQUIRED');
   assert.ok(r.saves[0].initial_ai_result);assert.ok(r.saves[1].initial_ai_result);
 });
 test('research: failed visual preflight does not consume a paid-run claim',async t=>{
