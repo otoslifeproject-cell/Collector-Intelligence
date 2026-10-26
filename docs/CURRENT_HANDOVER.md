@@ -855,3 +855,10 @@ Production code/main052a14d remains READY and public rootGET200/AI routesGET405;
 ## 24 October2026 — resume owner selling priority
 
 Read [owner selling handover](CONTINUITY_OWNER_SELLING_20261024.md), currentPR#2head/checks and dated verified private receipt. Existingcontinuity/resolver-fixtures-20261020only; preserve8a984afbaseline. NewSQLproposalsdisposableonly. Hostedteam403, firstfivephysical/sourceevidence and whole-pairpositivecertification remain explicitgates; do notclaimliveowneracceptance.
+
+
+## 26 October 2026 — owner continuation directive (explicitly authorised)
+
+Owner instruction: continue Collector Intelligence non-production development towards first usable owner workflows without requesting routine approvals or stopping after each CI/status checkpoint. Use engineering judgement to proceed through safe fixes, testing, documentation and PR #2 draft commits. Ask only when an important decision, irreversible action or a separately gated operation genuinely requires owner input. The owner previously authorised a **scope-limited exception** to the exhaustive current-window reading gate solely for bounded non-production PR #2 repairs/testing. That exception does not approve unbounded code changes, production migrations, deployment/merge, marketplace publication, additional recurring costs, paid inference, or use of production data for Preview testing. Preserve all previous source/history and exact-SHA receipts. The assistant cannot guarantee continuous background execution after a chat turn; do not falsely claim autonomous work or a future delivery. In every subsequent session retrieve this directive, the current governing sources and current state; do not reinterpret it as a bypass of governance.
+
+Latest development code checkpoint preceding this instruction: `929a7e703964df773466aefabfcfb31563aec9fb`, where missing Preview Supabase variables no longer crash at module import and an explanatory UI is rendered. Its exact-SHA CI run `40294902796` was in progress at this writing. Previous exact-SHA five-job PASS: `8af8eca29a7d2fe0cd328967e48bfcea409c9797` run `40256149902`. Production remains NO-GO.
