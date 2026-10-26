@@ -452,6 +452,14 @@ function SavedDraftRecord({id}:{id:string}){
    </div>}
    {saveStatus&&<p role="status" tabIndex={-1} ref={approvalStatus} className="note ci-catalogue-status">{saveStatus}</p>}
    {activeTab==='market'&&<div className="marketStack">
+    <section className="panel ci-fast-research-result" aria-label="Research result">
+      <div className="eyebrow">YOUR OBJECT · RESEARCH</div>
+      <h2>{paired?(correctedPairTitle||'Matched pair'):run.result.objects?.[scopeIndex]?.working_title||'Object identification pending'}</h2>
+      <p role="status" aria-live="polite">{researching?'Research running · examining matches and checking evidence…':checkingResearch?'Checking saved research…':visibleResearch&&!existingResearchObsolete?'Research returned · review the result below':'Ready to research · visual matches are leads, not verified facts'}</p>
+      {!visibleResearch&&<p className="ci-page-meta">Start research below. Results will appear on this page; original photographs and your research history remain saved.</p>}
+      {visibleResearch&&!existingResearchObsolete&&<ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Identification, value and selling recommendation"/>}
+      {catalogued.length>0&&<Link className="primaryButton inlineButton" to={'/item/'+catalogued[0].item_id+'?tab=sales'}>Sell item · prepare listing</Link>}
+    </section>
     {isPhotoManifestReady&&Object.values(images).some(Boolean)&&
      <VisualReferenceWorkbench
       analysisRunId={run.id} objectIndex={scopeIndex} paired={paired}
@@ -466,7 +474,7 @@ function SavedDraftRecord({id}:{id:string}){
      title={paired?'Research this pair':'Research this object'}
      description=""
      primary={{
-      label:researching?'Researching…':'Dive deeper',
+      label:researching?'Research running…':'Start research',
       onClick:()=>runDraftResearch('deep_dive'),
       disabled:researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}
@@ -508,7 +516,7 @@ function SavedDraftRecord({id}:{id:string}){
      ? <details className="ci-archive-section"><summary>View superseded research · not valid for pricing</summary>
         <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Superseded model research"/>
        </details>
-     : <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Market research and valuation"/>)}
+     : null)}
       </div>}
    {activeTab==='photos'&&<div className="panel"><div className="panelHeader"><h2>Original photographs</h2><span>{Object.values(images).filter(Boolean).length} accessible</span></div>
      <div className="photoGrid">{Object.entries(images).map(([index,url])=>url?<div className="photoTile" key={index}><img src={url} alt={'Original photograph '+(Number(index)+1)}/><span>Photo {Number(index)+1}</span></div>:null)}</div>
