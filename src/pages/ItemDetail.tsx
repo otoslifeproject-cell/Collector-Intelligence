@@ -306,6 +306,9 @@ function ItemDetailRecord({id}:{id:string}) {
     sales:{done:item.status==='SOLD',status:item.status==='SOLD'?'Sale recorded':'Sale not recorded'}
   }
   const nextWizardStep = activeWizardStep>=0&&activeWizardStep<wizardSteps.length-1?wizardSteps[activeWizardStep+1]:null
+  // A confirmed state change may suggest the next step; it never executes it.
+  const recommendedNextStep = !photoReady?'photos':!researchReady?'market':!catalogueReady?'overview':'sales'
+  const recommendationText = !photographsLoaded?'Checking saved photographs…':!photoReady?'Add or recover original photos':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
 
   return (
     <div>
@@ -343,6 +346,7 @@ function ItemDetailRecord({id}:{id:string}) {
             style={{fontSize:'0.9rem'}}> {index+1}. {step.label}{stageChecks[step.id].done?' ✓':''}</button>)}
         </div>
         <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'} {stageChecks[tab]&&`· ${stageChecks[tab].status}`}</p>
+        <button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={!photographsLoaded}>Recommended: {recommendationText}</button>
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
         <small style={{display:'block',marginTop:'0.5rem'}}>Your evidence and earlier work stay saved. Steps do not approve research or publish listings automatically.</small>
