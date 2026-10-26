@@ -58,7 +58,7 @@ test('each wizard stage offers concise guidance and the next safe navigation ste
 
 test('wizard derives completion from confirmed local data, not speculative estimates',()=>{
   assert.match(detail,/const photoReady = photographsLoaded && !photographError && photos\.length>0/)
-  assert.match(detail,/const researchReady = Boolean\(reviewed\) && !historyError && !historyLoading/)
+  assert.match(detail,/const researchReady = Boolean\(reviewed\) && !historyError && !reviewedError && !historyLoading/)
   assert.match(detail,/const catalogueReady = Boolean\(item\.item_code && item\.object_type && item\.condition_summary\)/)
   assert.match(detail,/sales:\{done:item\.status==='SOLD'/)
 })
