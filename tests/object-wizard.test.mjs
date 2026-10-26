@@ -46,3 +46,12 @@ test('unread photo manifest is not represented as an empty original-photo record
   assert.match(detail,/!photographsLoaded\?'Check photographs'/)
   assert.match(detail,/!photos\.length\?'Add photographs'/)
 })
+
+test('each wizard stage offers concise guidance and the next safe navigation step',()=>{
+  for(const label of ['Check the originals','Review identification','Check the permanent object record','Review route, costs']) {
+    assert.ok(detail.includes(label),label)
+  }
+  assert.match(detail,/const nextWizardStep =/)
+  assert.match(detail,/onClick=\{\(\)=>setTab\(nextWizardStep\.id\)\}/)
+  assert.match(detail,/Next: \{nextWizardStep\.label\}/)
+})
