@@ -52,7 +52,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard/>}/>
           <Route path="/inventory" element={<Inventory/>}/>
-          <Route path="/new" element={<NewItem/>}/>
+          <Route path="/new" element={<Navigate to="/intake" replace/>}/>
           <Route path="/intake" element={<AIIntake/>}/>
           <Route path="/uploads" element={<SavedIntakes/>}/>
           <Route path="/uploads/:id" element={<SavedIntakes/>}/>
