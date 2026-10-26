@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Session } from '@supabase/supabase-js'
 import {applyAppearance,storedAppearance,type Appearance} from './lib/appearance'
 import Sidebar from './components/Sidebar'
-import { supabase } from './lib/supabase'
+import { supabase, supabaseConfigured } from './lib/supabase'
 import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import NewItem from './pages/NewItem'
@@ -25,11 +25,13 @@ export default function App() {
   useEffect(()=>applyAppearance(appearance),[appearance])
 
   useEffect(()=>{
+    if (!supabaseConfigured) { setReady(true); return }
     supabase.auth.getSession().then(({data})=>{setSession(data.session);setReady(true)})
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,s)=>setSession(s))
     return ()=>subscription.unsubscribe()
   },[])
 
+  if (!supabaseConfigured) return <div className="loginPage"><div className="loginPanel" role="alert"><div className="eyebrow">COLLECTION OS · PREVIEW SETUP</div><h1>Collector Intelligence</h1><p>This test deployment is awaiting an isolated Supabase connection. Your live collection has not been connected.</p><p>Configure Preview-only Supabase URL and publishable key, then redeploy to enable owner sign-in.</p></div></div>
   if (!ready) return <div className="bootScreen">Collector Intelligence</div>
   if (!session) return <Login/>
 
