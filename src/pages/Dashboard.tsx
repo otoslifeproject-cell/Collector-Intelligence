@@ -1,69 +1,60 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Boxes, CircleDollarSign, ListChecks, ShieldAlert } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { Item } from '../types'
-import ItemCard from '../components/ItemCard'
-import StatCard from '../components/StatCard'
-import {provisionalCurrencyTotals} from '../lib/catalogueSaleState'
+import {useEffect,useState} from 'react'
+import {Link} from 'react-router-dom'
+import {ArrowRight,Camera,FolderOpen,Search,Tag,ShieldCheck,RefreshCw} from 'lucide-react'
+import {supabase} from '../lib/supabase'
+import type {Item} from '../types'
 
-export default function Dashboard() {
-  const [items,setItems] = useState<Item[]>([])
-  const [loading,setLoading] = useState(true)
-  const [error,setError]=useState(''),[reload,setReload]=useState(0)
-  const [coverUrls,setCoverUrls] = useState<Record<string,string>>({})
-
-  useEffect(() => {
-    let active=true;setLoading(true);setError('')
-    supabase.from('items').select('*').order('updated_at',{ascending:false}).limit(50)
-      .then(async ({data,error}) => {
-        if(!active)return
-        if(error||!data){setItems([]);setLoading(false);setError('Collection unavailable. Reload the collection to recover saved objects.');return}
-        const rows=(data||[]) as Item[]
-        setItems(rows); setLoading(false)
-        const ids=rows.slice(0,6).map(x=>x.id)
-        if(!ids.length)return
-        const {data:photos}=await supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',ids).order('position',{ascending:true})
-        const selected=new Map<string,string>()
-        for(const p of (photos||[]).sort((a:any,b:any)=>Number(b.is_hero)-Number(a.is_hero)))if(!selected.has(p.item_id))selected.set(p.item_id,p.storage_path)
-        const signed=await Promise.all(Array.from(selected.entries()).map(async ([itemId,path])=>{
-          const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,3600)
-          return [itemId,url?.signedUrl||''] as const
-        }))
-        if(active)setCoverUrls(Object.fromEntries(signed))
-      })
-    return()=>{active=false}
-  },[reload])
-
-  const decisions = items.filter(i=>!['SOLD','ARCHIVED'].includes(i.status)).length
-  const review = items.filter(i=>i.status === 'SPECIALIST_REVIEW').length
-  const quick = useMemo(()=>provisionalCurrencyTotals(items),[items])
-
-  return (
-    <div>
-      <div className="pageHeader">
-        <div><div className="eyebrow">OVERVIEW</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Your collection</h1></div><div className="heroActions"><Link className="primaryButton ci-action-primary" to="/intake">+ Analyse photos</Link><Link className="secondaryButton" to="/inventory">All objects</Link></div>
-      </div>
-      {!loading && !error && items.length > 0 && <section className="panel" aria-label="Next action" style={{marginTop:12}}>
-        <div className="eyebrow">YOUR NEXT STEP</div>
-        <h2 style={{margin:'0.35rem 0'}}>Continue your last object</h2>
-        <p>{items[0].item_code} · {items[0].title || items[0].object_type || 'Unidentified object'}</p>
-        <Link className="primaryButton inlineButton" to={`/item/${items[0].id}`}>Continue object</Link>
-        <p className="ci-page-meta">Pick up where you left off. Research and sale approval still require evidence.</p>
-      </section>}
-      <details style={{marginTop:12}}><summary style={{cursor:"pointer",color:"var(--muted)",fontWeight:700}}>Collection totals · {items.length} objects</summary><div className="statsGrid" style={{marginTop:12}}>
-        <StatCard label="Objects catalogued" value={items.length} sub="Permanent CI records" icon={<Boxes/>}/>
-        <StatCard label="Final decisions required" value={decisions} sub="Research and evidenced assessment before listing" icon={<ListChecks/>}/>
-        <StatCard label="Provisional quick-sale indications" value={quick.text} sub={`Loaded records, up to50; no currency conversion. ${quick.unknown} values unknown.`} icon={<CircleDollarSign/>}/>
-        <StatCard label="Specialist review" value={review} sub="Protected from underselling" icon={<ShieldAlert/>}/>
-      </div></details>
-
-      <section className="section" style={{marginTop:20}}>
-        <div className="sectionHeader"><div><h2>Continue with an object</h2></div><Link to="/uploads">Resume saved photo sessions</Link></div>
-        {error?<div role="alert">{error}<button className="secondaryButton inlineButton" onClick={()=>setReload(n=>n+1)}>Reload collection</button></div>:loading ? <div className="empty">Loading…</div> :
-          items.length === 0 ? <div className="empty"><h3>No items yet</h3><p>Your first five glass pieces can become CI-000001 onward.</p></div> :
-          <div className="cardGrid">{items.slice(0,6).map(i=><ItemCard item={i} imageUrl={coverUrls[i.id]} key={i.id}/>)}</div>}
-      </section>
-    </div>
-  )
+type Mode='loading'|'ready'|'error'
+export default function Dashboard(){
+ const [items,setItems]=useState<Item[]>([])
+ const [mode,setMode]=useState<Mode>('loading')
+ const [message,setMessage]=useState('')
+ const [retry,setRetry]=useState(0)
+ useEffect(()=>{
+  let active=true
+  const load=async()=>{
+   setMode('loading');setMessage('')
+   try{
+    const {data:{user},error:authError}=await supabase.auth.getUser()
+    if(authError||!user)throw new Error('Your session needs refreshing. Sign in again.')
+    const {data,error}=await supabase.from('items').select('*').eq('owner_id',user.id).neq('status','ARCHIVED').order('updated_at',{ascending:false}).limit(24)
+    if(error||!data)throw new Error('The collection could not be loaded. Your saved records have not been changed.')
+    if(active){setItems(data as Item[]);setMode('ready')}
+   }catch(error){if(active){setMessage(error instanceof Error?error.message:'Could not load your collection.');setMode('error')}}
+  }
+  void load()
+  return()=>{active=false}
+ },[retry])
+ const latest=items[0]
+ const incomplete=items.filter(i=>i.status!=='SOLD'&&i.status!=='ARCHIVED')
+ const actions=[
+  {label:'Identify',description:'Start with photographs',url:'/intake',Icon:Camera},
+  {label:'Collection',description:'Browse your objects',url:'/inventory',Icon:FolderOpen},
+  {label:'Research',description:'Continue saved investigations',url:'/research',Icon:Search},
+  {label:'Sell',description:'Plan a realistic sale',url:'/sales',Icon:Tag}
+ ]
+ return <div className="ci-home">
+  <header className="ci-home-header">
+   <div><div className="ci-home-kicker">COLLECTOR INTELLIGENCE</div><h1>What would you like to do?</h1><p>One object at a time. Your research and photographs stay connected.</p></div>
+   <div className="ci-home-private"><ShieldCheck size={16}/> Private workspace</div>
+  </header>
+  <nav className="ci-home-actions" aria-label="Start an activity">
+   {actions.map(({label,description,url,Icon})=><Link key={label} to={url} className="ci-home-action">
+    <span className="ci-home-action-icon"><Icon size={26}/></span>
+    <span><strong>{label}</strong><small>{description}</small></span><ArrowRight className="ci-home-arrow" size={19}/>
+   </Link>)}
+  </nav>
+  {mode==='error'&&<section className="ci-home-alert" role="alert"><p>{message}</p><button className="secondaryButton" onClick={()=>setRetry(v=>v+1)}><RefreshCw size={16}/> Retry</button></section>}
+  {mode==='loading'&&<p role="status" className="ci-home-loading">Opening your collection…</p>}
+  {mode==='ready'&&<section className="ci-home-continue" aria-label="Continue your work">
+   <div className="ci-home-section-heading"><div><span>CONTINUE</span><h2>{latest?'Pick up where you left off':'Your first object'}</h2></div><Link to="/inventory">View collection <ArrowRight size={16}/></Link></div>
+   {latest?<Link className="ci-home-feature" to={`/item/${latest.id}`}>
+    <span className="ci-home-object-mark">{latest.item_code}</span>
+    <span className="ci-home-object-copy"><strong>{latest.title||latest.object_type||'Unidentified object'}</strong><small>{latest.maker||'Maker not yet established'} · {latest.status==='SOLD'?'Sold':'Research and sale decisions remain subject to review'}</small></span>
+    <span className="ci-home-resume">Continue <ArrowRight size={18}/></span>
+   </Link>:<div className="ci-home-empty"><p>No catalogue objects yet. Begin with photographs of one item.</p><Link className="primaryButton inlineButton" to="/intake">Identify your first object</Link></div>}
+   {items.length>0&&<p className="ci-home-footnote">{items.length} recent objects · {incomplete.length} not recorded sold · Values require verified evidence</p>}
+  </section>}
+  <details className="ci-home-advanced"><summary>Advanced tools</summary><div><Link to="/new">Manual catalogue entry</Link><Link to="/lots">Lot optimiser</Link><Link to="/reports">Reports</Link><Link to="/contacts">Contacts</Link><Link to="/uploads">Saved photo sessions</Link></div></details>
+ </div>
 }
