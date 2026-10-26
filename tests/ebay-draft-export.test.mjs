@@ -22,3 +22,9 @@ test('CSV uses real CRLF escapes rather than escaped backslash text',()=>{
  assert.ok(fn.includes(String.raw`.join('\\n\\n')`))
  assert.ok(!fn.includes(String.raw`output.join('\\\\r\\\\n')`))
 })
+
+test('eligible catalogue items directly open Sell Item listing stage',()=>{
+ assert.match(view,/Sell item · prepare listing/)
+ assert.match(view,/\?tab=sales/)
+ assert.match(view,/\['SOLD','ARCHIVED'\]\.includes\(i\.status\)/)
+})
