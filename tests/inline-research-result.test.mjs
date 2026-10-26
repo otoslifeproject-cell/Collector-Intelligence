@@ -12,3 +12,8 @@ test('one start action and sale handoff retain guarded research',()=>{
  assert.match(screen,/Sell item · prepare listing/)
  assert.match(screen,/runDraftResearch\('deep_dive'\)/)
 })
+
+test('research is the default saved-object view, not an extra tab click',()=>{
+ assert.match(screen,/get\('tab'\)\|\|'market'/)
+ assert.match(screen,/catch\{return 'market'\}/)
+})
