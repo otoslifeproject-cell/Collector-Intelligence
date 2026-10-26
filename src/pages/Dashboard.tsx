@@ -28,7 +28,7 @@ export default function Dashboard(){
  const latest=items[0]
  const incomplete=items.filter(i=>i.status!=='SOLD'&&i.status!=='ARCHIVED')
  const actions=[
-  {label:'Identify',description:'Start with photographs',url:'/intake',Icon:Camera},
+  {label:'Add item',description:'Add photographs and start research',url:'/intake',Icon:Camera},
   {label:'Collection',description:'Browse your objects',url:'/inventory',Icon:FolderOpen},
   {label:'Research',description:'Continue saved investigations',url:'/research',Icon:Search},
   {label:'Sell',description:'Plan a realistic sale',url:'/sales',Icon:Tag}
@@ -52,7 +52,7 @@ export default function Dashboard(){
     <span className="ci-home-object-mark">{latest.item_code}</span>
     <span className="ci-home-object-copy"><strong>{latest.title||latest.object_type||'Unidentified object'}</strong><small>{latest.maker||'Maker not yet established'} · {latest.status==='SOLD'?'Sold':'Research and sale decisions remain subject to review'}</small></span>
     <span className="ci-home-resume">Continue <ArrowRight size={18}/></span>
-   </Link>:<div className="ci-home-empty"><p>No catalogue objects yet. Begin with photographs of one item.</p><Link className="primaryButton inlineButton" to="/intake">Identify your first object</Link></div>}
+   </Link>:<div className="ci-home-empty"><p>No catalogue objects yet. Begin with photographs of one item.</p><Link className="primaryButton inlineButton" to="/intake">Add your first object</Link></div>}
    {items.length>0&&<p className="ci-home-footnote">{items.length} recent objects · {incomplete.length} not recorded sold · Values require verified evidence</p>}
   </section>}
   <details className="ci-home-advanced"><summary>Advanced tools</summary><div><Link to="/new">Manual catalogue entry</Link><Link to="/lots">Lot optimiser</Link><Link to="/reports">Reports</Link><Link to="/contacts">Contacts</Link><Link to="/uploads">Saved photo sessions</Link></div></details>
