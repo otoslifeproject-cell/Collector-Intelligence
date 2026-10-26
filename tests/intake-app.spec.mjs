@@ -22,10 +22,10 @@ async function visit(page,theme='light'){
  await page.route('**/*',route=>{const u=new URL(route.request().url());if(u.hostname!=='127.0.0.1')return route.abort('blockedbyclient');if(u.pathname.startsWith('/api/'))return route.abort('blockedbyclient');return route.fallback();});
  await page.addInitScript(t=>localStorage.setItem('ci-appearance-v1',t),theme);
  await page.goto('/#/intake');await page.getByLabel('Email',{exact:true}).fill('photo-ci-a@example.test');await page.getByLabel('Password',{exact:true}).fill('Ci-disposable-photo-4826!');await page.getByRole('button',{name:'Sign in',exact:true}).click();
- await expect(page.getByRole('heading',{name:'Photographs in. Catalogue out.',exact:true})).toBeVisible();return events;
+ await expect(page.getByRole('heading',{name:'Add item',exact:true})).toBeVisible();return events;
 }
 async function choose(page,values){await page.locator('input[type=file]').setInputFiles(files(values));}
-const analyse=page=>page.getByRole('button',{name:'Analyse & draft catalogue',exact:true});
+const analyse=page=>page.getByRole('button',{name:'Start research',exact:true});
 async function mockCompletion(page){await page.route(api,async route=>{const b=route.request().postDataJSON(),result=await complete(b.run_id);return route.fulfill({status:200,json:{saved_run_id:b.run_id,result}});});}
 async function saved(page){await expect(page).toHaveURL(/#\/draft\/[0-9a-f-]+/, {timeout:10000});await expect(page.locator('.ci-object-grid .ci-record-title').first()).toHaveText('Synthetic intake vessel');}
 async function originals(id,chosen){const row=await read(id);expect(row.owner_id).toBe(owner);expect(row.result.image_manifest).toHaveLength(chosen.length);for(const [index,p]of row.result.image_manifest.entries()){expect(p.index).toBe(index);expect(p.file_name).toBe(chosen[index].name);const r=await client.storage.from('item-images').download(p.storage_path);expect(r.error).toBeNull();expect(digest(Buffer.from(await r.data.arrayBuffer()))).toBe(digest(chosen[index].buffer));}return row;}
@@ -42,7 +42,7 @@ test('lost staging acknowledgement recovers the actual saved photo session befor
 
 for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(`intake originals and saved report ${width}px ${theme}`,async({page})=>{
  await page.setViewportSize({width,height:900});const e=await visit(page,theme);await mockCompletion(page);
- await page.getByRole('textbox',{name:'Your notes / hypothesis',exact:true}).fill('Owner hypothesis retained separately');await page.getByRole('spinbutton',{name:'Purchase price',exact:true}).fill('0');
+ await page.getByText('Optional details (purchase, size, notes)',{exact:true}).click();await page.getByRole('textbox',{name:'Your notes / hypothesis',exact:true}).fill('Owner hypothesis retained separately');await page.getByRole('spinbutton',{name:'Purchase price',exact:true}).fill('0');
  await choose(page);await analyse(page).click();await saved(page);expect(e.api).toHaveLength(1);expect(e.stages).toHaveLength(1);expect(e.uploads).toHaveLength(2);
  const row=await originals(e.api[0].run_id,files());expect(row.user_context.user_notes).toBe('Owner hypothesis retained separately');expect(row.user_context.purchase_price).toBe('0');expect(e.api[0].context.purchase_price).toBe(0);expect(e.stages[0].id).toBe(row.id);
  row.result.image_manifest.forEach((p,index)=>{expect(p.sha256).toBe(digest(files()[index].buffer));expect(p.byte_count).toBe(files()[index].buffer.length);});
