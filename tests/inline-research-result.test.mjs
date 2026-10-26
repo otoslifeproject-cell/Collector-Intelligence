@@ -17,3 +17,9 @@ test('research is the default saved-object view, not an extra tab click',()=>{
  assert.match(screen,/get\('tab'\)\|\|'market'/)
  assert.match(screen,/catch\{return 'market'\}/)
 })
+
+test('save item approves only a single item or grouped pair from result',()=>{
+ assert.match(screen,/if\(paired\|\|\(run\.result\.objects\|\|\[\]\)\.length===1\)void approveSaved\(\)/)
+ assert.match(screen,/else setActiveTab\('catalogue'\)/)
+ assert.match(screen,/Saving item…/)
+})
