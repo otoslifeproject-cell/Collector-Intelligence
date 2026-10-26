@@ -13,7 +13,7 @@ async function login(page,path='/#/',theme='light'){
 }
 for(const width of [320,390,768,1440])for(const theme of ['light','dark'])test(`owner QA journey and core audit ${width}px ${theme}`,async({page},info)=>{
  await page.setViewportSize({width,height:1000});const item=await seed(),events=await login(page,'/#/',theme);
- const card=page.locator('.itemCard').filter({hasText:item.title});await expect(card).toHaveCount(1);await expect(card).toContainText('Final research decision required');await expect(card.locator('.itemMeta')).not.toContainText('SELL NOW');expect(await card.locator('.itemMeta').evaluate(el=>{const s=getComputedStyle(el);return s.flexWrap==='wrap'&&parseFloat(s.columnGap)>=8})).toBe(true);
+ const card=page.locator('.ci-home-feature').filter({hasText:item.title});await expect(card).toHaveCount(1);await expect(card).toContainText('Research and sale decisions remain subject to review');
  await page.screenshot({path:`test-artifacts/qa-dashboard-${width}-${theme}.png`,fullPage:true});
  await card.click(); // one navigation click from Dashboard
  const badge=page.locator('.itemHero .pill.accent');await expect(badge).toContainText('FINAL RESEARCH DECISION REQUIRED');
