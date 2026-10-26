@@ -281,7 +281,7 @@ function ItemDetailRecord({id}:{id:string}) {
   // One clear action. This is navigation only: it never promotes evidence,
   // starts paid AI, publishes a listing, or marks an object sold.
   const suggestedStage = item.status==='SOLD'?'sales':!photos.length?'photos':reviewed?'sales':'market'
-  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
+  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Check photographs':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
   const wizardSteps = [
     {id:'photos',label:'Photos'},
     {id:'market',label:'Research & value'},
