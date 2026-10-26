@@ -6,6 +6,7 @@ import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import InfoDisclosure from '../components/InfoDisclosure'
+import {ebayDraftCsv} from '../lib/ebayDraftExport'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
@@ -18,6 +19,9 @@ export default function Inventory() {
   const [photoReadStatus,setPhotoReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
   const [linkedPhotoIds,setLinkedPhotoIds]=useState<string[]>([])
   const [covers,setCovers] = useState<Record<string,string>>({})
+  const [ebayIds,setEbayIds]=useState<string[]>([])
+  const [ebayCategory,setEbayCategory]=useState('')
+  const [ebayError,setEbayError]=useState('')
   const [query,setQuery] = useState('')
   const [status,setStatus] = useState('ALL')
   const [view,setView] = useState<'tiles'|'list'|'compact'>(()=>{
@@ -104,6 +108,16 @@ export default function Inventory() {
     return text.includes(query.toLowerCase()) && (status === 'ALL' || i.status === status)
   }),[items,query,status])
 
+  const selectedForEbay=items.filter(x=>ebayIds.includes(x.id))
+  const exportEbay=()=>{
+    setEbayError('')
+    try{
+      if(photoReadStatus!=='ready'||loadError)throw Error('Wait for the saved catalogue to load successfully before exporting.')
+      const csv=ebayDraftCsv(selectedForEbay.map(item=>({item,categoryId:ebayCategory.trim()})))
+      const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
+      const link=document.createElement('a');link.href=url;link.download='collector-intelligence-ebay-drafts.csv';document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)
+    }catch(e){setEbayError(e instanceof Error?e.message:'Draft export could not be prepared.')}
+  }
   const unfinished=draftRuns.flatMap((run:any)=>{
     const objects=Array.isArray(run.result?.objects)?run.result.objects:[]
     const correction=ownerMaterialCorrections.find((x:any)=>x.source_analysis_run_id===run.id&&x.source_object_index==null)
@@ -143,7 +157,26 @@ export default function Inventory() {
         {photoReadStatus==='unavailable'&&!loadError&&<p>Photograph history unavailable. Do not infer that stored originals are missing.</p>}
         <button type="button" className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory sources</button>
       </div>}
+      <details className="panel ci-ebay-batch">
+        <summary>Bulk eBay draft export · {ebayIds.length} selected</summary>
+        <p>Select catalogued objects below, enter the category ID from your current UK Seller Hub draft template, then export. The CSV does not publish anything.</p>
+        <p><a href="https://www.ebay.co.uk/help/selling/selling-tools/reports?id=4096" target="_blank" rel="noopener noreferrer">Get the official Seller Hub Create drafts template ↗</a></p>
+        <label>eBay category ID (one category per export)
+          <input value={ebayCategory} onChange={e=>setEbayCategory(e.target.value)} inputMode="numeric" placeholder="From Seller Hub template" />
+        </label>
+        <div className="ci-page-actions">
+          <button className="secondaryButton" disabled={!!loadError||photoReadStatus!=='ready'} onClick={()=>setEbayIds(filtered.filter(x=>x.status!=='SOLD'&&x.status!=='ARCHIVED').map(x=>x.id))}>Select filtered catalogue items</button>
+          <button className="secondaryButton" onClick={()=>setEbayIds([])}>Clear selection</button>
+          <button className="primaryButton" disabled={!ebayIds.length} onClick={exportEbay}>Export eBay drafts · {ebayIds.length}</button>
+        </div>
+        {ebayError&&<p role="alert">{ebayError}</p>}
+        <p className="ci-page-meta">Review titles, pricing, condition and images before upload. Category-required fields may differ; verify against the downloaded template. No eBay import has been tested.</p>
+      </details>
       <div className="inventorySummary">{loadError?'Catalogue count unavailable':filtered.length+' permanent catalogue items'} · {draftReadStatus==='unavailable'?'Saved draft count unavailable':draftReadStatus==='checking'?'Checking saved drafts':unfinished.length+' unfinished draft lots/objects (recent 30 sessions)'}{draftReadStatus==='ready'&&pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''} · <Link to="/uploads">All saved uploads</Link></div>
+      {filtered.length>0&&<details className="ci-ebay-batch-select">
+        <summary>Choose individual eBay draft items</summary>
+        <div className="ci-ebay-selection-grid">{filtered.filter(x=>x.status!=='SOLD'&&x.status!=='ARCHIVED').map(x=><label key={x.id}><input type="checkbox" checked={ebayIds.includes(x.id)} onChange={e=>setEbayIds(prev=>e.target.checked?[...prev,x.id]:prev.filter(id=>id!==x.id))}/>{x.item_code} · {x.title||x.object_type||'Unidentified item'}</label>)}</div>
+      </details>}
       {showDrafts&&pendingSessions.length>0&&<section className="section">
         <h2 className="ci-section-title">Uploaded photographs awaiting a completed AI report <span>{pendingSessions.length} sessions</span></h2>
         <InfoDisclosure label="About incomplete uploads"><p>Original photos remain in private storage. An unfinished AI report cannot be approved as an item.</p></InfoDisclosure>
