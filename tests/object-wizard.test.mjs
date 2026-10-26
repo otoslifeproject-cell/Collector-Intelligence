@@ -68,3 +68,11 @@ test('wizard allows going back and reports saved state without automatic approva
   assert.match(detail,/stageChecks\[tab\]\.status/)
   assert.match(detail,/Steps do not approve research or publish listings automatically/)
 })
+
+test('recommended action changes only from confirmed state and is not duplicated on active step',()=>{
+  assert.match(detail,/const recommendedNextStep = item\.status==='SOLD'\?'sales'/)
+  assert.match(detail,/!researchReady\?'market':!catalogueReady\?'overview':'sales'/)
+  assert.match(detail,/recommendedNextStep!==tab&&<button/)
+  assert.match(detail,/recommendedNextStep===tab&&<span/)
+  assert.match(detail,/!historyError && !reviewedError && !historyLoading/)
+})
