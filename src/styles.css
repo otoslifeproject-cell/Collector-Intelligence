@@ -973,3 +973,36 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .heroActions{flex-wrap:wrap;align-items:flex-start;max-width:100%}
 .heroActions button{max-width:100%;white-space:normal}
 @media(max-width:760px){.appShell{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Collector Intelligence — focused owner workspace (v1) */
+.ci-home{max-width:1140px;margin:0 auto;padding:clamp(20px,3vw,48px) 10px 64px;color:var(--text,#18232d)}
+.ci-home-header{display:flex;justify-content:space-between;align-items:flex-start;gap:22px;margin-bottom:34px}
+.ci-home-kicker,.ci-home-section-heading span{font-size:11px;font-weight:800;letter-spacing:.16em;color:#99712e}
+.ci-home-header h1{font-size:clamp(30px,4vw,52px);letter-spacing:-.045em;line-height:1.12;margin:10px 0 12px}
+.ci-home-header p{font-size:16px;color:var(--muted,#657385);margin:0;max-width:55ch;line-height:1.55}
+.ci-home-private{font-size:12px;white-space:nowrap;display:flex;align-items:center;gap:8px;border:1px solid var(--border,#d7dfe7);border-radius:100px;padding:10px 14px;color:var(--muted,#64748b)}
+.ci-home-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:42px}
+.ci-home-action{min-height:148px;background:var(--surface,#fff);border:1px solid var(--border,#d6dfe8);border-radius:20px;padding:26px;display:flex;gap:20px;align-items:center;text-decoration:none;color:inherit;box-shadow:0 7px 26px rgba(20,31,41,.035);transition:transform .15s,border-color .15s,box-shadow .15s}
+.ci-home-action:hover,.ci-home-action:focus-visible{transform:translateY(-2px);border-color:#a47a36;box-shadow:0 13px 32px rgba(20,31,41,.09)}
+.ci-home-action-icon{display:grid;place-items:center;background:#f2eee7;color:#8a652c;border-radius:16px;min-width:64px;height:64px}
+.ci-home-action strong{font-size:23px;display:block;letter-spacing:-.03em}
+.ci-home-action small{display:block;margin-top:6px;font-size:13px;color:var(--muted,#637083)}
+.ci-home-arrow{margin-left:auto;flex:none;color:#8b652c}
+.ci-home-continue{margin-top:6px}
+.ci-home-section-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:18px}
+.ci-home-section-heading h2{font-size:25px;margin:6px 0 0;letter-spacing:-.035em}
+.ci-home-section-heading a{display:flex;align-items:center;gap:6px;font-weight:650;text-decoration:none;color:#85612c}
+.ci-home-feature{display:flex;gap:20px;align-items:center;background:var(--surface,#fff);border:1px solid var(--border,#d6dfe8);border-radius:18px;padding:22px 24px;color:inherit;text-decoration:none}
+.ci-home-feature:hover{border-color:#a47a36}
+.ci-home-object-mark{font-size:12px;font-weight:800;letter-spacing:.05em;background:#f2eee7;border-radius:12px;padding:15px 10px;min-width:112px;text-align:center;color:#88652e}
+.ci-home-object-copy{min-width:0;flex:1}.ci-home-object-copy strong{font-size:17px;display:block}.ci-home-object-copy small{font-size:12px;color:var(--muted,#657385);margin-top:5px;display:block}
+.ci-home-resume{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#89632b;white-space:nowrap}
+.ci-home-footnote,.ci-home-loading{font-size:13px;color:var(--muted,#657385);margin-top:15px}
+.ci-home-empty,.ci-home-alert{padding:24px;border:1px solid var(--border,#d6dfe8);border-radius:18px}
+.ci-home-advanced{margin-top:32px;font-size:13px;color:var(--muted,#657385)}
+.ci-home-advanced summary{cursor:pointer;width:max-content;font-weight:650}
+.ci-home-advanced>div{display:flex;gap:18px;flex-wrap:wrap;padding:16px 0}
+.ci-home-advanced a{color:inherit}
+.ci-more-navigation{margin:10px 0}.ci-more-navigation summary{cursor:pointer;list-style:none}.ci-more-navigation summary::-webkit-details-marker{display:none}
+@media(max-width:760px){.ci-home-header{display:block}.ci-home-private{display:inline-flex;margin-top:16px}.ci-home-actions{grid-template-columns:1fr}.ci-home-action{min-height:115px;padding:19px}.ci-home-feature{flex-wrap:wrap}.ci-home-resume{margin-left:auto}}
