@@ -19,10 +19,10 @@ test('wizard navigates without replacing evidence and sales safeguards',()=>{
 
 test('dashboard has one clear resume route without implying approved research',()=>{
   const dashboard=readFileSync(new URL('../src/pages/Dashboard.tsx',import.meta.url),'utf8')
-  assert.match(dashboard,/aria-label="Next action"/)
-  assert.match(dashboard,/Continue your last object/)
-  assert.match(dashboard,/Research and sale approval still require evidence/)
-  assert.match(dashboard,/to=\{\x60\/item\/\$\{items\[0\]\.id\}\x60\}/)
+  assert.match(dashboard,/aria-label="Continue your work"/)
+  assert.match(dashboard,/Pick up where you left off/)
+  assert.match(dashboard,/Values require verified evidence/)
+  assert.match(dashboard,/to=\{\x60\/item\/\$\{latest\.id\}\x60\}/)
 })
 
 test('owner assessment remains visible to browser and keyboard journeys',()=>{
