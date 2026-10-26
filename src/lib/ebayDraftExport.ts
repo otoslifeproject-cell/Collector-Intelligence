@@ -22,8 +22,8 @@ export function ebayDraftCsv(rows:EbayDraftRow[]):string{
   if(item.status==='SOLD'||item.status==='ARCHIVED')throw Error('Sold or archived objects cannot be exported as new draft listings.')
   const title=(item.title||item.object_type||'').trim().slice(0,80)
   const facts=[item.item_code,item.material,item.colour,item.dimensions?JSON.stringify(item.dimensions):'',item.condition_summary].filter(Boolean).join(' | ')
-  const description=[title,facts,'Attribution not independently authenticated unless separately documented. Please review all condition and period statements before publication.'].join('\\n\\n')
+  const description=[title,facts,'Attribution not independently authenticated unless separately documented. Please review all condition and period statements before publication.'].join('\n\n')
   output.push([quote('Draft'),quote(item.item_code),quote(categoryId),quote(title),quote(description),quote(decimal(item.balanced_value_low))].join(','))
  }
- return output.join('\\r\\n')+'\\r\\n'
+ return output.join('\r\n')+'\r\n'
 }
