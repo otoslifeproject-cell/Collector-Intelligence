@@ -14,7 +14,7 @@ Updated 2026-10-26. This is a *truth record*, not a feature wish-list or claim o
 | 6 | One live research screen | PARTIAL | Inline result/ticker committed; not yet fully unified with upload or five-minute benchmark |
 | 7 | Save Item and bulk catalogue | PARTIAL | Existing safe catalogue RPC, save option and next-item link; still multi-step, not one click |
 | 8 | Sell Item stage | PARTIAL | Existing listing review draft and routing, not a finished one-stage listing screen |
-| 9 | Bulk eBay listings | NOT IMPLEMENTED | Needs current Seller Hub template/category specifics, reliable draft CSV validation and import receipt |
+| 9 | Bulk eBay listings | PARTIAL | Draft-only CSV serializer and selection UI committed; eBay template/category validation and accepted real Seller Hub import receipt are outstanding |
 | 10 | Quality assurance and launch | BLOCKED | Fix CI, owner journey with real objects, timed journey, photo/readback, security and permission acceptance |
 
 ## Implementation receipts
@@ -22,7 +22,7 @@ Updated 2026-10-26. This is a *truth record*, not a feature wish-list or claim o
 - Draft PR: https://github.com/otoslifeproject-cell/Collector-Intelligence/pull/2
 - All changes remain draft; no production merge, listing publication or direct paid AI automation was authorised.
 - Previous CI failure analysis: the owner-QA screenshot test expected a legacy `.itemCard` on the home screen, removed by redesign. Updated test now targets `.ci-home-feature`, preserving detailed research/sales checks.
-- Existing research does **not** autonomously import Google Lens image results. Do not claim otherwise.
+- Existing research does **not** autonomously import Google Lens image results. Do not claim otherwise.\n- Initial eBay export is nonpublishing Draft CSV with user-supplied category IDs. It is not accepted by eBay until an actual upload/import receipt verifies every row.
 - Hyacinth forcing vase, uranium/vaseline hypotheses and photo ownership are benchmark requirements, not verified automatic wins.
 
 ## Next acceptance priorities
