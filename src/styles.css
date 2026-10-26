@@ -786,3 +786,223 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-page .heroActions .primaryButton,.ci-page .heroActions .secondaryButton,.pageHeader .heroActions .primaryButton,.pageHeader .heroActions .secondaryButton,.ci-intake-review-heading .primaryButton{min-height:var(--ci-action-height);display:inline-flex;align-items:center;justify-content:center;border-radius:var(--ci-action-radius);font-size:13px}
 @media(max-width:900px){.ci-action-row{grid-template-columns:minmax(0,1fr);gap:8px}.ci-action-row__button{width:100%}.ci-action-row__meta{justify-self:start}}
 @media(max-width:600px){.ci-action-row{padding:12px}.ci-action-row__button{min-height:48px;font-size:13px}.ci-action-row__text p{font-size:12px}}
+
+/* Read-only source archive: every stored version, with authority separate from import order. */
+.ci-canonical-archive{margin-top:18px;min-width:0}
+.ci-canonical-archive>summary,.ci-archive-group>summary{cursor:pointer;min-height:44px;padding:10px 0;font-weight:700;overflow-wrap:anywhere}
+.ci-archive-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.ci-archive-heading p{margin:5px 0}
+.ci-archive-group{border-top:1px solid var(--line);min-width:0}
+.ci-archive-group>summary span{font-size:13px;font-weight:400;color:var(--muted);margin-left:12px}
+.ci-canonical-archive .tableWrap{max-height:400px;max-width:100%}
+.ci-canonical-archive table{min-width:520px}
+.ci-canonical-archive td:first-child{overflow-wrap:anywhere;max-width:250px}
+.ci-archive-document{scroll-margin-top:20px;font-size:var(--ci-body-size,15px)}
+.ci-archive-document h3,.ci-archive-document code{overflow-wrap:anywhere}
+.ci-archive-document pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:440px;overflow:auto;font:inherit;line-height:1.6}
+.ci-archive-document:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.ci-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(max-width:620px){
+ .ci-canonical-archive table{min-width:0;table-layout:fixed}
+ .ci-canonical-archive .ci-archive-imported,.ci-canonical-archive .ci-archive-stored-hash{display:none}
+ .ci-canonical-archive th:last-child,.ci-canonical-archive td:last-child{width:90px}
+}
+
+/* Actual receipt entry and read-back share existing form and theme tokens. */
+.ci-sale-fields{border:0;padding:0;margin:0;min-width:0}
+.ci-sale-outcome,.ci-sale-outcome .ci-outcome-row{min-width:0;overflow-wrap:anywhere}
+.ci-sale-outcome .ci-economics-fields textarea{min-width:0;width:100%}
+.ci-sale-outcome .ci-outcome-row{display:grid;gap:8px;padding:12px 0}
+.ci-sale-outcome .ci-outcome-row small{color:var(--muted)}
+.ci-sale-outcome button{max-width:100%;white-space:normal}
+.ci-sale-outcome .ci-record-selection{display:flex;min-height:44px;line-height:1.45}
+.ci-sale-outcome .ci-record-selection input{flex:0 0 20px;min-width:20px;width:20px;height:20px}
+
+/* Original photograph action stays separate from its heading on narrow screens. */
+.ci-photo-header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}
+.ci-photo-header button{max-width:100%;white-space:normal}
+@media(max-width:650px){.ci-photo-header{grid-template-columns:minmax(0,1fr)}.ci-photo-header button{justify-self:start}}
+
+.photoGrid .photoTile>div{background:var(--panel);color:var(--text)}
+.photoGrid .photoTile>div span{color:var(--muted)}
+.photoGrid .photoTile strong,.photoGrid .photoTile span{font-size:var(--ci-support-size,.875rem);line-height:1.45}
+
+/* Preserve raw unconfirmed research without overflowing narrow workspaces. */
+.ci-research-response{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font-size:.8rem;line-height:1.5}
+
+/* Object-level research remains readable in single and batch workspaces. */
+.ci-research-progress{container-type:inline-size;min-width:0;max-width:100%;margin-bottom:16px}
+.ci-research-progress .panelHeader{flex-wrap:wrap;gap:8px}
+.ci-research-progress table{table-layout:fixed}
+.ci-research-progress th,.ci-research-progress td{overflow-wrap:anywhere;word-break:normal}
+.ci-research-progress th:first-child{width:24%}
+.ci-research-progress th:nth-child(2){width:27%}
+.ci-research-progress details>summary{cursor:pointer;min-height:36px;padding:8px 0}
+.ci-research-progress a{overflow-wrap:anywhere}
+.ci-research-progress-compact{padding:12px;margin:12px 0;border:1px solid var(--line);box-shadow:none}
+.ci-research-progress-compact h2{font-size:1rem}
+.ci-research-progress-compact td,.ci-research-progress-compact th{padding:8px 6px}
+.ci-research-next{overflow-wrap:anywhere}
+@media(max-width:600px){
+ .ci-research-progress table{font-size:11px}
+ .ci-research-progress td,.ci-research-progress th{padding:8px 5px}
+ .ci-research-progress .panelHeader h2{font-size:1.1rem}
+}
+.ci-research-progress .secondaryButton{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.ci-audit-total{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:14px 0}
+.ci-audit-total strong{font-size:1.65rem;color:var(--text)}
+.ci-audit-total span{color:var(--muted);font-size:12px}
+.ci-research-progress progress{display:block;width:100%;height:10px;border:0;border-radius:12px;overflow:hidden;accent-color:#448d75;background:var(--line)}
+.ci-research-progress progress::-webkit-progress-bar{background:var(--line);border-radius:12px}
+.ci-research-progress progress::-webkit-progress-value{background:#448d75;border-radius:12px}
+.ci-research-progress progress::-moz-progress-bar{background:#448d75;border-radius:12px}
+.ci-audit-categories{display:grid;gap:0;border-bottom:1px solid var(--line);padding:4px 0 14px}
+.ci-audit-row{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(115px,210px);gap:12px;padding:14px 0;align-items:start}
+.ci-audit-icon{margin-top:2px;color:var(--muted)}
+.ci-audit-row[data-status="DONE_EVIDENCED"] .ci-audit-icon{color:#448d75}
+.ci-audit-row[data-status="RUNNING"] .ci-audit-icon{color:#4275c6}
+.ci-audit-row[data-status="BLOCKED"] .ci-audit-icon,.ci-audit-row[data-status="FAILED"] .ci-audit-icon{color:var(--accent)}
+.ci-audit-category{min-width:0;overflow-wrap:anywhere}
+.ci-item-value-summary{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
+.ci-item-value-summary>div,.ci-item-assessment{min-width:0;overflow-wrap:anywhere}
+.ci-item-assessment .panelHeader{flex-wrap:wrap;gap:10px}
+.ci-item-assessment button{max-width:100%;white-space:normal}
+.ci-audit-category>strong{display:block;font-size:14px;line-height:1.35}
+.ci-audit-category>p{margin:4px 0;color:var(--muted);font-size:12px;line-height:1.5}
+.ci-audit-category>details{font-size:12px;color:var(--muted)}
+.ci-audit-state{border:1px solid var(--line);border-radius:16px;padding:7px 12px;font-size:12px;line-height:1.4;text-align:center;overflow-wrap:anywhere;max-width:100%}
+.ci-research-progress-compact .ci-audit-row{grid-template-columns:18px minmax(0,1fr);gap:7px;padding:10px 0}
+.ci-research-progress-compact .ci-audit-state{grid-column:2;justify-self:start;text-align:left}
+@media(max-width:600px){
+ .ci-audit-row{grid-template-columns:20px minmax(0,1fr);gap:9px;padding:12px 0}
+ .ci-audit-state{grid-column:2;justify-self:start;text-align:left;padding:5px 10px}
+ .ci-audit-total strong{font-size:1.4rem}
+}
+
+/* Compact object audits keep every status visible while detailed evidence remains one action away. */
+.ci-research-progress-compact{padding:12px}
+.ci-research-progress-compact .ci-audit-row{grid-template-columns:14px minmax(0,1fr) minmax(60px,90px);gap:6px;padding:6px 0;align-items:center}
+.ci-research-progress-compact .ci-audit-category>strong{font-size:11px}
+.ci-research-progress-compact .ci-audit-state{grid-column:auto;font-size:10px;padding:3px 5px;justify-self:stretch;text-align:center}
+.ci-research-progress-compact .ci-audit-icon{width:14px;height:14px}
+
+/* Independent owner QA: shared card metadata and readiness contrast. */
+.itemMeta{gap:6px 12px;flex-wrap:wrap;color:var(--muted)}
+.pill.accent{color:var(--accent);border-color:var(--accent)}
+.itemCardImage .ci-missing-photo{color:var(--text);background:var(--panel);border-color:var(--line)}
+
+/* Keep enlarged text and long owner/history content inside its layout. */
+.itemHero{flex-wrap:wrap;align-items:flex-start}
+.itemHero>div{min-width:0;max-width:100%}
+.heroActions,.pillRow{flex-wrap:wrap;max-width:100%}
+.itemMeta>span{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.panelHeader>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.ci-research-progress p,.ci-item-assessment p,.ci-research-progress summary{overflow-wrap:anywhere}
+.ci-workspace-action-panel>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+
+/* Keep unknown valuation text from expanding narrow market grid tracks. */
+.marketStack{grid-template-columns:minmax(0,1fr);min-width:0}
+.marketStack>*{min-width:0;max-width:100%}
+.valueSummary{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.valueSummary>div{min-width:0;overflow-wrap:anywhere}
+
+/* Container width, including browser zoom, determines readable audit rows. */
+@container (max-width:440px){
+ .ci-research-progress:not(.ci-research-progress-compact) .ci-audit-row{grid-template-columns:20px minmax(0,1fr);gap:9px}
+ .ci-research-progress:not(.ci-research-progress-compact) .ci-audit-state{grid-column:2;justify-self:start;text-align:left}
+}
+@container (max-width:260px){
+ .ci-research-progress-compact .ci-audit-row{grid-template-columns:14px minmax(0,1fr)}
+ .ci-research-progress-compact .ci-audit-state{grid-column:2;justify-self:start;text-align:left}
+}
+.ci-army-workspace{min-width:0;overflow-wrap:anywhere}
+.ci-army-workspace .panelHeader{flex-wrap:wrap;gap:10px}
+.ci-army-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.ci-army-actions button,.ci-army-workspace button{max-width:100%;white-space:normal}
+.ci-army-select{display:grid;gap:6px;margin-top:16px}
+.ci-army-role-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin:16px 0}
+.ci-army-role{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);min-width:0}
+.ci-army-role small{color:var(--muted)}
+.ci-army-investigation{margin-top:16px}
+.ci-army-investigation>summary{cursor:pointer;min-height:40px;padding:10px 0;font-weight:700}
+.ci-army-fieldset{border:0;padding:0;min-width:0;display:grid;gap:14px}
+.ci-army-photos{border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0;display:grid;gap:8px}
+.ci-army-photos label{display:flex;align-items:flex-start;gap:8px;overflow-wrap:anywhere}
+.ci-army-photos input{width:auto;flex:none;margin-top:2px}
+.ci-army-hypotheses{display:grid;gap:12px}
+.ci-army-hypotheses fieldset{border:1px solid var(--line);border-radius:10px;min-width:0;padding:12px;display:grid;gap:10px}
+.ci-research-workspace-shell[hidden]{display:none}
+.ci-lot-workspace{display:grid;gap:20px;min-width:0;overflow-wrap:anywhere}
+.ci-lot-workspace .panel{min-width:0}
+.ci-lot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:14px}
+.ci-lot-actions{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:14px 0}
+.ci-lot-actions>*{min-width:0;max-width:100%}
+.ci-lot-workspace button{white-space:normal;max-width:100%}
+.ci-lot-workspace fieldset{border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0;display:grid;gap:12px;margin:14px 0}
+.ci-lot-workspace label{min-width:0}
+.ci-lot-workspace input,.ci-lot-workspace select,.ci-lot-workspace textarea{max-width:100%;min-width:0}
+.ci-lot-members{display:grid;gap:10px;max-height:660px;overflow:auto}
+.ci-lot-members label{display:flex;gap:8px;align-items:flex-start}
+.ci-lot-members input[type=checkbox]{width:auto;flex:none;margin-top:4px}
+.ci-lot-editor{display:grid;gap:12px}
+.ci-lot-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}
+.ci-lot-metrics>div{padding:12px;background:var(--panel2);border-radius:10px;min-width:0}
+.ci-lot-history details{margin:12px 0}
+.ci-lot-history summary{cursor:pointer;min-height:44px;padding:12px 0}
+.ci-lot-scroll{max-height:360px;max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.ci-lot-comparisons{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+.ci-lot-comparison dl{display:grid;gap:6px}
+.ci-lot-comparison dd{margin:0;font-weight:700}
+.ci-lot-allocation label{display:flex;align-items:flex-start;gap:8px}
+.ci-lot-allocation input[type=checkbox]{width:auto;flex:none;margin-top:4px}
+
+/* Owner-first object header: only private, short-lived signed originals. */
+.ci-item-hero-media{flex:0 0 118px;width:118px;height:118px;display:grid;place-items:center;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.ci-item-hero-media img{width:100%;height:100%;object-fit:contain;display:block}
+.ci-item-hero-media span{color:var(--muted);font-size:12px;line-height:1.45;text-align:center;padding:10px;overflow-wrap:anywhere}
+.ci-item-hero-details{flex:1;min-width:0}
+@media(max-width:760px){.ci-item-hero-media{width:104px;height:104px;margin-bottom:12px}.ci-item-hero-details{min-width:0}}
+
+/* A 200% zoom must reflow the original-photo header, even on desktop.
+   UUID-length titles must not increase the document scroll width. */
+.appShell{grid-template-columns:248px minmax(0,1fr)}
+.mainContent{min-width:0}
+.itemHero{flex-wrap:wrap;align-items:flex-start}
+.ci-item-hero-details{flex:1 1 240px;min-width:0;max-width:100%}
+.ci-item-hero-details h1{overflow-wrap:anywhere;word-break:break-word;max-width:100%}
+.heroActions{flex-wrap:wrap;align-items:flex-start;max-width:100%}
+.heroActions button{max-width:100%;white-space:normal}
+@media(max-width:760px){.appShell{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Collector Intelligence — focused owner workspace (v1) */
+.ci-home{max-width:1140px;margin:0 auto;padding:clamp(20px,3vw,48px) 10px 64px;color:var(--text,#18232d)}
+.ci-home-header{display:flex;justify-content:space-between;align-items:flex-start;gap:22px;margin-bottom:34px}
+.ci-home-kicker,.ci-home-section-heading span{font-size:11px;font-weight:800;letter-spacing:.16em;color:#99712e}
+.ci-home-header h1{font-size:clamp(30px,4vw,52px);letter-spacing:-.045em;line-height:1.12;margin:10px 0 12px}
+.ci-home-header p{font-size:16px;color:var(--muted,#657385);margin:0;max-width:55ch;line-height:1.55}
+.ci-home-private{font-size:12px;white-space:nowrap;display:flex;align-items:center;gap:8px;border:1px solid var(--border,#d7dfe7);border-radius:100px;padding:10px 14px;color:var(--muted,#64748b)}
+.ci-home-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:42px}
+.ci-home-action{min-height:148px;background:var(--surface,#fff);border:1px solid var(--border,#d6dfe8);border-radius:20px;padding:26px;display:flex;gap:20px;align-items:center;text-decoration:none;color:inherit;box-shadow:0 7px 26px rgba(20,31,41,.035);transition:transform .15s,border-color .15s,box-shadow .15s}
+.ci-home-action:hover,.ci-home-action:focus-visible{transform:translateY(-2px);border-color:#a47a36;box-shadow:0 13px 32px rgba(20,31,41,.09)}
+.ci-home-action-icon{display:grid;place-items:center;background:#f2eee7;color:#8a652c;border-radius:16px;min-width:64px;height:64px}
+.ci-home-action strong{font-size:23px;display:block;letter-spacing:-.03em}
+.ci-home-action small{display:block;margin-top:6px;font-size:13px;color:var(--muted,#637083)}
+.ci-home-arrow{margin-left:auto;flex:none;color:#8b652c}
+.ci-home-continue{margin-top:6px}
+.ci-home-section-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:18px}
+.ci-home-section-heading h2{font-size:25px;margin:6px 0 0;letter-spacing:-.035em}
+.ci-home-section-heading a{display:flex;align-items:center;gap:6px;font-weight:650;text-decoration:none;color:#85612c}
+.ci-home-feature{display:flex;gap:20px;align-items:center;background:var(--surface,#fff);border:1px solid var(--border,#d6dfe8);border-radius:18px;padding:22px 24px;color:inherit;text-decoration:none}
+.ci-home-feature:hover{border-color:#a47a36}
+.ci-home-object-mark{font-size:12px;font-weight:800;letter-spacing:.05em;background:#f2eee7;border-radius:12px;padding:15px 10px;min-width:112px;text-align:center;color:#88652e}
+.ci-home-object-copy{min-width:0;flex:1}.ci-home-object-copy strong{font-size:17px;display:block}.ci-home-object-copy small{font-size:12px;color:var(--muted,#657385);margin-top:5px;display:block}
+.ci-home-resume{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#89632b;white-space:nowrap}
+.ci-home-footnote,.ci-home-loading{font-size:13px;color:var(--muted,#657385);margin-top:15px}
+.ci-home-empty,.ci-home-alert{padding:24px;border:1px solid var(--border,#d6dfe8);border-radius:18px}
+.ci-home-advanced{margin-top:32px;font-size:13px;color:var(--muted,#657385)}
+.ci-home-advanced summary{cursor:pointer;width:max-content;font-weight:650}
+.ci-home-advanced>div{display:flex;gap:18px;flex-wrap:wrap;padding:16px 0}
+.ci-home-advanced a{color:inherit}
+.ci-more-navigation{margin:10px 0}.ci-more-navigation summary{cursor:pointer;list-style:none}.ci-more-navigation summary::-webkit-details-marker{display:none}
+@media(max-width:760px){.ci-home-header{display:block}.ci-home-private{display:inline-flex;margin-top:16px}.ci-home-actions{grid-template-columns:1fr}.ci-home-action{min-height:115px;padding:19px}.ci-home-feature{flex-wrap:wrap}.ci-home-resume{margin-left:auto}}

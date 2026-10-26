@@ -1,3 +1,8 @@
+import {bindSavedIntakePhotos,bindSavedIntakeContext} from '../src/lib/intakeSourceBinding.ts';
+import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
+import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
+import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
+
 const schema = {
   type: "object",
   additionalProperties: false,
@@ -114,6 +119,11 @@ Hard rules:
 - If an attribution could materially change value, set specialist_review true and sale_readiness SPECIALIST_REVIEW or RESEARCH_FIRST.
 - Treat a visible mark or inscription as attribution-critical evidence. Examine ALL supplied detail and underside photographs, especially later indices, before describing it as unreadable or asking for another photograph.
 - Distinguish inscription present, candidate reading, confirmed transcription and independently verified maker attribution. Record literal uncertainty and refer to existing source image indices in the notes; never silently resolve unclear letters into a famous maker.
+- FUNCTION BEFORE MAKER: For glass vessels, name the most specific plausible traditional functional form before proposing a factory or designer. Explicitly test the silhouette against hyacinth bulb forcing vases (bulb support shoulder/collar, open mouth, constricted neck, bulbous water reservoir), celery vases, posy vases, spill vases, drinking vessels and generic decorative forms when relevant. Do not default to vague "art-glass vase" if a specific functional design is visually supported.
+- For a green glass vessel with a broad rolled/outturned bulb-supporting rim or collar, narrow waist and rounded water reservoir, explicitly consider "hyacinth forcing vase / bulb vase" alongside rival forms. Green colour does NOT prove uranium content or Victorian date; photo-only period attribution stays provisional. Compare multiple original image angles before settling on shape. A Google Lens identification supplied by the owner is a search lead to test, not independent authentication.
+- GLASS COMPOSITION CHECK: For any yellow-green, lime-green, apple-green, vaseline-yellow, or strongly fluorescent-looking object, explicitly evaluate uranium/vaseline glass as a POSSIBLE material hypothesis alongside non-uranium alternatives. Do not omit the possibility merely because a maker is unknown or ordinary glass is plausible.
+- If a photograph clearly shows bright green fluorescence under a stated UV/blacklight, record the observed fluorescence separately from the composition hypothesis. Uranium glass becomes a stronger candidate, but UV response alone is not conclusive: other additives and surface coatings can fluoresce. Ask for a paired daylight/UV photo of that exact piece and, if needed, a reliable composition test; never invent a positive test from ordinary daylight colour.
+- A daylight-only green glass photograph never proves uranium content. If no UV image or measurement is supplied, mark UV response UNKNOWN, state the quick test to perform, and do not assign a maker, age or uranium premium without corroboration.
 - Different lighting can make clear glass look white, opalescent or dark. Distinguish confirmed intrinsic colour from background, shadow and optical refraction.
 - Before describing a white/milky core, opaque layer or dark inclusion as intrinsic to glass, seek consistency across multiple angles and backdrops; otherwise write 'apparent white/dark area could be lighting/refraction/background' and mark composition UNKNOWN.
 - For faint inscriptions: separate engraved grooves (which track surface under illumination) from scratches (irregular intersecting abrasions), adhesive residue/label and shadow. Give specific original source image numbers and alternative interpretations.
@@ -156,38 +166,7 @@ function markNeedsReview(result: any, context: any): boolean {
   }) || /\b(?:signed|signature|inscription)\b/i.test(String(context?.user_notes || ""));
 }
 
-function applyInscriptionReview(result: any, review: any) {
-  if (!review?.mark_visible || !Array.isArray(result?.objects)) return result;
-  const valid = new Set((review.evidence_image_indices || []).filter((x: any) => Number.isInteger(x)));
-  const description = review.candidate_transcription
-    ? `Second-pass candidate inscription: "${review.candidate_transcription}" (${review.transcription_confidence}% transcription confidence; NOT independently verified).`
-    : "Second-pass examination detected a mark but could not transcribe it reliably.";
-  for (const object of result.objects) {
-    if (!Array.isArray(object.image_indices) || !object.image_indices.some((x: number) => valid.has(x))) continue;
-    const indices = object.image_indices.filter((x: number) => valid.has(x)).join(", ");
-    const source = `Source image indices: ${indices || "not determined"}. ${review.rationale || ""}`;
-    object.marks_signatures_labels = [object.marks_signatures_labels, description].filter(Boolean).join(" ");
-    object.evidence = Array.isArray(object.evidence) ? object.evidence : [];
-    object.evidence.push({ claim: description, provenance: "INFERENCE", certainty_class: "POSSIBLE_ATTRIBUTION", stance: "SUPPORTS", notes: source });
-    if (review.candidate_maker && !object.maker) {
-      object.current_attribution = [review.candidate_maker, review.candidate_design].filter(Boolean).join(" — ") + " (candidate only; research needed)";
-      object.catalogue_note = `Unverified inscription-led candidate: ${object.current_attribution}. ${object.catalogue_note || ""}`;
-      // Image-only maker readings are hypotheses, never confirmed identities.
-      object.identification_confidence = Math.min(74, object.identification_confidence || 0); // A speculative second-pass maker must not increase object-level identification certainty.
-    }
-    if (review.candidate_period && !object.period_wording) object.period_wording = `Possible ${review.candidate_period}; unverified`;
-    if (review.candidate_maker) {
-      object.sale_readiness = "RESEARCH_FIRST";
-      object.status = "RESEARCH";
-      object.specialist_review = true;
-    }
-    // Do not request replacement photographs if the existing image already yields a candidate reading.
-    if (!review.needs_new_photograph && review.candidate_transcription && Array.isArray(object.next_evidence)) {
-      object.next_evidence = object.next_evidence.filter((e: any) => !/\b(?:inscription|signature|mark)\b/i.test(String(e.title || "")));
-    }
-  }
-  return result;
-}
+
 
 // Owner-confirmed material mistakes are reusable cautionary benchmarks, not
 // independent maker identifications or permission to override new photos.
@@ -211,7 +190,7 @@ async function loadOwnerMaterialLessons(url:string,key:string,token:string){
 // to verified attribution without corroborating its original source.
 async function lookupKnowledge(supabaseUrl: string, supabaseKey: string, userToken: string, result: any) {
   const objects = Array.isArray(result?.objects) ? result.objects : [];
-  const terms = [...new Set(objects.flatMap((o: any) =>
+  const terms = [...new Set<string>(objects.flatMap((o: any) =>
     [o.object_type, o.maker, o.current_attribution, o.marks_signatures_labels]
       .filter((v: any) => typeof v === "string")
       .flatMap((v: string) => v.toLowerCase().match(/[a-zÀ-ÿ]{4,}/g) || [])
@@ -269,20 +248,19 @@ function reconcileKnowledge(result: any, lookup: any) {
 }
 
 function extractText(payload: any) {
-  if (typeof payload.output_text === "string" && payload.output_text) return payload.output_text;
-  for (const item of payload.output || []) {
-    if (item.type === "message") {
-      for (const part of item.content || []) {
-        if (part.type === "output_text" && part.text) return part.text;
-      }
-    }
-  }
-  return "";
+  if (typeof payload?.output_text === "string" && payload.output_text) return payload.output_text;
+  return (Array.isArray(payload?.output)?payload.output:[]).flatMap((item:any)=>
+    item?.type==='message'&&Array.isArray(item.content)
+      ?item.content.flatMap((part:any)=>part?.type==='output_text'&&typeof part.text==='string'?[part.text]:[]):[]).join('');
 }
 
 // Owner-scoped, versioned canonical policy retrieval before paid inference.
 // Fail closed: never silently fall back to an out-of-date prompt.
 async function loadCanonicalContext(url: string, key: string, token: string) {
+  return loadCanonicalForCaller({url,key,token},'intake',process.env.COLLECTOR_CANONICAL_SOURCE_MODE,
+    ()=>loadLegacyCanonicalContext(url,key,token));
+}
+async function loadLegacyCanonicalContext(url: string, key: string, token: string) {
   const keys = ["02_MASTER_PROJECT_BRIEF.md","03_SOURCE_AND_EVIDENCE_POLICY.md","01_PROJECT_INSTRUCTIONS.md","06_PHOTO_EXAMINATION.md"];
   const qp = new URLSearchParams({select:"document_key,content,content_sha256,authority_rank,ingested_at,source_version",is_current:"eq.true",document_key:"in.("+keys.join(",")+")",order:"ingested_at.desc",limit:"100"});
   const resp = await fetch(`${url}/rest/v1/canonical_documents?${qp}`,{
@@ -317,7 +295,7 @@ async function verifyUser(token: string, supabaseUrl: string, supabaseKey: strin
 }
 
 async function readStagedRun(url:string,key:string,token:string,runId:string) {
-  const query=new URLSearchParams({select:'id,mode,status,input_photo_count,result',id:'eq.'+runId,limit:'1'});
+  const query=new URLSearchParams({select:'id,owner_id,mode,status,model,input_photo_count,user_context,result',id:'eq.'+runId,limit:'1'});
   const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
     headers:{apikey:key,Authorization:'Bearer '+token}
   });
@@ -326,17 +304,38 @@ async function readStagedRun(url:string,key:string,token:string,runId:string) {
   if(!Array.isArray(rows)||rows.length!==1)throw Error('Saved photo session not found or access denied');
   return rows[0];
 }
+// Server-issued signed URLs are bound to the owner-saved original path, never client URLs.
+async function signedOriginalURL(base:string,key:string,token:string,path:string):Promise<string>{
+ const root=base.endsWith('/')?base.slice(0,-1):base;
+ const encoded=path.split('/').map(encodeURIComponent).join('/');
+ const response=await fetch(root+'/storage/v1/object/sign/item-images/'+encoded,{
+   method:'POST',headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+   body:JSON.stringify({expiresIn:1800})
+ });
+ if(!response.ok)throw Error('Private original could not be signed; no paid request made ('+response.status+')');
+ const data=await response.json(),raw=data?.signedURL||data?.signedUrl;
+ if(typeof raw!=='string')throw Error('Private Storage returned no signed URL');
+ const absolute=raw.startsWith('/object/sign/')?root+'/storage/v1'+raw:
+   raw.startsWith('/storage/v1/object/sign/')?new URL(root).origin+raw:raw;
+ const u=new URL(absolute);
+ if(u.origin!==new URL(root).origin||!u.pathname.startsWith('/storage/v1/object/sign/item-images/')||
+    decodeURIComponent(u.pathname.slice('/storage/v1/object/sign/item-images/'.length))!==path||
+    !u.searchParams.has('token'))throw Error('Signed Storage URL does not bind to the original');
+ return u.href;
+}
+
 async function saveStagedAnalysis(url:string,key:string,token:string,runId:string,model:string,result:any) {
   const query=new URLSearchParams({id:'eq.'+runId,status:'eq.DRAFT',select:'id,result'});
-  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
+  try{const acknowledgement=await fetch(url+'/rest/v1/ai_analysis_runs?'+query.toString(),{
     method:'PATCH',
-    headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'return=representation'},
+    headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'return=minimal'},
     body:JSON.stringify({model,result})
-  });
-  const rows=await response.json();
-  if(!response.ok||!Array.isArray(rows)||rows.length!==1)
-    throw Error('Completed AI analysis could not be written into the saved report ('+response.status+')');
-  return rows[0];
+  });await acknowledgement.arrayBuffer();}catch{/* A lost acknowledgement can hide a real commit; read it independently. */}
+  const saved=await readStagedRun(url,key,token,runId);
+  const stable=(value:any):string=>JSON.stringify(value,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+  if(saved.id!==runId||saved.status!=='DRAFT'||saved.model!==model||stable(saved.result)!==stable(result))
+    throw Error('Completed AI analysis could not be independently confirmed in its saved report.');
+  return saved;
 }
 
 export default async function handler(req: any, res: any) {
@@ -356,7 +355,7 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
-  let canonical: {instructions:string,hashes:Record<string,string>};
+  let canonical: CanonicalRuntimeContext;
   try { canonical = await loadCanonicalContext(supabaseUrl,supabaseKey,token); }
   catch (e) { return res.status(503).json({error:"Required Collector Intelligence policy cannot be loaded; AI analysis stopped to prevent policy drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"}); }
 
@@ -375,24 +374,28 @@ export default async function handler(req: any, res: any) {
   let ownerMaterialLessons:any[];
   try{ownerMaterialLessons=await loadOwnerMaterialLessons(supabaseUrl,supabaseKey,token);}
   catch(e:any){return res.status(503).json({error:'Owner correction retrieval unavailable. Stopped before paid AI to prevent repeating known material errors.',code:e?.message||'OWNER_CORRECTIONS_UNAVAILABLE'});}
-  const { mode = "single", images = [], context = {}, run_id } = req.body || {};
-  if (!Array.isArray(images) || images.length < 1) return res.status(400).json({ error: "At least one image is required" });
-  if (images.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
+  const { mode = "single", images:submittedImages = [], run_id } = req.body || {};
+  let images:any[]=[];
+  let context:any={};
+  if (!Array.isArray(submittedImages) || submittedImages.length < 1) return res.status(400).json({ error: "At least one image is required" });
+  if (submittedImages.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
   if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
     return res.status(400).json({error:'Save the source photograph session before starting paid AI analysis.'});
   let staged:any;
   try {
     staged=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
-    const manifest=staged.result?.image_manifest;
-    if(staged.status!=='DRAFT'||staged.mode!==mode||staged.input_photo_count!==images.length||
-       !Array.isArray(manifest)||manifest.length!==images.length||
-       !images.every((img:any)=>manifest.some((m:any)=>m.index===img.index&&m.file_name===img.fileName&&
-           typeof m.storage_path==='string')))
-      return res.status(409).json({error:'Source photo manifest does not match the owner-saved draft; no paid AI request made.'});
-    if(Array.isArray(staged.result?.objects)&&staged.result.objects.length)
-      return res.status(409).json({error:'This analysis is already saved. Open the original saved report; do not pay again.'});
+    const savedOriginals=bindSavedIntakePhotos(staged,submittedImages,mode,supabaseUrl);
+    context=bindSavedIntakeContext(staged.user_context,(req.body||{}).context);
+    // Do not use incoming client notes or signed URLs when constructing the model prompt.
+    images=await Promise.all(savedOriginals.map(async original=>({
+      index:original.index,fileName:original.file_name,
+      url:await signedOriginalURL(supabaseUrl,supabaseKey,token,original.storage_path)
+    })));
   }catch(e:any){
-    return res.status(503).json({error:e?.message||'Cannot verify saved intake manifest before AI request.'});
+    const reason=e?.message||'Cannot verify saved intake manifest before AI request.';
+    const progressed=reason.includes('already progressed');
+    const mismatched=/Duplicate or missing requested photo index|Requested photograph does not match|Requested signed photo URL differs|Incoming owner notes differ|Incoming owner measurements differ/.test(reason);
+    return res.status(progressed||mismatched?409:503).json({error:reason,code:progressed?'INTAKE_SOURCE_ALREADY_PROCESSED':mismatched?'INTAKE_SOURCE_MISMATCH':'INTAKE_SOURCE_UNAVAILABLE',run_id});
   }
 
   const contextText = [
@@ -416,6 +419,31 @@ export default async function handler(req: any, res: any) {
     ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
     : configuredModel.replace(/^openai\//, "");
 
+  // A publication change during photo/knowledge preflight must stop this dispatch.
+  try { canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical); }
+  catch(e){return res.status(503).json({error:'Approved source set changed or became unavailable before AI dispatch. No AI request made.',code:e instanceof Error?e.message:'CANONICAL_RECHECK_FAILED'});}
+
+  // Immutable server-owned paid claim is mandatory. No legacy mutable-status fallback.
+  // If the proposal has not been installed on an isolated backend, STOP safely.
+  try {
+    const response=await fetch(supabaseUrl+'/rest/v1/rpc/ci_claim_intake_paid_v1',{
+      method:'POST',
+      headers:{apikey:supabaseKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      // Compare the exact server-verified pre-dispatch snapshot *inside*
+      // the RPC's row lock, not a later, owner-editable staging value.
+      body:JSON.stringify({
+        p_run_id:run_id,p_expected_manifest:staged.result.image_manifest,
+        p_expected_context:staged.user_context,p_expected_mode:staged.mode,
+        p_expected_photo_count:staged.input_photo_count
+      })
+    });
+    if(!response.ok)return res.status(503).json({error:'Protected claim unavailable or already claimed. Open the saved report; no paid request made.',code:'INTAKE_CLAIM_DENIED',run_id});
+    const result=await response.json();
+    if(result!=='CLAIMED')return res.status(409).json({error:'The original session has already been claimed. Check saved analysis, not a second charge.',code:'INTAKE_CLAIM_ALREADY_USED',run_id});
+  } catch {
+    return res.status(503).json({error:'Paid claim acknowledgement uncertain. Check saved analysis; do not retry this request.',code:'INTAKE_CLAIM_UNCONFIRMED',run_id});
+  }
+
   const body = {
     model,
     reasoning: { effort: "medium" },
@@ -434,7 +462,9 @@ export default async function handler(req: any, res: any) {
     max_output_tokens: 12000
   };
 
-  const response = await fetch(
+  let response:Response,providerRaw:string;
+  try {
+   response = await fetch(
     useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
     {
     method: "POST",
@@ -444,18 +474,44 @@ export default async function handler(req: any, res: any) {
     },
       body: JSON.stringify(body)
     }
-  );
-
-  const payload = await response.json();
-  if (!response.ok) {
-    return res.status(response.status).json({ error: payload?.error?.message || "AI analysis failed", details: payload?.error || null });
+   );
+   providerRaw=await response.text();
+  } catch {
+   return res.status(503).json({error:'The AI request outcome is uncertain. Check the saved photo session; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTCOME_UNCONFIRMED',run_id});
+  }
+  let payload:any;
+  try {payload=JSON.parse(providerRaw)}catch{payload=null}
+  const providerArchive={provider_response_raw:providerRaw,provider_response_status:response.status,
+    provider_response_id:typeof payload?.id==='string'?payload.id:null};
+  const providerModel=typeof payload?.model==='string'?payload.model:body.model;
+  const retainUnparsed=async(stage:string)=>{
+   try {
+    await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,providerModel,{
+     ...staged.result,...providerArchive,analysis_stage:stage,
+     canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical)
+    });
+    return true;
+   }catch{return false}
+  };
+  const uncertainResponse=()=>({run_id,returned_response:{...providerArchive,model:providerModel},response_save_confirmed:false});
+  if(!response.ok){
+   const retained=await retainUnparsed('PROVIDER_ERROR_SAVED');
+   return res.status(response.status).json({error:(typeof payload?.error?.message==='string'?payload.error.message:'AI service returned an error')+'. Check the saved photo session before another paid request.',
+    code:'PAID_INTAKE_PROVIDER_ERROR',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
+  }
+  const text=extractText(payload);
+  if(!text){
+   const retained=await retainUnparsed('UNPARSED_RESPONSE_SAVED');
+   return res.status(502).json({error:'AI returned no readable structured output. Check the retained response; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTPUT_INVALID',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
   }
 
-  const text = extractText(payload);
-  if (!text) return res.status(502).json({ error: "Analysis returned no structured output" });
-
+  let firstPassSaved=false;
   try {
-    let result = JSON.parse(text);
+    const parsed=JSON.parse(text);
+    if(!parsed||typeof parsed!=='object'||typeof parsed.batch_summary!=='string'||!Array.isArray(parsed.objects)||!parsed.objects.length||parsed.objects.length>5)throw Error('Invalid structured intake output');
+    // Only schema fields become interpreted output. The complete original
+    // provider response, including unknown fields and whitespace, is archived.
+    let result:any={batch_summary:parsed.batch_summary,objects:parsed.objects};
     // Immutable JSON snapshot of the initial AI interpretation before any further review.
     const initialAiResult = JSON.parse(JSON.stringify(result));
     // Save the first paid model answer BEFORE enrichment, second-pass AI or client response.
@@ -477,15 +533,17 @@ export default async function handler(req: any, res: any) {
     result={...result,photo_index_audit:photoIndexAudit};
     try {
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,{
-        ...staged.result,...result,image_manifest:originalManifest,
+        ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
         initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
         image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
         canonical_policy_hashes:canonical.hashes,
+        canonical_source_audit:canonicalSourceAudit(canonical),
         knowledge_lookup:{status:'PENDING',matches:[]},
         material_correction_lessons_consulted:ownerMaterialLessons.length
       });
+      firstPassSaved=true;
     }catch(e:any){
-      return res.status(503).json({error:e?.message||'Paid analysis was returned but could not be persisted.',code:'FIRST_PASS_SAVE_FAILED',run_id});
+      return res.status(503).json({error:'AI returned an answer, but its save is not confirmed. Keep the returned response open; do not repeat paid analysis to recover it.',code:'FIRST_PASS_SAVE_FAILED',...uncertainResponse()});
     }
     let knowledge_lookup: any = {status:'NOT_ATTEMPTED',matches:[]};
     try { knowledge_lookup = await lookupKnowledge(supabaseUrl,supabaseKey,token,result); }
@@ -495,64 +553,18 @@ export default async function handler(req: any, res: any) {
     }
     let inscription_review = null;
     let inscription_review_status = 'NOT_TRIGGERED';
-    if (markNeedsReview(result, context)) {
-      inscription_review_status = 'ATTEMPTED';
-      // Only examine already uploaded images. Prefer recent close-ups while retaining overall views.
-      const selected = images.length <= 12 ? images : [images[0], images[1], ...images.slice(-10)];
-      const detailContent: any[] = [{
-        type: "input_text",
-        text: "Independently re-examine the ORIGINAL photographs for inscriptions and distinctive form. Images in this request are indexed using their original indices. The first-pass draft below is unverified and may have missed a legible inscription: " + JSON.stringify(result.objects.map((o: any) => ({image_indices:o.image_indices,marks:o.marks_signatures_labels,object_type:o.object_type,current_attribution:o.current_attribution}))) + ". Transcribe only letters/numbers actually visible, expressing uncertain characters with ?. Do not use internet research, assert an exact pattern without evidence, or pretend a maker attribution is confirmed. Indices must correspond to the source image containing the mark. If not readable leave null. Return a candidate maker/design only where form and mark jointly support it. New photographs are needed only if the supplied images do not already resolve the relevant detail."
-      }];
-      for (const image of selected) {
-        detailContent.push({type:"input_text",text:`IMAGE_INDEX=${image.index}; FILE=${image.fileName || "unnamed"}`});
-        detailContent.push({type:"input_image",image_url:image.url,detail:"original"});
-      }
-      try {
-        const markResponse = await fetch(
-          useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
-          {
-            method:"POST",
-            headers:{"Content-Type":"application/json", Authorization:`Bearer ${apiKey}`},
-            body:JSON.stringify({
-              model,
-              reasoning:{effort:"high"},
-              instructions:"You are a cautious specialist examining faint lettering on glass. Compare each proposed character against repeated strokes in the ORIGINAL source images. Separate engraved characters from crossing scratches, label residue, optical refraction and shadows. Compare base geometry and rim silhouette; do not infer opaque white glass from bright reflections. Where uncertain, provide a literal partial reading with ? marks, alternatives and contradictions. If illegible, return null rather than guess. Never turn a candidate transcription into a verified maker or provenance. Always refer to original image indices.",
-              input:[{role:"user",content:detailContent}],
-              text:{format:{type:"json_schema",name:"collector_inscription_review",strict:true,schema:inscriptionSchema}},
-              max_output_tokens:1700
-            })
-          }
-        );
-        if (markResponse.ok) {
-          const markPayload = await markResponse.json();
-          const markText = extractText(markPayload);
-          if (markText) {
-            inscription_review = JSON.parse(markText);
-            inscription_review_status = inscription_review.mark_visible ? 'COMPLETED_MARK_VISIBLE' : 'COMPLETED_NO_MARK';
-            // Exclude invented indices before attaching review to physical-object evidence.
-            const uploadedIndices = new Set(images.map((image: any) => image.index));
-            inscription_review.evidence_image_indices = (inscription_review.evidence_image_indices || []).filter((i: number) => uploadedIndices.has(i));
-            result = applyInscriptionReview(result, inscription_review);
-          } else {
-            inscription_review_status = 'EMPTY_RESPONSE';
-          }
-        } else {
-          inscription_review_status = 'GATEWAY_ERROR_' + markResponse.status;
-          // A failed second look must not discard the already completed draft.
-          console.warn("Inscription review unavailable", markResponse.status);
-        }
-      } catch (err) {
-        inscription_review_status = 'REVIEW_ERROR';
-        console.warn("Inscription review unavailable", err instanceof Error ? err.message : "unknown error");
-      }
-    }
+    // No automatic second billable HIGH model request. Preserve the original first pass.
+    // A separate immutable owner consent receipt and bounded charge must be implemented
+    // before offering optional inscription re-examination.
+    if (markNeedsReview(result, context)) inscription_review_status = 'OWNER_OPT_IN_REQUIRED';
     result = reconcileKnowledge(result, knowledge_lookup);
     const savedResult={
-      ...staged.result,...result,image_manifest:originalManifest,
+      ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
       initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
       image_manifest_version:1,analysis_stage:'COMPLETE',
       inscription_review,inscription_review_status,knowledge_lookup,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     };
     try{
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,savedResult);
@@ -567,9 +579,12 @@ export default async function handler(req: any, res: any) {
       inscription_review,
       inscription_review_status,
       knowledge_lookup,
-      canonical_policy_hashes:canonical.hashes
+      canonical_policy_hashes:canonical.hashes,
+      canonical_source_audit:canonicalSourceAudit(canonical)
     });
   } catch {
-    return res.status(502).json({ error: "Could not parse structured analysis", raw: text.slice(0, 2000) });
+    if(firstPassSaved)return res.status(503).json({error:'The first AI interpretation is saved, but later checks could not be interpreted. Open the original saved report; do not repeat paid analysis to recover it.',code:'INTAKE_ENRICHMENT_UNCONFIRMED',run_id});
+    const retained=await retainUnparsed('UNPARSED_RESPONSE_SAVED');
+    return res.status(502).json({error:'The returned analysis could not be interpreted. Check the retained original response; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTPUT_INVALID',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
   }
 }
