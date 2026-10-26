@@ -193,5 +193,5 @@ test('sale-ready listing handoff preserves proven price basis, owner SKU and une
  assert.ok(text.includes(ready.description))
  assert.ok(text.includes(ready.shippingInstructions))
  assert.ok(text.includes('Originals, not included')===false)
- assert.match(text,/not evidence of publication/)
+ assert.match(text,/never evidence of publication/)
 });
