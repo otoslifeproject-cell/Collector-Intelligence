@@ -16,3 +16,9 @@ test('bulk UI requires owner review, category and offers selection',()=>{
  assert.match(view,/Export eBay drafts/)
  assert.match(view,/No eBay import has been tested/)
 })
+
+test('CSV uses real CRLF escapes rather than escaped backslash text',()=>{
+ assert.ok(fn.includes(String.raw`output.join('\\r\\n')+'\\r\\n'`))
+ assert.ok(fn.includes(String.raw`.join('\\n\\n')`))
+ assert.ok(!fn.includes(String.raw`output.join('\\\\r\\\\n')`))
+})
