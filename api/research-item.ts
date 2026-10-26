@@ -114,6 +114,7 @@ Non-negotiable rules:
 - Capture a source URL/reference for every comparable whenever available.
 - Use multiple comparable records where practical. Do not value from one exceptional outlier.
 - Adjust for size, condition, colour, maker certainty, signed/labelled status, rarity, age and market.
+- When the object's colour, owner notes or linked photographs suggest uranium/vaseline glass, explicitly investigate that hypothesis and its non-uranium alternatives. Distinguish documented UV fluorescence from a merely presumed reaction; request paired daylight and UV photographs of the same object if absent. Bright green fluorescence is suggestive, not sole chemical authentication. Never suppress uranium glass as a candidate just because maker and period are unknown, and never inflate valuation from an unverified composition claim.
 - If sold evidence is inadequate, valuation ranges may be null and notes must say PROVISIONAL VALUE — SOLD EVIDENCE INADEQUATE.
 - Do not upgrade a visual attribution merely because similar marketplace listings use that maker name.
 - Identification confidence, dating confidence and valuation confidence are independent.
