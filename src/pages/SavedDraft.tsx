@@ -464,7 +464,7 @@ function SavedDraftRecord({id}:{id:string}){
           <Link className="secondaryButton inlineButton" to="/intake">Save complete · Next item</Link>
           <Link className="primaryButton inlineButton" to={'/item/'+catalogued[0].item_id+'?tab=sales'}>Sell item · prepare listing</Link>
          </>
-         : <button className="secondaryButton" disabled={!isPhotoManifestReady||!selectedIndices.length||!!error||approving||saving||researching||!!pendingReview||!!pendingApproval||!!pendingCorrection||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={()=>setActiveTab('catalogue')}>Save item to catalogue</button>}
+         : <button className="secondaryButton" disabled={!isPhotoManifestReady||!selectedIndices.length||!!error||approving||saving||researching||!!pendingReview||!!pendingApproval||!!pendingCorrection||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={()=>{if(paired||(run.result.objects||[]).length===1)void approveSaved();else setActiveTab('catalogue')}}>{approving?'Saving item…':paired||(run.result.objects||[]).length===1?'Save item to catalogue':'Choose items to save'}</button>}
       </div>
     </section>
     {isPhotoManifestReady&&Object.values(images).some(Boolean)&&
