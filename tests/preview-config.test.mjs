@@ -32,5 +32,7 @@ test('Vercel Preview build rejects the exact live Collector Supabase hostname',(
   assert.match(vite,/bwdafrwkimjvwfoqomot\.supabase\.co/)
   assert.match(vite,/process\.env\.VITE_SUPABASE_URL/)
   assert.match(vite,/process\.env\.NEXT_PUBLIC_SUPABASE_URL/)
-  assert.match(vite,/refusing Preview build configured with the live Collector Intelligence Supabase project/)
+  assert.match(vite,/CI_OWNER_TEST_LIVE_DB/)
+  assert.match(vite,/continuity\/resolver-fixtures-20261020/)
+  assert.match(vite,/live backend in Preview requires explicit branch-bound owner-test authorisation/)
 })
