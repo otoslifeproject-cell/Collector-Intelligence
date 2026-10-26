@@ -281,7 +281,7 @@ function ItemDetailRecord({id}:{id:string}) {
   // One clear action. This is navigation only: it never promotes evidence,
   // starts paid AI, publishes a listing, or marks an object sold.
   const suggestedStage = item.status==='SOLD'?'sales':!photographsLoaded?'photos':!photos.length?'photos':reviewed?'sales':'market'
-  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Check photographs':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
+  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Check photographs':photographError?'Recover photo access':pendingPhotographs.length?'Recover photo upload':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
   const wizardSteps = [
     {id:'photos',label:'Photos'},
     {id:'market',label:'Research & value'},
@@ -298,17 +298,17 @@ function ItemDetailRecord({id}:{id:string}) {
   // Readiness indicators are observational, not authority to promote research or sell.
   const photoReady = photographsLoaded && !photographError && photos.length>0 && !pendingPhotographs.length && !uploading
   const researchReady = Boolean(reviewed) && !historyError && !reviewedError && !historyLoading && !researching && !assessmentMutating && !armyMutating
-  const catalogueReady = Boolean(item.item_code?.trim() && item.object_type?.trim() && item.condition_summary?.trim()) && !saving
+  const catalogueReady = Boolean(item.item_code?.trim() && item.object_type?.trim() && item.condition_summary?.trim()) && !saving && editRevision.current===savedRevision.current
   const stageChecks:Record<string,{done:boolean;status:string}> = {
     photos:{done:photoReady,status:uploading?'Saving originals':!photographsLoaded?'Checking originals':photographError?'Photo check failed':pendingPhotographs.length?'Recover pending originals':photoReady?'Originals linked':'Photographs need attention'},
-    market:{done:researchReady,status:researching||assessmentMutating||armyMutating?'Research update underway':historyError||reviewedError?'Research check needs attention':researchReady?'Reviewed assessment available':'Evidence review outstanding'},
-    overview:{done:catalogueReady,status:saving?'Saving catalogue facts':catalogueReady?'Core facts recorded':'Complete object facts and condition'},
+    market:{done:researchReady,status:researching||assessmentMutating||armyMutating?'Research update underway':historyLoading?'Loading evidence':historyError||reviewedError?'Research check needs attention':researchReady?'Reviewed assessment available':'Evidence review outstanding'},
+    overview:{done:catalogueReady,status:saving?'Saving catalogue facts':editRevision.current!==savedRevision.current?'Save catalogue edits':catalogueReady?'Core facts recorded':'Complete object facts and condition'},
     sales:{done:item.status==='SOLD',status:item.status==='SOLD'?'Sale recorded':'Sale not recorded'}
   }
   const nextWizardStep = activeWizardStep>=0&&activeWizardStep<wizardSteps.length-1?wizardSteps[activeWizardStep+1]:null
   // A confirmed state change may suggest the next step; it never executes it.
   const recommendedNextStep = item.status==='SOLD'?'sales':!photoReady?'photos':!researchReady?'market':!catalogueReady?'overview':'sales'
-  const recommendationText = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Checking saved photographs…':photographError?'Resolve photo access':pendingPhotographs.length?'Recover photo upload':!photoReady?'Add or recover original photos':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
+  const recommendationText = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Checking saved photographs…':photographError?'Resolve photo access':pendingPhotographs.length?'Recover photo upload':!photoReady?'Add or recover original photos':historyLoading?'Checking research evidence…':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
 
   return (
     <div>
@@ -337,7 +337,7 @@ function ItemDetailRecord({id}:{id:string}) {
       <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
         <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
         <p className="ci-page-meta" role="status" aria-live="polite" style={{margin:'0.25rem 0'}}>
-          {activeWizardStep>=0?`Step ${activeWizardStep+1} of ${wizardSteps.length}: ${wizardSteps[activeWizardStep].label}`:'Object details'} · Suggested: {suggestedLabel}
+          {activeWizardStep>=0?`Step ${activeWizardStep+1} of ${wizardSteps.length}: ${wizardSteps[activeWizardStep].label}`:'Object details'}
         </p>
         <div className="pillRow" style={{marginTop:'0.5rem'}}>
           {wizardSteps.map((step,index)=><button key={step.id} type="button" onClick={()=>setTab(step.id)}
@@ -347,11 +347,11 @@ function ItemDetailRecord({id}:{id:string}) {
             style={{fontSize:'0.9rem'}}> {index+1}. {step.label}{stageChecks[step.id].done?' ✓':''}</button>)}
         </div>
         <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'} {stageChecks[tab]&&`· ${stageChecks[tab].status}`}</p>
-        {recommendedNextStep!==tab&&<button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={(!photographsLoaded||uploading||saving||assessmentMutating||armyMutating)&&item.status!=='SOLD'}>Recommended: {recommendationText}</button>}
-        {recommendedNextStep===tab&&<span className="ci-page-meta" role="status">Now: {recommendationText}</span>}
+        {recommendedNextStep!==tab&&<button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={(!photographsLoaded||uploading||saving||researching||assessmentMutating||armyMutating)&&item.status!=='SOLD'}>Recommended: {recommendationText}</button>}
+        {recommendedNextStep===tab&&<span className="ci-page-meta">Now: {recommendationText}</span>}
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
-        <small style={{display:'block',marginTop:'0.5rem'}}>Your evidence and earlier work stay saved. Steps do not approve research or publish listings automatically.</small>
+        <small style={{display:'block',marginTop:'0.5rem'}}>Saved research and photographs remain linked to this object. Steps do not approve research or publish listings automatically.</small>
       </nav>
       {message && <div className="saveToast">{message}</div>}
 
