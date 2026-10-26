@@ -25,3 +25,12 @@ test('failed authentication handshake shows an error instead of indefinite boot'
   assert.match(app,/if \(authError\) return <div className="loginPage">/)
   assert.match(app,/Sign-in service unavailable/)
 })
+
+test('Vercel Preview build rejects the exact live Collector Supabase hostname',()=>{
+  const vite = readFileSync(new URL('../vite.config.ts',import.meta.url),'utf8')
+  assert.match(vite,/VERCEL_ENV === 'preview'/)
+  assert.match(vite,/bwdafrwkimjvwfoqomot\.supabase\.co/)
+  assert.match(vite,/process\.env\.VITE_SUPABASE_URL/)
+  assert.match(vite,/process\.env\.NEXT_PUBLIC_SUPABASE_URL/)
+  assert.match(vite,/refusing Preview build configured with the live Collector Intelligence Supabase project/)
+})
