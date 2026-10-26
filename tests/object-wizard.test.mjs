@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs'
 const detail=readFileSync(new URL('../src/pages/ItemDetail.tsx',import.meta.url),'utf8')
 
 test('one next action maps the object state to its existing workflow',()=>{
-  assert.match(detail,/item\.status==='SOLD'\?'sales':!photos\.length\?'photos':reviewed\?'sales':'market'/)
+  assert.match(detail,/item\.status==='SOLD'\?'sales':!photographsLoaded\?'photos':!photos\.length\?'photos':reviewed\?'sales':'market'/)
   assert.match(detail,/const suggestedLabel/)
   assert.match(detail,/onClick=\{\(\)=>setTab\(suggestedStage\)\}/)
   assert.match(detail,/aria-label="Object workflow"/)
@@ -54,4 +54,17 @@ test('each wizard stage offers concise guidance and the next safe navigation ste
   assert.match(detail,/const nextWizardStep =/)
   assert.match(detail,/onClick=\{\(\)=>setTab\(nextWizardStep\.id\)\}/)
   assert.match(detail,/Next: \{nextWizardStep\.label\}/)
+})
+
+test('wizard derives completion from confirmed local data, not speculative estimates',()=>{
+  assert.match(detail,/const photoReady = photographsLoaded && !photographError && photos\.length>0/)
+  assert.match(detail,/const researchReady = Boolean\(reviewed\) && !historyError && !historyLoading/)
+  assert.match(detail,/const catalogueReady = Boolean\(item\.item_code && item\.object_type && item\.condition_summary\)/)
+  assert.match(detail,/sales:\{done:item\.status==='SOLD'/)
+})
+test('wizard allows going back and reports saved state without automatic approvals',()=>{
+  assert.match(detail,/Previous step/)
+  assert.match(detail,/stageChecks\[step\.id\]\.done/)
+  assert.match(detail,/stageChecks\[tab\]\.status/)
+  assert.match(detail,/Steps do not approve research or publish listings automatically/)
 })
