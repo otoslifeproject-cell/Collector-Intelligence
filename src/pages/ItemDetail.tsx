@@ -280,7 +280,7 @@ function ItemDetailRecord({id}:{id:string}) {
   const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
   // One clear action. This is navigation only: it never promotes evidence,
   // starts paid AI, publishes a listing, or marks an object sold.
-  const suggestedStage = item.status==='SOLD'?'sales':!photos.length?'photos':reviewed?'sales':'market'
+  const suggestedStage = item.status==='SOLD'?'sales':!photographsLoaded?'photos':!photos.length?'photos':reviewed?'sales':'market'
   const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Check photographs':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
   const wizardSteps = [
     {id:'photos',label:'Photos'},
@@ -294,6 +294,16 @@ function ItemDetailRecord({id}:{id:string}) {
     market:'Review identification, rival makers and achieved-price evidence.',
     overview:'Check the permanent object record and condition.',
     sales:'Review route, costs and listing readiness before selling.'
+  }
+  // Readiness indicators are observational, not authority to promote research or sell.
+  const photoReady = photographsLoaded && !photographError && photos.length>0
+  const researchReady = Boolean(reviewed) && !historyError && !historyLoading
+  const catalogueReady = Boolean(item.item_code && item.object_type && item.condition_summary)
+  const stageChecks:Record<string,{done:boolean;status:string}> = {
+    photos:{done:photoReady,status:!photographsLoaded?'Checking originals':photoReady?'Originals linked':'Photographs need attention'},
+    market:{done:researchReady,status:researchReady?'Reviewed assessment available':'Evidence review outstanding'},
+    overview:{done:catalogueReady,status:catalogueReady?'Core facts recorded':'Complete object facts and condition'},
+    sales:{done:item.status==='SOLD',status:item.status==='SOLD'?'Sale recorded':'Sale not recorded'}
   }
   const nextWizardStep = activeWizardStep>=0&&activeWizardStep<wizardSteps.length-1?wizardSteps[activeWizardStep+1]:null
 
@@ -330,10 +340,11 @@ function ItemDetailRecord({id}:{id:string}) {
           {wizardSteps.map((step,index)=><button key={step.id} type="button" onClick={()=>setTab(step.id)}
             aria-current={tab===step.id?'step':undefined}
             className={tab===step.id?'primaryButton inlineButton':'secondaryButton'}
-            style={{fontSize:'0.9rem'}}> {index+1}. {step.label}</button>)}
+            style={{fontSize:'0.9rem'}}> {index+1}. {step.label}{stageChecks[step.id].done?' ✓':''}</button>)}
         </div>
-        <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'}</p>
+        <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'} {stageChecks[tab]&&`· ${stageChecks[tab].status}`}</p>
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
+        {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
         <small style={{display:'block',marginTop:'0.5rem'}}>Your evidence and earlier work stay saved. Steps do not approve research or publish listings automatically.</small>
       </nav>
       {message && <div className="saveToast">{message}</div>}
