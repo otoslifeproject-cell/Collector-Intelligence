@@ -40,6 +40,8 @@ Authority is **claim-specific**. A museum can be authoritative on design history
 
 ## Evidence acceptance gate
 
+**20 October 2026 correction to the historical price-axis summary above:** controlling Evidence Policy v4.0 puts current dealer asks, including 1stDibs, in **Tier D**, alongside other active asks. Tier C covers confirmed dealer sold archives, former dealer asks with achieved price unknown, and auction estimates; these remain distinct price types. The earlier Tier C/current-retail sentence is superseded. The preserved original comparable workflow has the same conflict; see `source-reconciliation/REVIEW.md` for exact source bytes and a separate unpublished revision. This correction does not change canonical database records.
+
 For every source record retain claim, URL/reference, producer/venue, document or lot ID, date accessed, record date, independent verification status, contradictions, and relevant object-level images/measurements.
 
 Do not equate model-assigned VERIFIED_DIRECT with a human- or machine-validated citation. Check content actually supports the claim and preserve the method and reviewer. Reject or hold disputed identifications.
