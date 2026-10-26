@@ -18,3 +18,10 @@ test('unconfigured Preview never opens an auth session or owner content',()=>{
   assert.match(app,/awaiting an isolated Supabase connection/)
   assert.ok(app.indexOf('if (!supabaseConfigured) return <div') < app.indexOf('if (!session) return <Login/>'))
 })
+
+test('failed authentication handshake shows an error instead of indefinite boot',()=>{
+  assert.match(app,/\.catch\(\(\)=>\{if \(active\) setAuthError\(true\)\}\)/)
+  assert.match(app,/\.finally\(\(\)=>\{if \(active\) setReady\(true\)\}\)/)
+  assert.match(app,/if \(authError\) return <div className="loginPage">/)
+  assert.match(app,/Sign-in service unavailable/)
+})
