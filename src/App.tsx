@@ -21,18 +21,25 @@ import LotOptimiser from './pages/LotOptimiser'
 export default function App() {
   const [session,setSession] = useState<Session|null>(null)
   const [ready,setReady] = useState(false)
+  const [authError,setAuthError] = useState(false)
   const [appearance,setAppearance] = useState<Appearance>(storedAppearance)
   useEffect(()=>applyAppearance(appearance),[appearance])
 
   useEffect(()=>{
     if (!supabaseConfigured) { setReady(true); return }
-    supabase.auth.getSession().then(({data})=>{setSession(data.session);setReady(true)})
+    let active = true
+    supabase.auth.getSession().then(({data,error})=>{
+      if (!active) return
+      if (error) setAuthError(true)
+      else setSession(data.session)
+    }).catch(()=>{if (active) setAuthError(true)}).finally(()=>{if (active) setReady(true)})
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,s)=>setSession(s))
-    return ()=>subscription.unsubscribe()
+    return ()=>{active=false;subscription.unsubscribe()}
   },[])
 
   if (!supabaseConfigured) return <div className="loginPage"><div className="loginPanel" role="alert"><div className="eyebrow">COLLECTION OS · PREVIEW SETUP</div><h1>Collector Intelligence</h1><p>This test deployment is awaiting an isolated Supabase connection. Your live collection has not been connected.</p><p>Configure Preview-only Supabase URL and publishable key, then redeploy to enable owner sign-in.</p></div></div>
   if (!ready) return <div className="bootScreen">Collector Intelligence</div>
+  if (authError) return <div className="loginPage"><div className="loginPanel" role="alert"><h1>Sign-in service unavailable</h1><p>The authentication session could not be checked. No collection data has been loaded. Please refresh or contact the owner administrator.</p></div></div>
   if (!session) return <Login/>
 
   return (
