@@ -97,21 +97,21 @@ export default function AIIntake(){
       <div className="pageHeader">
         <div>
           <div className="eyebrow">AI CATALOGUE INTAKE</div>
-          <h1>Photographs in. Catalogue out.</h1>
+          <h1>Add item</h1><p>Choose photos, then start research. You can add measurements later.</p>
           <InfoDisclosure label="How intake works"><p>Photos are analysed into draft objects. You review and approve before anything enters your catalogue.</p></InfoDisclosure>
         </div>
         <Link className="secondaryButton" to="/uploads">Saved uploads</Link>
       </div>
 
       <fieldset disabled={locked} style={{border:0,padding:0,margin:0,minWidth:0}}>
-        <div className="intakeModeGrid">
+        <details className="ci-intake-advanced"><summary>More than one object? Choose batch mode</summary><div className="intakeModeGrid">
           <button className={mode==='single'?'intakeMode active':'intakeMode'} onClick={()=>chooseMode('single')}>
             <Camera/><strong>One object</strong><span>Up to 20 photographs of one physical object.</span>
           </button>
           <button className={mode==='batch'?'intakeMode active':'intakeMode'} onClick={()=>chooseMode('batch')}>
             <Images/><strong>Mixed batch — up to 5</strong><span>Upload mixed photographs. AI performs object separation first.</span>
           </button>
-        </div>
+        </div></details>
 
         <div className="panel intakeDropPanel">
           <label
@@ -135,7 +135,7 @@ export default function AIIntake(){
           </div>}
         </div>
 
-        <div className="panel">
+        <details className="panel ci-intake-advanced"><summary>Optional details (purchase, size, notes)</summary>
           <div className="panelHeader"><div><h2>Only what you know</h2><span>All fields optional. User facts are kept separate from AI inference.</span></div></div>
           <div className="formGrid">
             <label>Purchase price<input type="number" step="0.01" value={context.purchase_price} onChange={e=>updateContext('purchase_price',e.target.value)} placeholder="Optional"/></label>
@@ -145,12 +145,12 @@ export default function AIIntake(){
             <label>Storage location<input value={context.storage_location} onChange={e=>updateContext('storage_location',e.target.value)} placeholder="Shelf / box / room"/></label>
             <label>Your notes / hypothesis<input value={context.user_notes} onChange={e=>updateContext('user_notes',e.target.value)} placeholder="Optional — treated as a hypothesis, not a fact"/></label>
           </div>
-        </div>
+        </details>
 
       </fieldset>
         {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
         <div className="intakeActions">
-          <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse & draft catalogue</button>
+          <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Start research</button>
           <span>One requested AI analysis may incur a provider charge. Extra HIGH-cost inscription review is off unless separately approved. Nothing enters your catalogue until you approve.</span>
         </div>
 
