@@ -7,6 +7,7 @@ export default function Login() {
   const [message,setMessage] = useState('')
   const [submitting,setSubmitting] = useState(false)
   const [creating,setCreating] = useState(false)
+  const [recovering,setRecovering] = useState(false)
 
   const submit = async (e:FormEvent) => {
     e.preventDefault()
@@ -14,7 +15,10 @@ export default function Login() {
     if (submitting) return
     setSubmitting(true)
     try {
-      if (creating) {
+      if (recovering) {
+        const result = await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname})
+        setMessage(result.error?result.error.message:'If this address has an account, a password recovery link has been sent. Open the link from your email.')
+      } else if (creating) {
         const result = await supabase.auth.signUp({email,password})
         if (result.error) setMessage(result.error.message)
         else if (!result.data.session) setMessage('Account request received. Check your email for a confirmation link. If this email already has an account, registration may not create another one.')
@@ -40,10 +44,11 @@ export default function Login() {
         <p>Advanced intelligence. Verified evidence. Confident decisions.</p>
         <form onSubmit={submit}>
           <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required /></label>
-          <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={6} required /></label>
-          <button className="primaryButton" type="submit" disabled={submitting}>{submitting ? (creating?'Creating…':'Signing in…') : (creating?'Create account':'Sign in')}</button>
+          {!recovering&&<label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={6} required /></label>}
+          <button className="primaryButton" type="submit" disabled={submitting}>{submitting ? 'Working…' : recovering?'Send password reset link':creating?'Create account':'Sign in'}</button>
         </form>
-        <button type="button" className="secondaryButton" disabled={submitting} onClick={()=>{setCreating(v=>!v);setMessage('')}}>{creating?'Back to sign in':'Create a new account'}</button>
+        <button type="button" className="secondaryButton" disabled={submitting} onClick={()=>{setCreating(false);setRecovering(v=>!v);setMessage('')}}>{recovering?'Back to sign in':'Forgot password?'}</button>
+        {!recovering&&<button type="button" className="secondaryButton" disabled={submitting} onClick={()=>{setCreating(v=>!v);setMessage('')}}>{creating?'Back to sign in':'Create a new account'}</button>}
         {message && <div className="formMessage" role="alert">{message}</div>}
         <p>{creating?'A new account has a separate identity and may not see records owned by your earlier account.':'Private collection access. Your records remain attached to their original owner account.'}</p>
       </div>
