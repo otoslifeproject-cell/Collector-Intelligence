@@ -9,14 +9,9 @@ import type {Appearance} from '../lib/appearance'
 
 const links = [
   ['/', 'Dashboard', LayoutDashboard],
-  ['/inventory', 'Inventory', Boxes],
-  ['/intake', 'AI intake', Sparkles],
-  ['/new', 'Add item', PlusCircle],
-  ['/research', 'Research', FlaskConical],
-  ['/sales', 'Sales', CircleDollarSign],
-  ['/lots', 'Lot optimiser', Boxes],
-  ['/contacts', 'Contacts', UsersRound],
-  ['/reports', 'Reports', ChartNoAxesCombined],
+  ['/inventory', 'My collection', Boxes],
+  ['/intake', 'Identify an object', Sparkles],
+  ['/sales', 'Sell', CircleDollarSign],
 ]
 
 export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appearance;onToggleAppearance:()=>void}) {
@@ -29,7 +24,7 @@ export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appe
         <div className="brandMark"><img src="/brand/logo-symbol.png" alt="" width="40" height="40" onError={e=>{e.currentTarget.style.display="none";e.currentTarget.parentElement!.textContent="CI"}} /></div>
         <div>
           <strong>Collector Intelligence</strong>
-          <span>Identify · Research · Value</span>
+          <span>Your private collection</span>
         </div>
         <button type="button" className="ci-appearance-toggle ci-appearance-mobile"
           onClick={onToggleAppearance} aria-label={actionLabel} title={actionLabel}>
@@ -49,13 +44,20 @@ export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appe
             <span>{label}</span>
           </NavLink>
         ))}
+        <details className="ci-more-navigation"><summary className="navItem">More tools</summary>
+          <NavLink className="navItem" to="/new" onClick={()=>setMobileMenuOpen(false)}><PlusCircle size={18}/> Add item manually</NavLink>
+          <NavLink className="navItem" to="/research" onClick={()=>setMobileMenuOpen(false)}><FlaskConical size={18}/> Research library</NavLink>
+          <NavLink className="navItem" to="/lots" onClick={()=>setMobileMenuOpen(false)}><Boxes size={18}/> Lot optimiser</NavLink>
+          <NavLink className="navItem" to="/contacts" onClick={()=>setMobileMenuOpen(false)}><UsersRound size={18}/> Contacts</NavLink>
+          <NavLink className="navItem" to="/reports" onClick={()=>setMobileMenuOpen(false)}><ChartNoAxesCombined size={18}/> Reports</NavLink>
+        </details>
         <button type="button" className="navItem buttonNav ci-mobile-signout" onClick={()=>supabase.auth.signOut()}>
          <LogOut size={18}/><span>Sign out</span>
         </button>
       </nav>
 
       <div className="sidebarBottom">
-        <div className="navItem muted"><Search size={18}/><span>Global search soon</span></div>
+
         <button type="button" className="navItem buttonNav ci-appearance-toggle"
           aria-label={actionLabel} onClick={onToggleAppearance}>
           <LightIcon size={18}/><span>{appearance==='dark'?'Light mode':'Dark mode'}</span>
