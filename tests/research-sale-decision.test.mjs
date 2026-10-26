@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict'
+import {auditResearch,recommendSaleRoutes} from '../src/lib/researchSaleDecision.ts'
+const stages=['PHOTOGRAPH_EXAM','SIGNATURE_READING','MAKER_ARCHIVE','AUCTION_REALISED','MARKETPLACE_SOLD','CONDITION_REVIEW','SALES_ECONOMICS']
+let count=0
+function check(label,fn){fn();count++;console.log('PASS',label)}
+const one=(type,status='DONE_EVIDENCED')=>({type,status,runId:'run-1',checkedAt:'2026-10-23',sourceRefs:['lot-1']})
+const empty=auditResearch([])
+check('unstarted is 0/7',()=>{assert.equal(empty.percent,0);assert.equal(empty.unresolved.length,7)})
+check('invalid complete without run receipt does not count',()=>assert.equal(auditResearch([{type:'SIGNATURE_READING',status:'DONE_EVIDENCED',sourceRefs:['x'],checkedAt:'now'}]).complete,0))
+check('complete without source never counts',()=>assert.equal(auditResearch([{type:'SIGNATURE_READING',status:'DONE_EVIDENCED',runId:'r',checkedAt:'now'}]).complete,0))
+check('inconclusive not treated as verified',()=>assert.equal(auditResearch([one('SIGNATURE_READING','INCONCLUSIVE')]).complete,0))
+check('evidenced run counts',()=>assert.equal(auditResearch([one('SIGNATURE_READING')]).complete,1))
+check('duplicate research type does not count',()=>assert.equal(auditResearch([one('SIGNATURE_READING'),one('SIGNATURE_READING')]).complete,0))
+const full=auditResearch(stages.map(x=>one(x)))
+const route={venue:'eBay',mode:'BALANCED',grossLow:40,grossHigh:60,feeRate:0.15,fixedCosts:9,shippingRisk:'MEDIUM',daysToSaleLow:7,daysToSaleHigh:30,sourceRefs:['comp-1'],eligible:true,priceBasis:'MARKETPLACE_SOLD',feeCheckedAt:'2026-10-23'}
+check('all research evidenced',()=>{assert.equal(full.percent,100);assert.equal(full.unresolved.length,0)})
+check('no comp, never pretend ready',()=>assert.equal(recommendSaleRoutes(empty,[route],false).status,'RESEARCH_FIRST'))
+check('no eligible route, never pretend ready',()=>assert.equal(recommendSaleRoutes(full,[],true).status,'RESEARCH_FIRST'))
+check('scenario net low subtracts costs',()=>assert.equal(recommendSaleRoutes(full,[route],true).ranked[0].netLow,25))
+check('scenario net high subtracts costs',()=>assert.equal(recommendSaleRoutes(full,[route],true).ranked[0].netHigh,42))
+check('legacy aggregate cannot bypass final item assessment',()=>{const r=recommendSaleRoutes(full,[route],true);assert.equal(r.status,'RESEARCH_FIRST');assert.equal(r.recommendation,null)})
+check('signature caveat survives high completeness',()=>assert.match(recommendSaleRoutes(full,[route],false).warnings.join(' '),/does not confirm maker/))
+check('missing condition keeps item out of sale-ready state',()=>assert.equal(recommendSaleRoutes(auditResearch(stages.filter(x=>x!=='CONDITION_REVIEW').map(x=>one(x))),[route],true).status,'RESEARCH_FIRST'))
+check('asking only route not accepted without source',()=>assert.equal(recommendSaleRoutes(full,[{...route,sourceRefs:[]}],true).status,'RESEARCH_FIRST'))
+check('NaN gross range must fail closed',()=>assert.equal(recommendSaleRoutes(full,[{...route,grossLow:NaN}],true).status,'RESEARCH_FIRST'))
+check('Infinity fee must fail closed',()=>assert.equal(recommendSaleRoutes(full,[{...route,feeRate:Infinity}],true).status,'RESEARCH_FIRST'))
+check('empty source token rejected',()=>assert.equal(recommendSaleRoutes(full,[{...route,sourceRefs:['  ']}],true).status,'RESEARCH_FIRST'))
+check('empty venue rejected',()=>assert.equal(recommendSaleRoutes(full,[{...route,venue:' '}],true).status,'RESEARCH_FIRST'))
+check('blank research source fails completed stage',()=>assert.equal(auditResearch([{...one('SIGNATURE_READING'),sourceRefs:['  ']}]).complete,0))
+check('asking evidence cannot trigger selling recommendation',()=>assert.equal(recommendSaleRoutes(full,[{...route,priceBasis:'DEALER_ASKING'}],true).status,'RESEARCH_FIRST'))
+check('unverified price basis cannot trigger selling recommendation',()=>assert.equal(recommendSaleRoutes(full,[{...route,priceBasis:'UNVERIFIED'}],true).status,'RESEARCH_FIRST'))
+check('missing fee verification blocks recommendation',()=>assert.equal(recommendSaleRoutes(full,[{...route,feeCheckedAt:''}],true).status,'RESEARCH_FIRST'))
+console.log(count+' research-sale checks passed')
