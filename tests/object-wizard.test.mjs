@@ -89,3 +89,11 @@ test('catalogue requires non-whitespace persisted facts and respects save state'
 test('wizard steps expose statuses to assistive technologies',()=>{
   assert.match(detail,/aria-label=\{\x60\$\{index\+1\}\. \$\{step\.label\}: \$\{stageChecks\[step\.id\]\.status\}\x60\}/)
 })
+
+test('unsaved catalogue edits are not reported as complete',()=>{
+  assert.ok(detail.includes('editRevision.current===savedRevision.current'))
+  assert.ok(detail.includes('Save catalogue edits'))
+})
+test('busy research and failed originals retain recovery guidance',()=>{
+  for(const marker of ['Checking research evidence','Recover photo access','Recover photo upload','||researching||assessmentMutating']) assert.ok(detail.includes(marker),marker)
+})
