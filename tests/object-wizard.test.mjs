@@ -57,9 +57,9 @@ test('each wizard stage offers concise guidance and the next safe navigation ste
 })
 
 test('wizard derives completion from confirmed local data, not speculative estimates',()=>{
-  assert.match(detail,/const photoReady = photographsLoaded && !photographError && photos\.length>0/)
-  assert.match(detail,/const researchReady = Boolean\(reviewed\) && !historyError && !reviewedError && !historyLoading/)
-  assert.match(detail,/const catalogueReady = Boolean\(item\.item_code && item\.object_type && item\.condition_summary\)/)
+  assert.match(detail,/const photoReady = photographsLoaded && !photographError && photos\.length>0 && !pendingPhotographs\.length && !uploading/)
+  assert.match(detail,/const researchReady = Boolean\(reviewed\) && !historyError && !reviewedError && !historyLoading && !researching && !assessmentMutating && !armyMutating/)
+  assert.match(detail,/const catalogueReady = Boolean\(item\.item_code\?\.trim\(\) && item\.object_type\?\.trim\(\) && item\.condition_summary\?\.trim\(\)\) && !saving/)
   assert.match(detail,/sales:\{done:item\.status==='SOLD'/)
 })
 test('wizard allows going back and reports saved state without automatic approvals',()=>{
@@ -75,4 +75,17 @@ test('recommended action changes only from confirmed state and is not duplicated
   assert.match(detail,/recommendedNextStep!==tab&&<button/)
   assert.match(detail,/recommendedNextStep===tab&&<span/)
   assert.match(detail,/!historyError && !reviewedError && !historyLoading/)
+})
+
+test('photo state does not complete during pending or failed original uploads',()=>{
+  for(const marker of ['pendingPhotographs.length','Saving originals','Photo check failed','Recover pending originals','Resolve photo access','Recover photo upload']) assert.ok(detail.includes(marker),marker)
+})
+test('source review cannot appear complete during mutation or failed read',()=>{
+  for(const marker of ['!assessmentMutating','!armyMutating','!researching','Research update underway','Research check needs attention']) assert.ok(detail.includes(marker),marker)
+})
+test('catalogue requires non-whitespace persisted facts and respects save state',()=>{
+  for(const marker of ['item.item_code?.trim()','item.object_type?.trim()','item.condition_summary?.trim()','Saving catalogue facts']) assert.ok(detail.includes(marker),marker)
+})
+test('wizard steps expose statuses to assistive technologies',()=>{
+  assert.match(detail,/aria-label=\{\x60\$\{index\+1\}\. \$\{step\.label\}: \$\{stageChecks\[step\.id\]\.status\}\x60\}/)
 })
