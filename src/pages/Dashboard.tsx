@@ -44,6 +44,13 @@ export default function Dashboard() {
       <div className="pageHeader">
         <div><div className="eyebrow">OVERVIEW</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Your collection</h1></div><div className="heroActions"><Link className="primaryButton ci-action-primary" to="/intake">+ Analyse photos</Link><Link className="secondaryButton" to="/inventory">All objects</Link></div>
       </div>
+      {!loading && !error && items.length > 0 && <section className="panel" aria-label="Next action" style={{marginTop:12}}>
+        <div className="eyebrow">YOUR NEXT STEP</div>
+        <h2 style={{margin:'0.35rem 0'}}>Continue your last object</h2>
+        <p>{items[0].item_code} · {items[0].title || items[0].object_type || 'Unidentified object'}</p>
+        <Link className="primaryButton inlineButton" to={`/item/${items[0].id}`}>Continue object</Link>
+        <p className="ci-page-meta">Pick up where you left off. Research and sale approval still require evidence.</p>
+      </section>}
       <details style={{marginTop:12}}><summary style={{cursor:"pointer",color:"var(--muted)",fontWeight:700}}>Collection totals · {items.length} objects</summary><div className="statsGrid" style={{marginTop:12}}>
         <StatCard label="Objects catalogued" value={items.length} sub="Permanent CI records" icon={<Boxes/>}/>
         <StatCard label="Final decisions required" value={decisions} sub="Research and evidenced assessment before listing" icon={<ListChecks/>}/>
