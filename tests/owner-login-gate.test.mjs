@@ -10,3 +10,11 @@ test('owner login UI contains no publicly accessible account creation action',()
   assert.doesNotMatch(login,/setMode\(|Create account|Create the owner account/)
   assert.match(login,/Owner access only\. Accounts are provisioned privately\./)
 })
+
+test('owner sign-in handles network outages and blocks repeated submits',()=>{
+  assert.match(login,/if \(submitting\) return/)
+  assert.match(login,/catch \{/)
+  assert.match(login,/Sign-in service could not be reached/)
+  assert.match(login,/finally \{/)
+  assert.match(login,/disabled=\{submitting\}/)
+})
