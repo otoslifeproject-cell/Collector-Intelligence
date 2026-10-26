@@ -5,7 +5,7 @@ const dashboard=readFileSync(new URL('../src/pages/Dashboard.tsx',import.meta.ur
 const sidebar=readFileSync(new URL('../src/components/Sidebar.tsx',import.meta.url),'utf8')
 const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8')
 test('owner home offers four immediate tasks and a single resume journey',()=>{
- for(const label of ["Identify","Collection","Research","Sell"])assert.ok(dashboard.includes("label:'"+label+"'"))
+ for(const label of ["Add item","Collection","Research","Sell"])assert.ok(dashboard.includes("label:'"+label+"'"))
  assert.match(dashboard,/Continue your work/)
  assert.match(dashboard,/to=\{\x60\/item\/\$\{latest\.id\}\x60\}/)
 })
