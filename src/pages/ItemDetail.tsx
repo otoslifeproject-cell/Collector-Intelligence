@@ -297,7 +297,7 @@ function ItemDetailRecord({id}:{id:string}) {
   }
   // Readiness indicators are observational, not authority to promote research or sell.
   const photoReady = photographsLoaded && !photographError && photos.length>0
-  const researchReady = Boolean(reviewed) && !historyError && !historyLoading
+  const researchReady = Boolean(reviewed) && !historyError && !reviewedError && !historyLoading
   const catalogueReady = Boolean(item.item_code && item.object_type && item.condition_summary)
   const stageChecks:Record<string,{done:boolean;status:string}> = {
     photos:{done:photoReady,status:!photographsLoaded?'Checking originals':photoReady?'Originals linked':'Photographs need attention'},
@@ -307,8 +307,8 @@ function ItemDetailRecord({id}:{id:string}) {
   }
   const nextWizardStep = activeWizardStep>=0&&activeWizardStep<wizardSteps.length-1?wizardSteps[activeWizardStep+1]:null
   // A confirmed state change may suggest the next step; it never executes it.
-  const recommendedNextStep = !photoReady?'photos':!researchReady?'market':!catalogueReady?'overview':'sales'
-  const recommendationText = !photographsLoaded?'Checking saved photographs…':!photoReady?'Add or recover original photos':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
+  const recommendedNextStep = item.status==='SOLD'?'sales':!photoReady?'photos':!researchReady?'market':!catalogueReady?'overview':'sales'
+  const recommendationText = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Checking saved photographs…':!photoReady?'Add or recover original photos':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
 
   return (
     <div>
@@ -346,7 +346,8 @@ function ItemDetailRecord({id}:{id:string}) {
             style={{fontSize:'0.9rem'}}> {index+1}. {step.label}{stageChecks[step.id].done?' ✓':''}</button>)}
         </div>
         <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'} {stageChecks[tab]&&`· ${stageChecks[tab].status}`}</p>
-        <button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={!photographsLoaded}>Recommended: {recommendationText}</button>
+        {recommendedNextStep!==tab&&<button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={!photographsLoaded&&item.status!=='SOLD'}>Recommended: {recommendationText}</button>}
+        {recommendedNextStep===tab&&<span className="ci-page-meta" role="status">Now: {recommendationText}</span>}
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
         <small style={{display:'block',marginTop:'0.5rem'}}>Your evidence and earlier work stay saved. Steps do not approve research or publish listings automatically.</small>
