@@ -10,7 +10,7 @@ import type {Appearance} from '../lib/appearance'
 const links = [
   ['/', 'Dashboard', LayoutDashboard],
   ['/inventory', 'My collection', Boxes],
-  ['/intake', 'Identify an object', Sparkles],
+  ['/intake', 'Add item', Sparkles],
   ['/sales', 'Sell', CircleDollarSign],
 ]
 
@@ -45,7 +45,7 @@ export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appe
           </NavLink>
         ))}
         <details className="ci-more-navigation"><summary className="navItem">More tools</summary>
-          <NavLink className="navItem" to="/new" onClick={()=>setMobileMenuOpen(false)}><PlusCircle size={18}/> Add item manually</NavLink>
+
           <NavLink className="navItem" to="/research" onClick={()=>setMobileMenuOpen(false)}><FlaskConical size={18}/> Research library</NavLink>
           <NavLink className="navItem" to="/lots" onClick={()=>setMobileMenuOpen(false)}><Boxes size={18}/> Lot optimiser</NavLink>
           <NavLink className="navItem" to="/contacts" onClick={()=>setMobileMenuOpen(false)}><UsersRound size={18}/> Contacts</NavLink>
