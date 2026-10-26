@@ -288,6 +288,7 @@ function ItemDetailRecord({id}:{id:string}) {
     {id:'overview',label:'Catalogue'},
     {id:'sales',label:'Sell'}
   ] as const
+  const activeWizardStep = wizardSteps.findIndex(step=>step.id===tab)
 
   return (
     <div>
@@ -315,6 +316,9 @@ function ItemDetailRecord({id}:{id:string}) {
       </div>
       <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
         <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
+        <p className="ci-page-meta" role="status" aria-live="polite" style={{margin:'0.25rem 0'}}>
+          {activeWizardStep>=0?`Step ${activeWizardStep+1} of ${wizardSteps.length}: ${wizardSteps[activeWizardStep].label}`:'Object details'} · Suggested: {suggestedLabel}
+        </p>
         <div className="pillRow" style={{marginTop:'0.5rem'}}>
           {wizardSteps.map((step,index)=><button key={step.id} type="button" onClick={()=>setTab(step.id)}
             aria-current={tab===step.id?'step':undefined}
