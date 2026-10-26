@@ -309,7 +309,7 @@ function ItemDetailRecord({id}:{id:string}) {
         </div>
         <div className="heroActions">
           <button className="primaryButton inlineButton" onClick={()=>setTab(suggestedStage)}>{suggestedLabel}</button>
-          <button className="secondaryButton" onClick={()=>setTab('overview')}>Object record</button>
+          <button className="secondaryButton" onClick={()=>setTab('sales')}>Sell / route</button>
         </div>
       </div>
       <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
