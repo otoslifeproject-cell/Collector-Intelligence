@@ -31,3 +31,19 @@ test('advanced research details are collapsed outside evidence work',()=>{
   assert.match(detail,/Detailed evidence, assessments and verification/)
   assert.match(detail,/Sell \/ route/)
 })
+
+test('wizard retains direct research and selling entry points for existing browser journeys',()=>{
+  assert.match(detail,/onClick=\{\(\)=>setTab\('market'\)\}>Research & value<\/button>/)
+  assert.match(detail,/onClick=\{\(\)=>setTab\('sales'\)\}>Sell \/ route<\/button>/)
+})
+
+test('workflow progress is concise and accessible',()=>{
+  assert.match(detail,/const activeWizardStep = wizardSteps\.findIndex/)
+  assert.match(detail,/aria-live="polite"/)
+  assert.match(detail,/Step \$\{activeWizardStep\+1\} of \$\{wizardSteps\.length\}/)
+})
+
+test('unread photo manifest is not represented as an empty original-photo record',()=>{
+  assert.match(detail,/!photographsLoaded\?'Check photographs'/)
+  assert.match(detail,/!photos\.length\?'Add photographs'/)
+})
