@@ -5,16 +5,13 @@ export default function Login() {
   const [email,setEmail] = useState('')
   const [password,setPassword] = useState('')
   const [message,setMessage] = useState('')
-  const [mode,setMode] = useState<'login'|'signup'>('login')
 
   const submit = async (e:FormEvent) => {
     e.preventDefault()
     setMessage('')
-    const result = mode === 'login'
-      ? await supabase.auth.signInWithPassword({email,password})
-      : await supabase.auth.signUp({email,password})
+    const result = await supabase.auth.signInWithPassword({email,password})
     if (result.error) setMessage(result.error.message)
-    else setMessage(mode === 'signup' ? 'Account created. If email confirmation is enabled, check your inbox.' : 'Signed in.')
+    else setMessage('Signed in.')
   }
 
   return (
@@ -27,12 +24,10 @@ export default function Login() {
         <form onSubmit={submit}>
           <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required /></label>
           <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={6} required /></label>
-          <button className="primaryButton" type="submit">{mode === 'login' ? 'Sign in' : 'Create account'}</button>
+          <button className="primaryButton" type="submit">Sign in</button>
         </form>
         {message && <div className="formMessage" role="alert">{message}</div>}
-        <button className="textButton" onClick={()=>setMode(mode === 'login' ? 'signup' : 'login')}>
-          {mode === 'login' ? 'First use? Create the owner account' : 'Already created? Sign in'}
-        </button>
+        <p>Owner access only. Accounts are provisioned privately.</p>
       </div>
     </div>
   )
