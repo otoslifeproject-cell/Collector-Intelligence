@@ -296,19 +296,19 @@ function ItemDetailRecord({id}:{id:string}) {
     sales:'Review route, costs and listing readiness before selling.'
   }
   // Readiness indicators are observational, not authority to promote research or sell.
-  const photoReady = photographsLoaded && !photographError && photos.length>0
-  const researchReady = Boolean(reviewed) && !historyError && !reviewedError && !historyLoading
-  const catalogueReady = Boolean(item.item_code && item.object_type && item.condition_summary)
+  const photoReady = photographsLoaded && !photographError && photos.length>0 && !pendingPhotographs.length && !uploading
+  const researchReady = Boolean(reviewed) && !historyError && !reviewedError && !historyLoading && !researching && !assessmentMutating && !armyMutating
+  const catalogueReady = Boolean(item.item_code?.trim() && item.object_type?.trim() && item.condition_summary?.trim()) && !saving
   const stageChecks:Record<string,{done:boolean;status:string}> = {
-    photos:{done:photoReady,status:!photographsLoaded?'Checking originals':photoReady?'Originals linked':'Photographs need attention'},
-    market:{done:researchReady,status:researchReady?'Reviewed assessment available':'Evidence review outstanding'},
-    overview:{done:catalogueReady,status:catalogueReady?'Core facts recorded':'Complete object facts and condition'},
+    photos:{done:photoReady,status:uploading?'Saving originals':!photographsLoaded?'Checking originals':photographError?'Photo check failed':pendingPhotographs.length?'Recover pending originals':photoReady?'Originals linked':'Photographs need attention'},
+    market:{done:researchReady,status:researching||assessmentMutating||armyMutating?'Research update underway':historyError||reviewedError?'Research check needs attention':researchReady?'Reviewed assessment available':'Evidence review outstanding'},
+    overview:{done:catalogueReady,status:saving?'Saving catalogue facts':catalogueReady?'Core facts recorded':'Complete object facts and condition'},
     sales:{done:item.status==='SOLD',status:item.status==='SOLD'?'Sale recorded':'Sale not recorded'}
   }
   const nextWizardStep = activeWizardStep>=0&&activeWizardStep<wizardSteps.length-1?wizardSteps[activeWizardStep+1]:null
   // A confirmed state change may suggest the next step; it never executes it.
   const recommendedNextStep = item.status==='SOLD'?'sales':!photoReady?'photos':!researchReady?'market':!catalogueReady?'overview':'sales'
-  const recommendationText = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Checking saved photographs…':!photoReady?'Add or recover original photos':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
+  const recommendationText = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Checking saved photographs…':photographError?'Resolve photo access':pendingPhotographs.length?'Recover photo upload':!photoReady?'Add or recover original photos':!researchReady?'Review research evidence':!catalogueReady?'Complete catalogue facts':'Review selling options'
 
   return (
     <div>
@@ -342,11 +342,12 @@ function ItemDetailRecord({id}:{id:string}) {
         <div className="pillRow" style={{marginTop:'0.5rem'}}>
           {wizardSteps.map((step,index)=><button key={step.id} type="button" onClick={()=>setTab(step.id)}
             aria-current={tab===step.id?'step':undefined}
+            aria-label={`${index+1}. ${step.label}: ${stageChecks[step.id].status}`}
             className={tab===step.id?'primaryButton inlineButton':'secondaryButton'}
             style={{fontSize:'0.9rem'}}> {index+1}. {step.label}{stageChecks[step.id].done?' ✓':''}</button>)}
         </div>
         <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'} {stageChecks[tab]&&`· ${stageChecks[tab].status}`}</p>
-        {recommendedNextStep!==tab&&<button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={!photographsLoaded&&item.status!=='SOLD'}>Recommended: {recommendationText}</button>}
+        {recommendedNextStep!==tab&&<button type="button" className="primaryButton inlineButton" onClick={()=>setTab(recommendedNextStep)} disabled={(!photographsLoaded||uploading||saving||assessmentMutating||armyMutating)&&item.status!=='SOLD'}>Recommended: {recommendationText}</button>}
         {recommendedNextStep===tab&&<span className="ci-page-meta" role="status">Now: {recommendationText}</span>}
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
