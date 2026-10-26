@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useId, useRef, useState} from 'react'
 import type {Comparable, Item} from '../types'
 import {assessSaleScenario, chooseSaleScenario, emptySaleScenario, formatListingHandoff, knownSaleCurrency, prepareListing, safeSourceUrl, salePlatforms, sellModes, storedPublication} from '../lib/sellFastPlan'
 import type {FinalResearchDecision, ListingReview, SaleScenario, SellMode, StoredListing} from '../lib/sellFastPlan'
@@ -20,6 +20,7 @@ export default function SellFastPlan(props:Props){
   return <SellFastPlanRecord key={`${props.item.owner_id}:${props.item.id}:${props.item.currency||'UNCONFIRMED'}`} {...props}/>
 }
 function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[],photoCount,researchAudit,finalDecision}:Props){
+  const descriptionId=useId()
   const currency=knownSaleCurrency(item.currency)?item.currency:''
   const [scenarios,setScenarios]=useState(()=>sellModes.map(mode=>emptySaleScenario(mode,currency)))
   const [review,setReview]=useState<ListingReview>(initialReview)
@@ -166,7 +167,10 @@ function SellFastPlanRecord({item,comparables,trustedComparableIds=[],listings=[
       <p><strong>Not published.</strong> {draft.recommendedPrice===null?'Price recommendation blocked until review is complete.':`Proposed target: ${amount(draft.recommendedPrice,currency)}. Confirm final price, offers/reserve and shipping before publishing.`}</p>
       <div className="ci-review-fields">
         <label>Draft title<input readOnly value={draft.title}/></label>
-        <label>Draft description<textarea rows={9} readOnly value={draft.description}/></label>
+        <div style={{display:'grid',gap:6}}>
+          <label htmlFor={descriptionId}>Draft description</label>
+          <textarea id={descriptionId} rows={9} readOnly value={draft.description}/>
+        </div>
       </div>
       <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
         <button type="button" className="secondaryButton inlineButton" onClick={()=>void copyDraft('title')}>Copy draft title</button>
