@@ -27,7 +27,7 @@ async function visit(page,theme='light'){
 async function choose(page,values){await page.locator('input[type=file]').setInputFiles(files(values));}
 const analyse=page=>page.getByRole('button',{name:'Start research',exact:true});
 async function mockCompletion(page){await page.route(api,async route=>{const b=route.request().postDataJSON(),result=await complete(b.run_id);return route.fulfill({status:200,json:{saved_run_id:b.run_id,result}});});}
-async function saved(page){await expect(page).toHaveURL(/#\/draft\/[0-9a-f-]+/, {timeout:10000});await expect(page.locator('.ci-object-grid .ci-record-title').first()).toHaveText('Synthetic intake vessel');}
+async function saved(page){await expect(page).toHaveURL(/#\/draft\/[0-9a-f-]+/, {timeout:10000});await expect(page.getByRole('heading',{name:'Synthetic intake vessel',exact:true}).first()).toBeVisible();}
 async function originals(id,chosen){const row=await read(id);expect(row.owner_id).toBe(owner);expect(row.result.image_manifest).toHaveLength(chosen.length);for(const [index,p]of row.result.image_manifest.entries()){expect(p.index).toBe(index);expect(p.file_name).toBe(chosen[index].name);const r=await client.storage.from('item-images').download(p.storage_path);expect(r.error).toBeNull();expect(digest(Buffer.from(await r.data.arrayBuffer()))).toBe(digest(chosen[index].buffer));}return row;}
 const pending=page=>page.getByRole('region',{name:'Held photo session',exact:true});
 const status=page=>page.getByRole('status');
@@ -48,7 +48,7 @@ for(const width of [320,390,1100,1440])for(const theme of ['light','dark'])test(
  row.result.image_manifest.forEach((p,index)=>{expect(p.sha256).toBe(digest(files()[index].buffer));expect(p.byte_count).toBe(files()[index].buffer.length);});
  expect((await client.from('items').select('id').eq('source_analysis_run_id',row.id)).data).toHaveLength(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.screenshot({path:`test-artifacts/intake-app-${width}-${theme}-saved.png`,fullPage:true});
- await page.reload();await expect(page.locator('.ci-object-grid .ci-record-title').first()).toHaveText('Synthetic intake vessel');expect(e.api).toHaveLength(1);expect(e.uploads).toHaveLength(2);expect(e.errors).toEqual([]);
+ await page.reload();await expect(page.getByRole('heading',{name:'Synthetic intake vessel',exact:true}).first()).toBeVisible();expect(e.api).toHaveLength(1);expect(e.uploads).toHaveLength(2);expect(e.errors).toEqual([]);
 });
 test('partial upload retries the same originals without reuploading an already saved file',async({page})=>{
  await page.setViewportSize({width:320,height:900});const e=await visit(page);await mockCompletion(page);let rejected=false;
