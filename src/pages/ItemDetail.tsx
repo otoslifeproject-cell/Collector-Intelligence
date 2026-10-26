@@ -289,6 +289,13 @@ function ItemDetailRecord({id}:{id:string}) {
     {id:'sales',label:'Sell'}
   ] as const
   const activeWizardStep = wizardSteps.findIndex(step=>step.id===tab)
+  const stepGuidance:Record<string,string> = {
+    photos:'Check the originals, then add any missing views.',
+    market:'Review identification, rival makers and achieved-price evidence.',
+    overview:'Check the permanent object record and condition.',
+    sales:'Review route, costs and listing readiness before selling.'
+  }
+  const nextWizardStep = activeWizardStep>=0&&activeWizardStep<wizardSteps.length-1?wizardSteps[activeWizardStep+1]:null
 
   return (
     <div>
@@ -325,6 +332,8 @@ function ItemDetailRecord({id}:{id:string}) {
             className={tab===step.id?'primaryButton inlineButton':'secondaryButton'}
             style={{fontSize:'0.9rem'}}> {index+1}. {step.label}</button>)}
         </div>
+        <p className="ci-page-meta">{stepGuidance[tab]||'Review the selected object detail.'}</p>
+        {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         <small style={{display:'block',marginTop:'0.5rem'}}>Your evidence and earlier work stay saved. Steps do not approve research or publish listings automatically.</small>
       </nav>
       {message && <div className="saveToast">{message}</div>}
