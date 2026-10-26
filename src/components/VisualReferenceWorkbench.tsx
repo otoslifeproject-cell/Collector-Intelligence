@@ -137,6 +137,12 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
      <p>For a wider image search, <a href={'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(query)} target="_blank" rel="noopener noreferrer">open Google Images ↗</a>.</p>
     </InfoDisclosure>
    </div>
+   <div className="ci-visual-first" role="region" aria-label="Visual match first">
+     <strong>1 · Check visual matches first</strong>
+     <p>Open Google Lens with this object's photograph. Check the common object name and shape, not just a maker guess. Google Lens requires you to upload or select the image manually.</p>
+     <a className="primaryButton inlineButton" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Open Google Lens ↗</a>
+     <p className="ci-page-meta">2 · Return with the likely object type and source links. Research agents must verify them independently; Lens results do not authenticate a maker or date.</p>
+   </div>
    <p className="ci-action-hint">Search by material, shape or decoration.</p>
    {newerVisualEvidence&&<InfoDisclosure label="Newer visual evidence" warning><p>Saved comparisons are newer than the AI research; rerun Deep Dive before relying on older conclusions.</p></InfoDisclosure>}
    <div className="ci-visual-search-controls">

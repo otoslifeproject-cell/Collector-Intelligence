@@ -6,13 +6,22 @@ import { Item } from '../types'
 import ItemCard from '../components/ItemCard'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import InfoDisclosure from '../components/InfoDisclosure'
+import {ebayDraftCsv} from '../lib/ebayDraftExport'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
+  const [loadError,setLoadError]=useState(''),[reload,setReload]=useState(0)
   const [draftRuns,setDraftRuns] = useState<any[]>([])
   const [ownerMaterialCorrections,setOwnerMaterialCorrections]=useState<any[]>([])
   const [draftCovers,setDraftCovers] = useState<Record<string,string>>({})
+  const [draftReadStatus,setDraftReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
+  const [correctionReadStatus,setCorrectionReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
+  const [photoReadStatus,setPhotoReadStatus]=useState<'checking'|'ready'|'unavailable'>('checking')
+  const [linkedPhotoIds,setLinkedPhotoIds]=useState<string[]>([])
   const [covers,setCovers] = useState<Record<string,string>>({})
+  const [ebayIds,setEbayIds]=useState<string[]>([])
+  const [ebayCategory,setEbayCategory]=useState('')
+  const [ebayError,setEbayError]=useState('')
   const [query,setQuery] = useState('')
   const [status,setStatus] = useState('ALL')
   const [view,setView] = useState<'tiles'|'list'|'compact'>(()=>{
@@ -21,13 +30,25 @@ export default function Inventory() {
   const changeView=(next:'tiles'|'list'|'compact')=>{setView(next);try{window.localStorage.setItem('ci-inventory-view',next)}catch{ /* Storage optional */ }}
 
   useEffect(()=>{
-    supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
-      .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100)
-      .then(({data})=>setOwnerMaterialCorrections(data||[]))
-    supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30).then(async ({data,error})=>{
-      if(error)return
+    let cancelled=false
+    setLoadError('')
+    setDraftReadStatus('checking')
+    setCorrectionReadStatus('checking')
+    setPhotoReadStatus('checking')
+    void Promise.resolve(supabase.from('ai_verdict_feedback').select('source_analysis_run_id,source_object_index,corrected_material,feedback_type,created_at')
+      .eq('feedback_type','MATERIAL_CORRECTION').order('created_at',{ascending:false}).limit(100))
+      .then(({data,error})=>{
+        if(cancelled)return
+        if(error||!data){setCorrectionReadStatus('unavailable');return}
+        setOwnerMaterialCorrections(data)
+        setCorrectionReadStatus('ready')
+      }).catch(()=>{if(!cancelled)setCorrectionReadStatus('unavailable')})
+    void Promise.resolve(supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30)).then(async ({data,error})=>{
+      if(cancelled)return
+      if(error||!data){setDraftReadStatus('unavailable');return}
       const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects)||Array.isArray(run.result?.image_manifest))
       setDraftRuns(runs)
+      setDraftReadStatus('ready')
       const photoRequests:{key:string,path:string}[]=[]
       for(const run of runs){
         const manifest=Array.isArray(run.result?.image_manifest)?run.result.image_manifest:[]
@@ -47,35 +68,56 @@ export default function Inventory() {
         const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,1800)
         return [key,url?.signedUrl||''] as const
       }))
-      setDraftCovers(Object.fromEntries(results))
-    })
-    let cancelled=false
-    supabase.from('items').select('*').order('item_code').then(async ({data})=>{
+      if(!cancelled)setDraftCovers(Object.fromEntries(results))
+    }).catch(()=>{if(!cancelled)setDraftReadStatus('unavailable')})
+    void Promise.resolve(supabase.from('items').select('*').order('item_code')).then(async ({data,error:readError})=>{
+      if(cancelled)return
+      if(readError||!data){setItems([]);setLoadError('Catalogue unavailable. Reload inventory to recover saved objects.');setPhotoReadStatus('unavailable');return}
       const rows=(data||[]) as Item[]
       if(cancelled)return
       setItems(rows)
-      if(!rows.length)return
+      if(!rows.length){setCovers({});setLinkedPhotoIds([]);setPhotoReadStatus('ready');return}
       const ids=rows.map(i=>i.id)
-      const {data:photos,error}=await supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',ids).order('position',{ascending:true})
-      if(error||cancelled)return
+      // A single .in() URL for 150–200 items can exceed proxy query limits.
+      // Keep reads bounded, preserve owner RLS and do not interpret any failed
+      // chunk as evidence that the catalogue has no photographs.
+      const batches:string[][]=[]
+      for(let index=0;index<ids.length;index+=30)batches.push(ids.slice(index,index+30))
+      const replies=await Promise.all(batches.map(part=>
+        supabase.from('item_photos').select('item_id,storage_path,is_hero,position').in('item_id',part).order('position',{ascending:true})
+      ))
+      if(cancelled)return
+      if(replies.some(reply=>reply.error||!reply.data)){setPhotoReadStatus('unavailable');return}
+      const photos=replies.flatMap(reply=>reply.data||[])
       const selected=new Map<string,string>()
       for(const p of (photos||[]).sort((a:any,b:any)=>Number(b.is_hero)-Number(a.is_hero))){
         if(!selected.has(p.item_id))selected.set(p.item_id,p.storage_path)
       }
+      setLinkedPhotoIds([...selected.keys()])
       const urls=await Promise.all([...selected.entries()].map(async ([id,path])=>{
         const {data:url}=await supabase.storage.from('item-images').createSignedUrl(path,3600)
         return [id,url?.signedUrl||''] as const
       }))
-      if(!cancelled)setCovers(Object.fromEntries(urls))
-    })
+      if(!cancelled){setCovers(Object.fromEntries(urls));setPhotoReadStatus('ready')}
+    }).catch(()=>{if(!cancelled)setPhotoReadStatus('unavailable')})
     return ()=>{cancelled=true}
-  },[])
+  },[reload])
 
   const filtered = useMemo(()=>items.filter(i=>{
     const text = [i.item_code,i.title,i.maker,i.current_attribution,i.object_type,i.category].filter(Boolean).join(' ').toLowerCase()
     return text.includes(query.toLowerCase()) && (status === 'ALL' || i.status === status)
   }),[items,query,status])
 
+  const selectedForEbay=items.filter(x=>ebayIds.includes(x.id))
+  const exportEbay=()=>{
+    setEbayError('')
+    try{
+      if(photoReadStatus!=='ready'||loadError)throw Error('Wait for the saved catalogue to load successfully before exporting.')
+      const csv=ebayDraftCsv(selectedForEbay.map(item=>({item,categoryId:ebayCategory.trim()})))
+      const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
+      const link=document.createElement('a');link.href=url;link.download='collector-intelligence-ebay-drafts.csv';document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)
+    }catch(e){setEbayError(e instanceof Error?e.message:'Draft export could not be prepared.')}
+  }
   const unfinished=draftRuns.flatMap((run:any)=>{
     const objects=Array.isArray(run.result?.objects)?run.result.objects:[]
     const correction=ownerMaterialCorrections.find((x:any)=>x.source_analysis_run_id===run.id&&x.source_object_index==null)
@@ -108,7 +150,33 @@ export default function Inventory() {
          ...['CATALOGUED','RESEARCH','ONE_QUICK_CHECK','SPECIALIST_REVIEW','READY_TO_SELL','LISTED','CONSIGNED','SOLD','ARCHIVED'].map(value=>({value,label:value.replaceAll('_',' ')}))
         ]}
       />
-      <div className="inventorySummary">{filtered.length} permanent catalogue items · {unfinished.length} unfinished draft lots/objects{pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''}</div>
+      {loadError&&<p role="alert">{loadError}<button className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory</button></p>}
+      {(draftReadStatus==='unavailable'||correctionReadStatus==='unavailable'||photoReadStatus==='unavailable')&&<div role="alert">
+        {draftReadStatus==='unavailable'&&<p>Saved draft history unavailable. A failed read does not mean the drafts are missing; any displayed drafts are last-known only.</p>}
+        {correctionReadStatus==='unavailable'&&<p>Owner correction history unavailable. Material labels remain provisional until saved corrections can be checked.</p>}
+        {photoReadStatus==='unavailable'&&!loadError&&<p>Photograph history unavailable. Do not infer that stored originals are missing.</p>}
+        <button type="button" className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory sources</button>
+      </div>}
+      <details className="panel ci-ebay-batch">
+        <summary>Bulk eBay draft export · {ebayIds.length} selected</summary>
+        <p>Select catalogued objects below, enter the category ID from your current UK Seller Hub draft template, then export. The CSV does not publish anything.</p>
+        <p><a href="https://www.ebay.co.uk/help/selling/selling-tools/reports?id=4096" target="_blank" rel="noopener noreferrer">Get the official Seller Hub Create drafts template ↗</a></p>
+        <label>eBay category ID (one category per export)
+          <input value={ebayCategory} onChange={e=>setEbayCategory(e.target.value)} inputMode="numeric" placeholder="From Seller Hub template" />
+        </label>
+        <div className="ci-page-actions">
+          <button className="secondaryButton" disabled={!!loadError||photoReadStatus!=='ready'} onClick={()=>setEbayIds(filtered.filter(x=>x.status!=='SOLD'&&x.status!=='ARCHIVED').map(x=>x.id))}>Select filtered catalogue items</button>
+          <button className="secondaryButton" onClick={()=>setEbayIds([])}>Clear selection</button>
+          <button className="primaryButton" disabled={!ebayIds.length} onClick={exportEbay}>Export eBay drafts · {ebayIds.length}</button>
+        </div>
+        {ebayError&&<p role="alert">{ebayError}</p>}
+        <p className="ci-page-meta">Review titles, pricing, condition and images before upload. Category-required fields may differ; verify against the downloaded template. No eBay import has been tested.</p>
+      </details>
+      <div className="inventorySummary">{loadError?'Catalogue count unavailable':filtered.length+' permanent catalogue items'} · {draftReadStatus==='unavailable'?'Saved draft count unavailable':draftReadStatus==='checking'?'Checking saved drafts':unfinished.length+' unfinished draft lots/objects (recent 30 sessions)'}{draftReadStatus==='ready'&&pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''} · <Link to="/uploads">All saved uploads</Link></div>
+      {filtered.length>0&&<details className="ci-ebay-batch-select">
+        <summary>Choose individual eBay draft items</summary>
+        <div className="ci-ebay-selection-grid">{filtered.filter(x=>x.status!=='SOLD'&&x.status!=='ARCHIVED').map(x=><label key={x.id}><input type="checkbox" checked={ebayIds.includes(x.id)} onChange={e=>setEbayIds(prev=>e.target.checked?[...prev,x.id]:prev.filter(id=>id!==x.id))}/>{x.item_code} · {x.title||x.object_type||'Unidentified item'}</label>)}</div>
+      </details>}
       {showDrafts&&pendingSessions.length>0&&<section className="section">
         <h2 className="ci-section-title">Uploaded photographs awaiting a completed AI report <span>{pendingSessions.length} sessions</span></h2>
         <InfoDisclosure label="About incomplete uploads"><p>Original photos remain in private storage. An unfinished AI report cannot be approved as an item.</p></InfoDisclosure>
@@ -118,14 +186,14 @@ export default function Inventory() {
             <div className="itemMeta"><span>Upload session</span><span>Not catalogued</span></div>
             <h3 className="ci-record-title">{run.input_photo_count} saved source photographs</h3>
             <p className="ci-record-stage">AI report not complete · No confirmed object identification</p>
-            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View saved session →</Link>
+            <Link className="primaryButton ci-card-action" to={'/uploads/'+run.id}>View saved session →</Link>
           </div>
         </article>)}</div>
       </section>}
       {showDrafts&&currentDrafts.length>0&&<section className="section">
         <h2 className="ci-section-title">Most recent AI report <span>{currentDrafts.length} lot(s) / object(s)</span></h2> 
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{currentDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
-          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index] ? <img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /> : <span className="ci-missing-photo">Photo not linked</span>}</div>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index] ? <img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Draft photograph'} style={{height:'100%',width:'100%',objectFit:'contain'}} /> : <span className="ci-missing-photo">{Array.isArray(run.result?.image_manifest)&&run.result.image_manifest.length>0?'Photo preview unavailable':'Original photo link unconfirmed'}</span>}</div>
           <div className="itemCardBody">
             <div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Draft '+String.fromCharCode(65+index)}</span><span>UNFINISHED</span></div>
             <h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled object'}</h3>
@@ -137,17 +205,17 @@ export default function Inventory() {
               <p>{object.condition_summary}</p>
               <p style={{fontSize:12}}>Source report saved {new Date(run.created_at).toLocaleDateString()}. {Array.isArray(run.result?.image_manifest)?'Original source photos saved and accessible through this report.':'Legacy report awaits verified source-photo linking.'}</p>
             </details>
-            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link>
+            <Link className="primaryButton ci-card-action" to={'/draft/'+run.id+'?object='+index}>View report →</Link>
           </div>
         </article>)}</div>
       </section>}
       {showDrafts&&earlierDrafts.length>0&&<details className="ci-archive-section"><summary style={{cursor:'pointer',fontWeight:700}}>Earlier unfinished reports · {earlierDrafts.length}</summary>
         <p style={{fontSize:12,color:'var(--muted)'}}>Earlier analysis records are preserved separately; some may describe the same physical item.</p>
         <div className={`cardGrid ci-object-grid ci-view-${view}`}>{earlierDrafts.map(({run,object,index,pairPieces}:any)=><article className="itemCard ci-record-card" key={run.id+':'+index}>
-          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">Photo not linked</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id}>View report →</Link></div>
+          <div className="itemCardImage placeholderGlass">{draftCovers[run.id+':'+index]?<img src={draftCovers[run.id+':'+index]} alt={object.working_title||'Saved draft'}/>:<span className="ci-missing-photo">{Array.isArray(run.result?.image_manifest)&&run.result.image_manifest.length>0?'Photo preview unavailable':'Original photo link unconfirmed'}</span>}</div><div className="itemCardBody"><div className="itemMeta"><span>{pairPieces?'Matched pair · 2 pieces':'Earlier report'}</span><span>Draft</span></div><h3 className="ci-record-title">{object.working_title||object.object_type||'Untitled draft'}</h3><p className="ci-record-stage">Saved · Not catalogued</p><Link className="primaryButton ci-card-action" to={'/draft/'+run.id+'?object='+index}>View report →</Link></div>
         </article>)}</div>
       </details>}
-      {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><ItemCard item={i} imageUrl={covers[i.id]} key={i.id}/>)}</div>}
+      {status!=='DRAFT'&&<div className={`cardGrid ci-object-grid ci-view-${view}`}>{filtered.map(i=><div key={i.id} className="ci-inventory-item"><ItemCard item={i} imageUrl={covers[i.id]} photoFallbackText={photoReadStatus==='unavailable'?'Photo history unavailable':photoReadStatus==='checking'?'Checking photographs':linkedPhotoIds.includes(i.id)?'Photo preview unavailable':'No photograph linked'}/>{!['SOLD','ARCHIVED'].includes(i.status)&&<Link className="secondaryButton inlineButton ci-inventory-sell-link" to={'/item/'+i.id+'?tab=sales'}>Sell item · prepare listing</Link>}</div>)}</div>}
     </div>
   )
 }
