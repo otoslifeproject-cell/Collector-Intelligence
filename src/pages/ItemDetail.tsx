@@ -278,6 +278,16 @@ function ItemDetailRecord({id}:{id:string}) {
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
   const heroPhoto=photos.find(photo=>photo.is_hero)||photos[0]
   const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
+  // One clear action. This is navigation only: it never promotes evidence,
+  // starts paid AI, publishes a listing, or marks an object sold.
+  const suggestedStage = item.status==='SOLD'?'sales':!photos.length?'photos':reviewed?'sales':'market'
+  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
+  const wizardSteps = [
+    {id:'photos',label:'Photos'},
+    {id:'market',label:'Research & value'},
+    {id:'overview',label:'Catalogue'},
+    {id:'sales',label:'Sell'}
+  ] as const
 
   return (
     <div>
@@ -298,10 +308,20 @@ function ItemDetailRecord({id}:{id:string}) {
           <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':reviewed?reviewed.assessment.decision.replaceAll('_',' '):'FINAL RESEARCH DECISION REQUIRED'}</span></div>
         </div>
         <div className="heroActions">
-          <button className="primaryButton inlineButton" onClick={()=>setTab('market')}><Search size={17}/> Research & value</button>
-          <button className="secondaryButton" onClick={()=>setTab('sales')}>Sell / route</button>
+          <button className="primaryButton inlineButton" onClick={()=>setTab(suggestedStage)}>{suggestedLabel}</button>
+          <button className="secondaryButton" onClick={()=>setTab('overview')}>Object record</button>
         </div>
       </div>
+      <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
+        <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
+        <div className="pillRow" style={{marginTop:'0.5rem'}}>
+          {wizardSteps.map((step,index)=><button key={step.id} type="button" onClick={()=>setTab(step.id)}
+            aria-current={tab===step.id?'step':undefined}
+            className={tab===step.id?'primaryButton inlineButton':'secondaryButton'}
+            style={{fontSize:'0.9rem'}}> {index+1}. {step.label}</button>)}
+        </div>
+        <small style={{display:'block',marginTop:'0.5rem'}}>Your evidence and earlier work stay saved. Steps do not approve research or publish listings automatically.</small>
+      </nav>
       {message && <div className="saveToast">{message}</div>}
 
       <div className="tabBar">
