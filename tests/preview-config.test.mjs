@@ -9,7 +9,7 @@ const app = readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8')
 test('missing Preview backend does not throw during Supabase module import',()=>{
   assert.match(client,/export const supabaseConfigured = Boolean\(url && key\)/)
   assert.doesNotMatch(client,/if \(!url \|\| !key\)\s*\{\s*throw/)
-  assert.match(client,/url \\|\\| 'https:\\/\\/preview-not-configured\\.invalid'/)
+  assert.ok(client.includes("url || 'https://preview-not-configured.invalid'"))
 })
 
 test('unconfigured Preview never opens an auth session or owner content',()=>{
