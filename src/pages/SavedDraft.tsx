@@ -458,7 +458,14 @@ function SavedDraftRecord({id}:{id:string}){
       <p role="status" aria-live="polite">{researching?'Research running · examining matches and checking evidence…':checkingResearch?'Checking saved research…':visibleResearch&&!existingResearchObsolete?'Research returned · review the result below':'Ready to research · visual matches are leads, not verified facts'}</p>
       {!visibleResearch&&<p className="ci-page-meta">Start research below. Results will appear on this page; original photographs and your research history remain saved.</p>}
       {visibleResearch&&!existingResearchObsolete&&<ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Identification, value and selling recommendation"/>}
-      {catalogued.length>0&&<Link className="primaryButton inlineButton" to={'/item/'+catalogued[0].item_id+'?tab=sales'}>Sell item · prepare listing</Link>}
+      <div className="ci-page-actions" aria-label="Choose next stage">
+        {catalogued.length>0
+         ? <>
+          <Link className="secondaryButton inlineButton" to="/intake">Save complete · Next item</Link>
+          <Link className="primaryButton inlineButton" to={'/item/'+catalogued[0].item_id+'?tab=sales'}>Sell item · prepare listing</Link>
+         </>
+         : <button className="secondaryButton" disabled={!isPhotoManifestReady||!selectedIndices.length||!!error||approving||saving||researching||!!pendingReview||!!pendingApproval||!!pendingCorrection||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={()=>setActiveTab('catalogue')}>Save item to catalogue</button>}
+      </div>
     </section>
     {isPhotoManifestReady&&Object.values(images).some(Boolean)&&
      <VisualReferenceWorkbench
