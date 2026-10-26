@@ -9,7 +9,9 @@ const candidateBackendUrls = [
   process.env.NEXT_PUBLIC_SUPABASE_URL
 ].filter((value): value is string => Boolean(value))
 
-if (isVercelPreview && candidateBackendUrls.some(url => {
+const expresslyApprovedOwnerTest = process.env.CI_OWNER_TEST_LIVE_DB === 'true' && process.env.VERCEL_GIT_COMMIT_REF === 'continuity/resolver-fixtures-20261020'
+
+if (isVercelPreview && !expresslyApprovedOwnerTest && candidateBackendUrls.some(url => {
   try {
     return new URL(url).hostname.toLowerCase() === 'bwdafrwkimjvwfoqomot.supabase.co'
   } catch {
@@ -17,7 +19,7 @@ if (isVercelPreview && candidateBackendUrls.some(url => {
     return true
   }
 })) {
-  throw new Error('Collector Intelligence: refusing Preview build configured with the live Collector Intelligence Supabase project.')
+  throw new Error('Collector Intelligence: live backend in Preview requires explicit branch-bound owner-test authorisation.')
 }
 
 export default defineConfig({
