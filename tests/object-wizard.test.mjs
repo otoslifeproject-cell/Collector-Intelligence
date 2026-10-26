@@ -25,10 +25,9 @@ test('dashboard has one clear resume route without implying approved research',(
   assert.match(dashboard,/to=\{\x60\/item\/\$\{items\[0\]\.id\}\x60\}/)
 })
 
-test('advanced research details are collapsed outside evidence work',()=>{
-  assert.match(detail,/<details className="panel" open=\{tab==='market'\|\|tab==='identification'\}>/)
-  assert.match(detail,/Research evidence and expert controls/)
-  assert.match(detail,/Detailed evidence, assessments and verification/)
+test('owner assessment remains visible to browser and keyboard journeys',()=>{
+  assert.doesNotMatch(detail,/<details className="panel" open=\{tab==='market'\|\|tab==='identification'\}>/)
+  assert.match(detail,/<ItemAssessment client=\{supabase\}/)
   assert.match(detail,/Sell \/ route/)
 })
 
