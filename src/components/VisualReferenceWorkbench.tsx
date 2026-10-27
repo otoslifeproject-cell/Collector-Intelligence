@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import {supabase} from '../lib/supabase'
 import {visualSearchTerm} from '../lib/openAccessVisual'
 import InfoDisclosure from './InfoDisclosure'
@@ -29,6 +29,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
  const [loading,setLoading]=useState(false)
  const [saving,setSaving]=useState(false)
  const [status,setStatus]=useState('')
+ const autoSearched=useRef(new Set<string>())
  useEffect(()=>{
   setPhotoIndex(eligible[0]??null)
   setQuery(visualSearchTerm(ownerMaterial||'',workingTitle))
@@ -89,6 +90,16 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
   }catch(e:any){setStatus(e.message||'Reference catalogue temporarily unavailable.')}
   finally{setLoading(false)}
  }
+ // Open-access catalogue keyword search is free and uses saved object's text, not image recognition.
+ // Run once per object context; later searches remain owner-controlled.
+ useEffect(()=>{
+  const key=[analysisRunId||itemId||'',objectIndex,paired?'pair':'single',initial].join(':')
+  if(!eligible.length||!initial||initial.length<3||autoSearched.current.has(key))return
+  autoSearched.current.add(key)
+  void search()
+  // Deliberately tied to object identity, not edits to the manual search input.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[analysisRunId,itemId,objectIndex,paired,initial,eligible.length])
  const record=async(decision:'POSSIBLE_LOOKALIKE'|'NOT_A_MATCH'|'NEEDS_REVIEW')=>{
   if(!active||photoIndex===null||saving||!historyReady)return
   if(!/^[1-9]\d{0,9}$/.test(active.id)||active.sourceUrl!=='https://www.metmuseum.org/art/collection/search/'+active.id){
@@ -143,7 +154,7 @@ export default function VisualReferenceWorkbench({analysisRunId,itemId,itemPhoto
      <a className="primaryButton inlineButton" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Open Google Lens ↗</a>
      <p className="ci-page-meta">2 · Return with the likely object type and source links. Research agents must verify them independently; Lens results do not authenticate a maker or date.</p>
    </div>
-   <p className="ci-action-hint">Search by material, shape or decoration.</p>
+   <p className="ci-action-hint">Open-access museum keyword examples are searched automatically. They are not photo matches. Refine by shape, material or decoration if needed.</p>
    {newerVisualEvidence&&<InfoDisclosure label="Newer visual evidence" warning><p>Saved comparisons are newer than the AI research; rerun Deep Dive before relying on older conclusions.</p></InfoDisclosure>}
    <div className="ci-visual-search-controls">
     <label>Visual search terms<input value={query} onChange={e=>{setQuery(e.target.value);setItems([]);setActive(null)}} placeholder="e.g. metal gilded vase" maxLength={100} onKeyDown={e=>{if(e.key==='Enter')void search()}}/></label>
