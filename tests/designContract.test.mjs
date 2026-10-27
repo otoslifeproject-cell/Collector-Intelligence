@@ -58,7 +58,7 @@ test('report metadata and correction controls are inside one closed menu, never 
 test('compare action is visible in two clicks without filling screen with advice',()=>{
  const compare=read('src/components/VisualReferenceWorkbench.tsx')
  const info=read('src/components/InfoDisclosure.tsx')
- assert.match(compare,/<p className="ci-action-hint">Search by material, shape or decoration/)
+ assert.match(compare,/Open-access museum keyword examples are searched automatically/)
  assert.match(compare,/<InfoDisclosure label="About search">/)
  assert.doesNotMatch(compare,/Need a wider visual search\?/)
  assert.match(info,/className=.*ci-info-disclosure/)
