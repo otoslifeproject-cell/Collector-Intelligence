@@ -148,6 +148,11 @@ export default function AIIntake(){
         </details>
 
       </fieldset>
+        <section className="ci-intake-journey" aria-label="Add item progress">
+          <div className="ci-intake-journey-step" data-state={photos.length?'complete':'current'}><span>1</span><strong>Photographs</strong><small>{photos.length?photos.length+' selected':'Choose images'}</small></div>
+          <div className="ci-intake-journey-step" data-state={pending?'complete':working?'current':'waiting'}><span>2</span><strong>Secure originals</strong><small>{pending?'Session retained':working?'Checking uploads':'After Start research'}</small></div>
+          <div className="ci-intake-journey-step" data-state={pending?.dispatched?'current':'waiting'}><span>3</span><strong>Initial identification</strong><small>{pending?.dispatched?'Requested · awaiting saved result':'Not requested'}</small></div>
+        </section>
         {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
         <div className="intakeActions">
           <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Start research</button>
