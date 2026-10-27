@@ -16,6 +16,12 @@ test('collection query remains owner-scoped and preserves archive state',()=>{
 })
 test('secondary tools are available without crowding main navigation',()=>{
  assert.match(sidebar,/More tools/)
- assert.match(dashboard,/Advanced tools/)
+ assert.match(dashboard,/Saved uploads and tools/)
  assert.match(css,/\.ci-home-actions\{display:grid/)
+})
+
+test('live dashboard has no duplicate manual Add Item action',()=>{
+ assert.doesNotMatch(dashboard,/Manual catalogue entry/)
+ assert.match(dashboard,/url:'\/intake'/)
+ assert.match(sidebar,/\['\/inventory', 'Collection', Boxes\]/)
 })
