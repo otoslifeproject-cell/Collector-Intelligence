@@ -16,6 +16,16 @@ test('collection query remains owner-scoped and preserves archive state',()=>{
 })
 test('secondary tools are available without crowding main navigation',()=>{
  assert.match(sidebar,/More tools/)
- assert.match(dashboard,/Advanced tools/)
+ assert.match(dashboard,/Saved uploads and tools/)
  assert.match(css,/\.ci-home-actions\{display:grid/)
+})
+
+test('no duplicate manual Add Item action or mismatched collection title',()=>{
+ assert.doesNotMatch(dashboard,/Manual catalogue entry/)
+ assert.match(sidebar,/\['\/inventory', 'Collection', Boxes\]/)
+})
+test('shared controls have canonical dimensions and keyboard focus',()=>{
+ assert.match(css,/--ci-unified-height:44px/)
+ assert.match(css,/\.primaryButton:focus-visible/)
+ assert.match(css,/\.ci-inventory-sell-link/)
 })
