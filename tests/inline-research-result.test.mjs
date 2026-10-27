@@ -23,3 +23,12 @@ test('save item approves only a single item or grouped pair from result',()=>{
  assert.match(screen,/else setActiveTab\('catalogue'\)/)
  assert.match(screen,/Saving item…/)
 })
+
+test('saved research is the only primary view; extras are folded away',()=>{
+ assert.doesNotMatch(screen,/className="tabBar" role="tablist"/)
+ assert.match(screen,/Saved research navigation/)
+ assert.match(screen,/More object details/)
+ assert.match(screen,/Back to research result/)
+ assert.match(screen,/Identification evidence/)
+ assert.match(screen,/Original photos/)
+})
