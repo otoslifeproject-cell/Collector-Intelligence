@@ -409,10 +409,16 @@ function SavedDraftRecord({id}:{id:string}){
      {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
     </select>
    </label>}
-   <div className="tabBar" role="tablist" aria-label="Object workspace">
-    {['overview','photos','identification','market','sales','catalogue'].map(t=>
-      <button key={t} role="tab" aria-selected={activeTab===t} className={activeTab===t?'active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}
-   </div>
+   <nav className="ci-report-navigation" aria-label="Saved research navigation">
+    {activeTab!=='market'&&<button type="button" className="primaryButton inlineButton" onClick={()=>setActiveTab('market')}>Back to research result</button>}
+    <details className="ci-report-extra-views">
+     <summary>More object details</summary>
+     <div className="ci-page-actions">
+      {['overview','photos','identification','sales','catalogue'].map(t=>
+       <button key={t} type="button" className={activeTab===t?'primaryButton':'secondaryButton'} aria-current={activeTab===t?'page':undefined} onClick={()=>setActiveTab(t)}>{t==='sales'?'Sale planning':t==='catalogue'?'Catalogue review':t==='identification'?'Identification evidence':t==='photos'?'Original photos':'Object overview'}</button>)}
+     </div>
+    </details>
+   </nav>
    {scopeDashboard&&<ResearchProgress compact audit={scopeDashboard.audit} history={scopeDashboard.history}
     objectLabel={paired?(correctedPairTitle||'Matched pair — whole lot'):run.result.objects?.[scopeIndex]?.working_title||'Object '+(scopeIndex+1)}
     confidence={scopeDashboard.confidence} loading={busy||checkingResearch} error={researchError}
