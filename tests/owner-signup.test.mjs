@@ -2,13 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 const login=readFileSync(new URL('../src/pages/Login.tsx',import.meta.url),'utf8')
-test('owner may choose account creation without losing sign-in',()=>{
- assert.match(login,/supabase\.auth\.signUp\(\{email,password\}\)/)
- assert.match(login,/supabase\.auth\.signInWithPassword\(\{email,password\}\)/)
- assert.match(login,/Create a new account/)
- assert.match(login,/Back to sign in/)
+test('private collection sign-in does not advertise public signup',()=>{
+ assert.match(login,/supabase\.auth\.signInWithPassword/)
+ assert.doesNotMatch(login,/supabase\.auth\.signUp/)
+ assert.doesNotMatch(login,/Create a new account/)
+ assert.match(login,/Owner access only\. Accounts are provisioned privately/)
 })
-test('new identity is not presented as a way to recover original owner records',()=>{
- assert.match(login,/may not see records owned by your earlier account/)
- assert.match(login,/Check your email for a confirmation link/)
+test('existing owner can recover password without changing account identity',()=>{
+ assert.match(login,/resetPasswordForEmail/)
+ assert.match(login,/Forgot password\?/)
+ assert.match(login,/Back to sign in/)
 })
