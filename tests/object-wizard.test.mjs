@@ -4,12 +4,7 @@ import {readFileSync} from 'node:fs'
 
 const detail=readFileSync(new URL('../src/pages/ItemDetail.tsx',import.meta.url),'utf8')
 
-test('one next action maps the object state to its existing workflow',()=>{
-  assert.match(detail,/item\.status==='SOLD'\?'sales':!photographsLoaded\?'photos':!photos\.length\?'photos':reviewed\?'sales':'market'/)
-  assert.match(detail,/const suggestedLabel/)
-  assert.match(detail,/onClick=\{\(\)=>setTab\(suggestedStage\)\}/)
-  assert.match(detail,/aria-label="Object workflow"/)
-})
+test('one guided object workflow survives without competing hero actions',()=>{ assert.match(detail,/aria-label="Object workflow"/); assert.match(detail,/wizardSteps\.map/); assert.doesNotMatch(detail,/className="heroActions"/); assert.doesNotMatch(detail,/className="tabBar"/); })
 test('wizard navigates without replacing evidence and sales safeguards',()=>{
   for(const token of ['<ResearchProgress','<ItemAssessment','<ResearchArmyWorkspace','<SellFastPlan','<RecordSaleOutcome']) {
     assert.ok(detail.includes(token),`Existing controlled workflow remains: ${token}`)
@@ -28,13 +23,10 @@ test('dashboard has one clear resume route without implying approved research',(
 test('owner assessment remains visible to browser and keyboard journeys',()=>{
   assert.doesNotMatch(detail,/<details className="panel" open=\{tab==='market'\|\|tab==='identification'\}>/)
   assert.match(detail,/<ItemAssessment client=\{supabase\}/)
-  assert.match(detail,/Sell \/ route/)
+  assert.match(detail,/<SellFastPlan/)
 })
 
-test('wizard retains direct research and selling entry points for existing browser journeys',()=>{
-  assert.match(detail,/onClick=\{\(\)=>setTab\('market'\)\}>Research & value<\/button>/)
-  assert.match(detail,/onClick=\{\(\)=>setTab\('sales'\)\}>Sell \/ route<\/button>/)
-})
+test('wizard directly reaches market and sales without duplicate buttons',()=>{ assert.match(detail,/id:'market',label:'Research & value'/); assert.match(detail,/id:'sales',label:'Sell'/); assert.match(detail,/onClick=\{\(\)=>setTab\(step.id\)\}/); })
 
 test('workflow progress is concise and accessible',()=>{
   assert.match(detail,/const activeWizardStep = wizardSteps\.findIndex/)
@@ -42,10 +34,7 @@ test('workflow progress is concise and accessible',()=>{
   assert.match(detail,/Step \$\{activeWizardStep\+1\} of \$\{wizardSteps\.length\}/)
 })
 
-test('unread photo manifest is not represented as an empty original-photo record',()=>{
-  assert.match(detail,/!photographsLoaded\?'Check photographs'/)
-  assert.match(detail,/!photos\.length\?'Add photographs'/)
-})
+test('unread or failed original photos cannot become a completed photo step',()=>{ assert.match(detail,/photographsLoaded && !photographError && photos.length>0/); assert.match(detail,/!photographsLoaded\?'Checking originals'/); })
 
 test('each wizard stage offers concise guidance and the next safe navigation step',()=>{
   for(const label of ['Check the originals','Review identification','Check the permanent object record','Review route, costs']) {
@@ -94,6 +83,4 @@ test('unsaved catalogue edits are not reported as complete',()=>{
   assert.ok(detail.includes('editRevision.current===savedRevision.current'))
   assert.ok(detail.includes('Save catalogue edits'))
 })
-test('busy research and failed originals retain recovery guidance',()=>{
-  for(const marker of ['Checking research evidence','Recover photo access','Recover photo upload','||researching||assessmentMutating']) assert.ok(detail.includes(marker),marker)
-})
+test('research and original-photo recovery remain guarded',()=>{ for(const marker of ['Research update underway','Photo check failed','Recover pending originals','||researching||assessmentMutating']) assert.ok(detail.includes(marker),marker) })
