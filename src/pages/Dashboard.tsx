@@ -55,6 +55,6 @@ export default function Dashboard(){
    </Link>:<div className="ci-home-empty"><p>No catalogue objects yet. Begin with photographs of one item.</p><Link className="primaryButton inlineButton" to="/intake">Add your first object</Link></div>}
    {items.length>0&&<p className="ci-home-footnote">{items.length} recent objects · {incomplete.length} not recorded sold · Values require verified evidence</p>}
   </section>}
-  <details className="ci-home-advanced"><summary>Advanced tools</summary><div><Link to="/new">Manual catalogue entry</Link><Link to="/lots">Lot optimiser</Link><Link to="/reports">Reports</Link><Link to="/contacts">Contacts</Link><Link to="/uploads">Saved photo sessions</Link></div></details>
+  <details className="ci-home-advanced"><summary>Saved uploads and tools</summary><div><Link to="/uploads">Saved photo sessions</Link><Link to="/lots">Lot optimiser</Link><Link to="/reports">Reports</Link><Link to="/contacts">Contacts</Link></div></details>
  </div>
 }
