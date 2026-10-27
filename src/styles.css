@@ -1006,3 +1006,43 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-home-advanced a{color:inherit}
 .ci-more-navigation{margin:10px 0}.ci-more-navigation summary{cursor:pointer;list-style:none}.ci-more-navigation summary::-webkit-details-marker{display:none}
 @media(max-width:760px){.ci-home-header{display:block}.ci-home-private{display:inline-flex;margin-top:16px}.ci-home-actions{grid-template-columns:1fr}.ci-home-action{min-height:115px;padding:19px}.ci-home-feature{flex-wrap:wrap}.ci-home-resume{margin-left:auto}}
+
+/* Collector Intelligence unified surface controls — shared across all workflows.
+   Scoped overrides intentionally come last while legacy styles are retired. */
+:root{--ci-unified-radius:12px;--ci-unified-height:44px;--ci-unified-gap:12px}
+.primaryButton,.secondaryButton,.ci-page button.primaryButton,.ci-page button.secondaryButton{
+ display:inline-flex;align-items:center;justify-content:center;gap:8px;
+ min-height:var(--ci-unified-height);padding:10px 16px;border-radius:var(--ci-unified-radius);
+ font-size:14px;font-weight:700;line-height:1.35;text-align:center;
+ text-decoration:none;max-width:100%;white-space:normal;
+}
+.primaryButton:focus-visible,.secondaryButton:focus-visible,.ci-home-action:focus-visible,
+.ci-home-feature:focus-visible,.navItem:focus-visible,.ci-more-navigation>summary:focus-visible{
+ outline:3px solid var(--focus-color,#94703d);outline-offset:3px;
+}
+.ci-home-action,.ci-home-feature{transition:border-color .14s ease,box-shadow .14s ease;transform:none}
+.ci-home-action:hover,.ci-home-action:focus-visible{transform:none}
+.ci-home-action-icon,.ci-home-object-mark{flex:none}
+.ci-home-action{min-width:0}.ci-home-action>span:nth-child(2){min-width:0}
+.ci-home-action small,.ci-home-object-copy small{line-height:1.5}
+.ci-home-advanced>div a{display:inline-flex;align-items:center;min-height:40px;padding:8px 0}
+.ci-inventory-sell-link{margin-top:8px;width:100%}
+.ci-inventory-item{min-width:0}
+.ci-ebay-selection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;padding:12px 0}
+.ci-ebay-selection-grid label{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.ci-ebay-batch summary,.ci-ebay-batch-select summary,.ci-intake-advanced summary{cursor:pointer;min-height:42px;padding:10px 0;font-weight:650}
+.ci-fast-research-result{scroll-margin-top:20px}
+.ci-fast-research-result .ci-page-actions{display:flex;gap:var(--ci-unified-gap);flex-wrap:wrap}
+@media(max-width:760px){
+ .ci-home{padding:24px 0 48px}
+ .ci-home-actions{gap:12px;margin-bottom:30px}
+ .ci-home-action{min-height:104px;padding:16px;gap:12px}
+ .ci-home-action-icon{min-width:48px;height:48px;border-radius:12px}
+ .ci-home-action strong{font-size:19px}
+ .ci-home-feature{padding:16px;gap:12px}
+ .ci-home-object-mark{min-width:78px;padding:12px 7px}
+ .ci-home-resume{font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ .ci-home-action,.ci-home-feature{transition:none}
+}
