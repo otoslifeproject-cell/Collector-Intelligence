@@ -49,7 +49,7 @@ test('report metadata and correction controls are inside one closed menu, never 
   assert.doesNotMatch(draft,new RegExp('className="'+oldClass))
  }
  const menuStart=draft.indexOf('className="ci-report-menu"')
- const navStart=draft.indexOf('className="tabBar"')
+ const navStart=draft.indexOf('className="ci-report-navigation"')
  const notice=draft.indexOf('Source photo index needs review')
  const reportDetail=draft.indexOf('Report details')
  assert.ok(menuStart>=0&&notice>menuStart&&reportDetail>menuStart&&navStart>reportDetail)
