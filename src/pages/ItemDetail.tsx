@@ -280,8 +280,6 @@ function ItemDetailRecord({id}:{id:string}) {
   const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
   // One clear action. This is navigation only: it never promotes evidence,
   // starts paid AI, publishes a listing, or marks an object sold.
-  const suggestedStage = item.status==='SOLD'?'sales':!photographsLoaded?'photos':!photos.length?'photos':reviewed?'sales':'market'
-  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Check photographs':photographError?'Recover photo access':pendingPhotographs.length?'Recover photo upload':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
   const wizardSteps = [
     {id:'photos',label:'Photos'},
     {id:'market',label:'Research & value'},
