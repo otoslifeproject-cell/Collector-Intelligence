@@ -14,3 +14,10 @@ test('one-object intake is default with advanced choices folded away',()=>{
  assert.match(intake,/<summary>Optional details \(purchase, size, notes\)<\/summary>/)
  assert.match(intake,/> Start research<\/button>/)
 })
+
+test('live progress shows only known upload and analysis states',()=>{
+ assert.match(intake,/aria-label="Add item progress"/)
+ assert.match(intake,/pending\?\.dispatched\?'current':'waiting'/)
+ assert.match(intake,/Requested · awaiting saved result/)
+ assert.doesNotMatch(intake,/100% complete|Visual matches found/)
+})
