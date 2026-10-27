@@ -17,10 +17,11 @@ test('bulk UI requires owner review, category and offers selection',()=>{
  assert.match(view,/No eBay import has been tested/)
 })
 
-test('CSV uses real CRLF escapes rather than escaped backslash text',()=>{
- assert.ok(fn.includes(String.raw`output.join('\\r\\n')+'\\r\\n'`))
- assert.ok(fn.includes(String.raw`.join('\\n\\n')`))
- assert.ok(!fn.includes(String.raw`output.join('\\\\r\\\\n')`))
+test('CSV uses actual escaped newline tokens rather than literal backslash strings',()=>{
+ const cr=String.fromCharCode(92)+'r',nl=String.fromCharCode(92)+'n'
+ assert.ok(fn.includes("output.join('"+cr+nl+"')+'"+cr+nl+"'"))
+ assert.ok(fn.includes(".join('"+nl+nl+"')"))
+ assert.ok(!fn.includes("output.join('"+String.fromCharCode(92)+cr+String.fromCharCode(92)+nl+"')"))
 })
 
 test('eligible catalogue items directly open Sell Item listing stage',()=>{
