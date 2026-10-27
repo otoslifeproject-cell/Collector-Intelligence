@@ -1017,3 +1017,11 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-intake-journey-step[data-state="current"]>span{background:var(--accent);color:var(--button-on-accent)}
 .ci-intake-journey-step[data-state="waiting"]{opacity:.7}
 @media(max-width:600px){.ci-intake-journey{grid-template-columns:1fr}.ci-intake-journey-step{padding:9px 12px}}
+
+/* Saved research: one main result, secondary detail navigation */
+.ci-report-navigation{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:10px 0 20px}
+.ci-report-extra-views{min-width:0;flex:1 1 230px;border:1px solid var(--line);border-radius:12px;padding:0 12px}
+.ci-report-extra-views>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:13px;font-weight:700;padding:12px 0}
+.ci-report-extra-views>.ci-page-actions{display:flex;gap:8px;flex-wrap:wrap;padding:3px 0 12px}
+.ci-report-extra-views .primaryButton,.ci-report-extra-views .secondaryButton{font-size:13px;min-height:40px}
+@media(max-width:600px){.ci-report-navigation{align-items:stretch}.ci-report-navigation>button,.ci-report-extra-views{width:100%}}
