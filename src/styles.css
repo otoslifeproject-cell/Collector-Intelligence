@@ -1006,3 +1006,14 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-home-advanced a{color:inherit}
 .ci-more-navigation{margin:10px 0}.ci-more-navigation summary{cursor:pointer;list-style:none}.ci-more-navigation summary::-webkit-details-marker{display:none}
 @media(max-width:760px){.ci-home-header{display:block}.ci-home-private{display:inline-flex;margin-top:16px}.ci-home-actions{grid-template-columns:1fr}.ci-home-action{min-height:115px;padding:19px}.ci-home-feature{flex-wrap:wrap}.ci-home-resume{margin-left:auto}}
+
+/* Shared Add Item progress: neutral state only, never a fabricated completion percentage */
+.ci-intake-journey{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 18px}
+.ci-intake-journey-step{display:grid;grid-template-columns:30px 1fr;column-gap:9px;row-gap:2px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:12px;min-width:0;background:var(--panel)}
+.ci-intake-journey-step>span{grid-row:span 2;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--panel2);font-size:12px;font-weight:800}
+.ci-intake-journey-step strong{font-size:13px;line-height:1.25}
+.ci-intake-journey-step small{font-size:11px;color:var(--muted);line-height:1.4}
+.ci-intake-journey-step[data-state="current"]{border-color:var(--accent)}
+.ci-intake-journey-step[data-state="current"]>span{background:var(--accent);color:var(--button-on-accent)}
+.ci-intake-journey-step[data-state="waiting"]{opacity:.7}
+@media(max-width:600px){.ci-intake-journey{grid-template-columns:1fr}.ci-intake-journey-step{padding:9px 12px}}
