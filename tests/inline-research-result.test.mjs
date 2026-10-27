@@ -32,3 +32,11 @@ test('saved research is the only primary view; extras are folded away',()=>{
  assert.match(screen,/Identification evidence/)
  assert.match(screen,/Original photos/)
 })
+
+test('visual reference suggestions start without a second manual action but never claim photo recognition',()=>{
+ const visual=readFileSync(new URL('../src/components/VisualReferenceWorkbench.tsx',import.meta.url),'utf8')
+ assert.match(visual,/autoSearched\.current\.add\(key\)/)
+ assert.match(visual,/void search\(\)/)
+ assert.match(visual,/They are not photo matches/)
+ assert.match(visual,/Google Lens requires you to upload or select the image manually/)
+})
