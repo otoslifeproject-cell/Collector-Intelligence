@@ -38,6 +38,11 @@ export default function Dashboard(){
    <div><div className="ci-home-kicker">COLLECTOR INTELLIGENCE</div><h1>What would you like to do?</h1><p>One object at a time. Your research and photographs stay connected.</p></div>
    <div className="ci-home-private"><ShieldCheck size={16}/> Private workspace</div>
   </header>
+  <section className="ci-home-live-guide" aria-label="How Collector Intelligence works">
+    <strong>From photograph to decision</strong>
+    <p><span>1 · Add photographs</span><span>2 · Review the research</span><span>3 · Save or prepare to sell</span></p>
+    <small>Visual suggestions are leads. Maker, age and sale prices need evidence before acceptance.</small>
+  </section>
   <nav className="ci-home-actions" aria-label="Start an activity">
    {actions.map(({label,description,url,Icon})=><Link key={label} to={url} className="ci-home-action">
     <span className="ci-home-action-icon"><Icon size={26}/></span>
