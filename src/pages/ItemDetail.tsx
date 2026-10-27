@@ -280,8 +280,6 @@ function ItemDetailRecord({id}:{id:string}) {
   const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
   // One clear action. This is navigation only: it never promotes evidence,
   // starts paid AI, publishes a listing, or marks an object sold.
-  const suggestedStage = item.status==='SOLD'?'sales':!photographsLoaded?'photos':!photos.length?'photos':reviewed?'sales':'market'
-  const suggestedLabel = item.status==='SOLD'?'View recorded sale':!photographsLoaded?'Check photographs':photographError?'Recover photo access':pendingPhotographs.length?'Recover photo upload':!photos.length?'Add photographs':reviewed?'Prepare sale':'Continue research'
   const wizardSteps = [
     {id:'photos',label:'Photos'},
     {id:'market',label:'Research & value'},
@@ -328,11 +326,7 @@ function ItemDetailRecord({id}:{id:string}) {
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
           <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':reviewed?reviewed.assessment.decision.replaceAll('_',' '):'FINAL RESEARCH DECISION REQUIRED'}</span></div>
         </div>
-        <div className="heroActions">
-          <button className="primaryButton inlineButton" onClick={()=>setTab(suggestedStage)}>{suggestedLabel}</button>
-          <button className="secondaryButton" onClick={()=>setTab('market')}>Research & value</button>
-          <button className="secondaryButton" onClick={()=>setTab('sales')}>Sell / route</button>
-        </div>
+
       </div>
       <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
         <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
@@ -355,9 +349,13 @@ function ItemDetailRecord({id}:{id:string}) {
       </nav>
       {message && <div className="saveToast">{message}</div>}
 
-      <div className="tabBar">
-        {['overview','photos','identification','market','sales','catalogue'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}
-      </div>
+      <details className="ci-item-extra-views">
+        <summary>Additional object records</summary>
+        <div className="ci-page-actions">
+          <button className="secondaryButton" onClick={()=>setTab('identification')}>Identification evidence</button>
+          <button className="secondaryButton" onClick={()=>setTab('catalogue')}>Full catalogue record</button>
+        </div>
+      </details>
       {tab==='overview' && <div>
         <div className="panel">
           <div className="panelHeader"><h2>At a glance</h2><span>{item.item_code}</span></div>
