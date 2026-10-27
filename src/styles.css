@@ -1025,3 +1025,11 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-report-extra-views>.ci-page-actions{display:flex;gap:8px;flex-wrap:wrap;padding:3px 0 12px}
 .ci-report-extra-views .primaryButton,.ci-report-extra-views .secondaryButton{font-size:13px;min-height:40px}
 @media(max-width:600px){.ci-report-navigation{align-items:stretch}.ci-report-navigation>button,.ci-report-extra-views{width:100%}}
+
+/* Production dashboard: concise journey indicator, not a competing action */
+.ci-home-live-guide{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:15px 18px;margin:0 0 22px}
+.ci-home-live-guide>strong{display:block;font-size:14px;letter-spacing:-.01em}
+.ci-home-live-guide p{display:flex;flex-wrap:wrap;gap:8px 16px;margin:9px 0;color:var(--text);font-weight:650;font-size:13px}
+.ci-home-live-guide p span+span:before{content:'→';margin-right:16px;color:var(--muted)}
+.ci-home-live-guide small{display:block;color:var(--muted);line-height:1.5;font-size:12px}
+@media(max-width:660px){.ci-home-live-guide p{display:grid;gap:6px}.ci-home-live-guide p span+span:before{display:none}}
