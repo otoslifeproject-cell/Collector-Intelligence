@@ -5,6 +5,8 @@ import {Camera,Images,Sparkles,Trash2,UploadCloud} from 'lucide-react'
 import {supabase} from '../lib/supabase'
 import {IntakeError,prepareIntake,settleIntake,readIntake,hasIntakeReport,intakeDispatch,verifyIntakeOriginals} from '../lib/intakeSession'
 import type {IntakeAttempt,IntakeContext,IntakeRow} from '../lib/intakeSession'
+import IntakeProgress from '../components/IntakeProgress'
+import type {IntakeProgressPhase} from '../components/IntakeProgress'
 
 type UploadPhoto={index:number;file:File;preview:string}
 const emptyContext:IntakeContext={purchase_price:'',currency:'GBP',weight_g:'',dimensions:'',storage_location:'',user_notes:''}
@@ -17,6 +19,7 @@ export default function AIIntake(){
  const [pending,setPending]=useState<IntakeAttempt|null>(null),[working,setWorking]=useState(false)
  const [message,setMessage]=useState(''),[dragActive,setDragActive]=useState(false)
  const [showDetails,setShowDetails]=useState(false),[canResume,setCanResume]=useState(false)
+ const [phase,setPhase]=useState<IntakeProgressPhase>('idle')
  const locked=!!pending||working
  const chooseMode=(value:'single'|'batch')=>{if(!busy.current&&!held.current)setMode(value)}
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;for(const url of previewURLs.current)URL.revokeObjectURL(url);previewURLs.current.clear()}},[])
@@ -68,12 +71,13 @@ export default function AIIntake(){
   if(await openVerified(attempt,row))return
   const stage=row?.result?.analysis_stage
   setCanResume(stage==='UPLOADED'&&row?.model==='PENDING')
+  setPhase(stage==='PROCESSING'?'looking':stage==='FIRST_PASS_SAVED'?'nearly':stage==='COMPLETE'?'ready':'stopped')
   if(stage==='UPLOADED')setMessage('Your photos are saved and can be analysed again.')
   else if(stage==='PROCESSING')setMessage('Analysis is being checked. Your photos are safe.')
   else plainError()
  }
  const send=async(attempt:IntakeAttempt,resumeSaved=false)=>{
-  setMessage('Analysing your photos…')
+  setPhase('checking');setMessage('Checking your photos and research sources…')
   if(!resumeSaved){
    const row=await settleIntake(supabase,attempt,current)
    if(await openVerified(attempt,row))return
@@ -105,11 +109,35 @@ export default function AIIntake(){
  const uploadAndAnalyse=()=>{if(!photos.length){window.alert('Choose at least one photo.');return}if(held.current)return;void perform(async()=>{
   const attempt=await prepareIntake(supabase,mode,choices.current.map(p=>p.file),context,current)
   if(!current())return
-  held.current=attempt;setPending(attempt)
+  held.current=attempt;setPending(attempt);setPhase('saved')
   await send(attempt)
  })}
  const check=()=>{const attempt=held.current;if(!attempt)return;void perform(()=>checkSaved(attempt))}
  const retry=()=>{const attempt=held.current;if(!attempt||!canResume)return;void perform(()=>send(attempt,true))}
+ useEffect(()=>{
+  if(!pending||phase==='ready'||phase==='stopped')return
+  let active=true,reading=false
+  const tick=async()=>{
+   if(!active||reading)return
+   reading=true
+   try{
+    const row=await readIntake(supabase,pending,()=>active&&alive.current)
+    if(!active||!row)return
+    if(hasIntakeReport(row)){
+     setPhase('ready')
+     await verifyIntakeOriginals(supabase,pending,()=>active&&alive.current)
+     if(active&&alive.current)nav('/draft/'+pending.request.id)
+     return
+    }
+    if(row.result?.analysis_stage==='FIRST_PASS_SAVED')setPhase('nearly')
+    else if(row.result?.analysis_stage==='PROCESSING')setPhase('looking')
+   }catch{/* Never retry payment as a result of polling. */}
+   finally{reading=false}
+  }
+  void tick()
+  const timer=window.setInterval(()=>void tick(),2200)
+  return()=>{active=false;window.clearInterval(timer)}
+ },[pending,phase,nav])
 
   return (
     <div>
@@ -161,24 +189,18 @@ export default function AIIntake(){
         </section>}
 
       </fieldset>
-        <section className="ci-intake-journey" aria-label="Add item progress">
-          <div className="ci-intake-journey-step" data-state={photos.length?'complete':'current'}><span>1</span><strong>Add photos</strong><small>{photos.length?photos.length+' selected':'Choose images'}</small></div>
-          <div className="ci-intake-journey-step" data-state={pending?'complete':working?'current':'waiting'}><span>2</span><strong>Analyse</strong><small>{pending?'Session retained':working?'Checking uploads':'After Analyse'}</small></div>
-          <div className="ci-intake-journey-step" data-state={pending?.dispatched?'current':'waiting'}><span>3</span><strong>Answer</strong><small>{pending?.dispatched?'Requested · awaiting saved result':'Not requested'}</small></div>
-        </section>
-        {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
+        {(pending||working)&&<IntakeProgress phase={phase==='idle'?'saved':phase}
+          message={phase==='stopped'?message:undefined}
+          onRetry={pending&&!working?(canResume?retry:check):undefined}
+          retryLabel={canResume?'Try again':'Check result'} disabled={working}/>}
+        {!pending&&message&&<p role="status" ref={status} className="note">{message}</p>}
         <div className="intakeActions">
           <button className="primaryButton intakeBigButton ci-action-primary" disabled={locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse photos</button>
 
         </div>
 
 
-      {pending&&<section className="panel ci-recovery" aria-label="Saved photos">
-       <p>{working?'Checking your saved photos…':canResume?'Your photos are ready to analyse.':'Your photos are saved.'}</p>
-       <button type="button" className="primaryButton intakeBigButton" disabled={working} onClick={canResume?retry:check}>
-        {canResume?'Try again':'Check result'}
-       </button>
-      </section>}
+      
     </div>
   )
 }
