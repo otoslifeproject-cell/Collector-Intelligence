@@ -537,7 +537,7 @@ export default function Research() {
       <p>Archived research remains traceable to its original page or conversation. Historical AI attributions and price estimates are not automatically independently verified.</p>
       {conversationSources.length===0 ? <div className="empty">No historical conversation source registered yet.</div> :
         <div className="tableWrap"><table><thead><tr><th>Archived source</th><th>Ingestion</th><th>SHA-256</th></tr></thead><tbody>
-        {conversationSources.map((x:any)=><tr key={x.id}><td>{x.source_title}</td><td>{x.extraction_status}</td><td><code>{x.source_sha256.slice(0,16)}…</code></td></tr>)}
+        {conversationSources.map((x:any)=><tr key={x.id}><td>{x.source_title}</td><td>{x.extraction_status}</td><td>Saved privately</td></tr>)}
         </tbody></table></div>}
       {conversationClaims.length>0 && <div className="tableWrap"><table><thead><tr><th>Object/topic</th><th>Historical claim</th><th>Evidence status</th><th>Source location</th></tr></thead><tbody>
       {conversationClaims.map((x:any)=><tr key={x.id}><td>{x.subject_key}</td><td><div style={{maxWidth:380,maxHeight:85,overflow:"auto"}}>{x.claim_text}</div></td><td>{x.claim_type} · {x.certainty}</td><td>{x.source_locator}</td></tr>)}
