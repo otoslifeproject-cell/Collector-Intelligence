@@ -490,7 +490,12 @@ export default async function handler(req: any, res: any) {
   let payload:any;
   try {payload=JSON.parse(providerRaw)}catch{payload=null}
   const providerArchive={provider_response_raw:providerRaw,provider_response_status:response.status,
-    provider_response_id:typeof payload?.id==='string'?payload.id:null};
+    provider_response_id:typeof payload?.id==='string'?payload.id:null,
+    provider_usage:payload?.usage&&typeof payload.usage==='object'?payload.usage:null,
+    // Actual billed amount is never inferred from tokens. Only a receipt supplied
+    // by the gateway/provider is recorded as a cost; otherwise it is unknown.
+    provider_cost_usd:typeof payload?.providerMetadata?.gateway?.cost==='number'
+      ?payload.providerMetadata.gateway.cost:null};
   const providerModel=typeof payload?.model==='string'?payload.model:body.model;
   const retainUnparsed=async(stage:string)=>{
    try {
