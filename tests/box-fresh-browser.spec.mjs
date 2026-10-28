@@ -55,7 +55,7 @@ test('brand-new owner: Home → Add item → photo → Analyse → Answer → Co
    }
    if(method==='GET'&&query.has('id')&&saved&&query.get('id')==='eq.'+saved.id)
     return json(route,saved,200,{'content-range':'0-0/1'})
-   if(method==='GET'&&query.has('id'))return json(route,{code:'PGRST116',details:'The result contains 0 rows',message:'Cannot coerce the result to a single JSON object'},406)
+   if(method==='GET'&&query.has('id'))return empty(route)
    return empty(route)
   }
   if(path.startsWith('/fake/rest/v1/')){
