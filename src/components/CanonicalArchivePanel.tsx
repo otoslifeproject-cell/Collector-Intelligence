@@ -58,7 +58,7 @@ export default function CanonicalArchivePanel({client}:{client:SupabaseClient}){
         <tbody>{group.versions.map(version=><tr key={version.id}>
           <td>{version.source_version||'Not recorded'}</td>
           <td className="ci-archive-imported"><time dateTime={version.ingested_at}>{new Date(version.ingested_at).toLocaleDateString('en-GB')}</time></td>
-          <td className="ci-archive-stored-hash"><code title={version.content_sha256}>{version.content_sha256.slice(0,16)}…</code></td>
+          <td className="ci-archive-stored-hash">Preserved</td>
           <td><button className="secondaryButton" disabled={reading} aria-label={`Read ${group.documentKey}, version ${version.source_version||'not recorded'}`} onClick={event=>{readButton.current=event.currentTarget;void read(version);}}>Read</button></td>
         </tr>)}</tbody>
       </table></div>
@@ -69,9 +69,9 @@ export default function CanonicalArchivePanel({client}:{client:SupabaseClient}){
       <p>Imported <time dateTime={document.ingested_at}>{new Date(document.ingested_at).toLocaleDateString('en-GB')}</time></p>
       <p role="status">{document.integrity==='MATCH'?'SHA-256 matches stored text.':'SHA-256 mismatch. This text must not be relied on as an instruction source.'}</p>
       {document.contentWarning&&<p role="alert">{document.contentWarning==='placeholder'?'This is an unreadable-content placeholder.':'This is a short import.'} It is preserved for review, not usable as an instruction source.</p>}
-      <p><code>{document.content_sha256}</code></p>
+      <p>Original policy retained.</p>
       <button className="secondaryButton" onClick={()=>{setDocument(null);readButton.current?.focus();}}>Close document</button>
-      <pre>{document.content}</pre>
+      <p className="ci-policy-source-text">{document.content}</p>
     </section>}
   </details>;
 }

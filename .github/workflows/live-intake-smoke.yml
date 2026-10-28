@@ -1,0 +1,35 @@
+name: Live intake function bootstrap (no AI charge)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Function module-loading smoke against live URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://collector-intelligence-sngf-otoss-projects.vercel.app/api/analyse-intake"
+          for attempt in $(seq 1 36); do
+            code=$(curl -sS --max-time 18 -o /tmp/intake-smoke-get -w '%{http_code}' "$url" || true)
+            if [ "$code" = "405" ]; then
+              echo "PASS: production function loaded and rejected GET without invoking AI"
+              break
+            fi
+            if [ "$attempt" = "36" ]; then
+              echo "FAIL: expected function-level 405, received $code"
+              head -c 300 /tmp/intake-smoke-get || true
+              exit 1
+            fi
+            sleep 10
+          done
+          code=$(curl -sS --max-time 18 -o /tmp/intake-smoke-post -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' --data '{}' "$url" || true)
+          if [ "$code" != "401" ]; then
+            echo "FAIL: unauthenticated POST did not stop before paid model; HTTP $code"
+            exit 1
+          fi
+          echo "PASS: anonymous POST rejected before any claim or paid provider request"

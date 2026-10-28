@@ -3,7 +3,7 @@
   "functions": {
     "api/*.ts": {
       "includeFiles": "src/lib/**/*.ts",
-      "maxDuration": 60
+      "maxDuration": 300
     }
   }
 }
