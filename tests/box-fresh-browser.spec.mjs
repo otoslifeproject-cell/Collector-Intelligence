@@ -75,7 +75,7 @@ test('brand-new owner: Home → Add item → photo → Analyse → Answer → Co
  await page.locator('.intakeDrop input[type=file]').setInputFiles({name:'brand-new-bowl.png',mimeType:'image/png',buffer:bytes})
  await expect(page.getByRole('button',{name:'Analyse photos'})).toBeEnabled()
  await page.getByRole('button',{name:'Analyse photos'}).click()
- try{await expect(page).toHaveURL(/#\\/draft\\/[0-9a-f-]{36}/,{timeout:15000})}
+ try{await expect(page).toHaveURL(new RegExp('#/draft/[0-9a-f-]{36}'),{timeout:15000})}
  catch(error){
   const messages=await page.locator('[role="status"],[role="alert"],.note').allTextContents()
   throw new Error('Fresh intake remained on '+page.url()+'; messages='+JSON.stringify(messages.slice(0,12))+
