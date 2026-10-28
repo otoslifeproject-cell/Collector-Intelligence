@@ -3,6 +3,7 @@ import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSource
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
 import {releaseRejectedIntake} from '../src/lib/releaseRejectedIntake.ts';
+import {validIntakeRunId} from '../src/lib/validIntakeRunId.ts';
 
 const schema = {
   type: "object",
@@ -369,7 +370,7 @@ export default async function handler(req: any, res: any) {
   if (!token){console.warn('CI_INTAKE_STOP','AUTH_MISSING',401);return res.status(401).json({error:'Please sign in and try again.'});}
   if (!supabaseUrl || !supabaseKey){console.error('CI_INTAKE_STOP','SERVER_CONFIG',500);return res.status(500).json({error:'Your photos are safe. Please check result.'});}
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))){console.warn('CI_INTAKE_STOP','AUTH_INVALID',401);return res.status(401).json({error:'Please sign in and try again.'});}
-  const runForAudit = typeof intakeBody.run_id === 'string' && /^[0-9a-f-]{36}$/i.test(intakeBody.run_id)
+  const runForAudit = validIntakeRunId(intakeBody.run_id)
     ? intakeBody.run_id : '';
   console.info('CI_INTAKE_START',JSON.stringify({run:runForAudit||'INVALID',bodyType:typeof req.body,
     parsedKeys:Object.keys(intakeBody).filter(k=>['run_id','mode','resume_saved','images','context'].includes(k)),
@@ -421,7 +422,7 @@ export default async function handler(req: any, res: any) {
     return stop(400,'INPUT','PHOTO_LIST_MISSING','Choose photos and try again.');
   if (resume_saved !== true && submittedImages.length > 40)
     return stop(400,'INPUT','PHOTO_COUNT_OVER_LIMIT','Too many photos. Choose up to 20.');
-  if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
+  if(!validIntakeRunId(run_id))
     return stop(400,'INPUT','RUN_ID_INVALID','Your saved photos could not be confirmed. Check result.');
   let staged:any;
   try {
