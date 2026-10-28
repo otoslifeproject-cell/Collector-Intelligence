@@ -536,14 +536,19 @@ export default async function handler(req: any, res: any) {
    if(refusedWithoutUsage){
     const refusalCode=String(payload.error.code||payload.error.type||'request_rejected')
       .replace(/[^A-Za-z0-9_.-]/g,'_').slice(0,64)||'request_rejected';
+    let released=false;
     try{
-     if(await releaseRejectedIntake(supabaseUrl,run_id,response.status,refusalCode)){
+     released=await releaseRejectedIntake(supabaseUrl,run_id,response.status,refusalCode);
+     if(released){
       const reread=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
       if(reread.status==='DRAFT'&&reread.model==='PENDING'
        &&reread.result?.analysis_stage==='UPLOADED'&&!('claimed_at' in reread.result))
        return res.status(409).json({error:'OpenAI refused the analysis. Your photos remain saved. Check the API account and try again.'});
      }
     }catch{/* Release not confirmed: keep the paid claim. */}
+    // Re-check the saved original on the next owner action; do not overwrite
+    // a successfully released row with a provider-error stage.
+    if(released)return res.status(503).json({error:'Your photos are saved. Check result before retrying.'});
    }
    await recordStop('PROVIDER','OPENAI_REJECTION_UNCONFIRMED_'+response.status);
    await retainUnparsed('PROVIDER_ERROR_SAVED');
