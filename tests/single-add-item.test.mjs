@@ -8,10 +8,10 @@ test('legacy add and intake converge on one photographed route',()=>{
  assert.match(app,/<Route path="\/new" element=\{<Navigate to="\/intake" replace\/>\}\/>/)
  assert.ok(home.includes("label:'Add item'"))
 })
-test('one-object intake is default with advanced choices folded away',()=>{
+test('one-object intake is default with two visible choices and optional-details button',()=>{
  assert.match(intake,/useState<'single'\|'batch'>\('single'\)/)
- assert.match(intake,/<summary>More than one object\? Choose batch mode<\/summary>/)
- assert.match(intake,/<summary>Optional details \(purchase, size, notes\)<\/summary>/)
+ assert.match(intake,/role="group" aria-label="Number of objects"/)
+ assert.match(intake,/Add details \(optional\)/)
  assert.match(intake,/> Analyse photos<\/button>/)
 })
 
