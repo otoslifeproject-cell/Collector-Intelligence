@@ -4,9 +4,12 @@ import {readFileSync} from 'node:fs'
 const dashboard=readFileSync(new URL('../src/pages/Dashboard.tsx',import.meta.url),'utf8')
 const sidebar=readFileSync(new URL('../src/components/Sidebar.tsx',import.meta.url),'utf8')
 const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8')
-test('owner home offers four immediate tasks and a single resume journey',()=>{
- for(const label of ["Add item","Collection","Research","Sell"])assert.ok(dashboard.includes("label:'"+label+"'"))
+test('owner home only offers fresh work and the current resume journey',()=>{
+ assert.match(dashboard,/label:'Add item'/)
+ assert.doesNotMatch(dashboard,/label:'Collection'/)
+ assert.doesNotMatch(dashboard,/label:'Sell'/)
  assert.match(dashboard,/Continue your work/)
+ assert.match(dashboard,/FRESH_START_AT/)
  assert.match(dashboard,/to=\{\x60\/item\/\$\{latest\.id\}\x60\}/)
 })
 test('collection query remains owner-scoped and preserves archive state',()=>{
@@ -14,9 +17,10 @@ test('collection query remains owner-scoped and preserves archive state',()=>{
  assert.match(dashboard,/\.neq\('status','ARCHIVED'\)/)
  assert.doesNotMatch(dashboard,/\.delete\(|\.update\(|\.insert\(/)
 })
-test('secondary tools are available without crowding main navigation',()=>{
- assert.match(sidebar,/More tools/)
- assert.match(dashboard,/Saved uploads and tools/)
+test('legacy tools are hidden from the five-area owner menu, not deleted',()=>{
+ assert.match(sidebar,/\['\/archive', 'Archive', Archive\]/)
+ assert.match(sidebar,/\{false&&<details className="ci-more-navigation"/)
+ assert.doesNotMatch(dashboard,/Saved uploads and tools/)
  assert.match(css,/\.ci-home-actions\{display:grid/)
 })
 

@@ -13,9 +13,10 @@ test('one start action and sale handoff retain guarded research',()=>{
  assert.match(screen,/runDraftResearch\('deep_dive'\)/)
 })
 
-test('research is the default saved-object view, not an extra tab click',()=>{
- assert.match(screen,/get\('tab'\)\|\|'market'/)
- assert.match(screen,/catch\{return 'market'\}/)
+test('Answer is the default saved-object view, Research remains one tab away',()=>{
+ assert.match(screen,/get\('tab'\)\|\|'answer'/)
+ assert.match(screen,/catch\{return 'answer'\}/)
+ assert.match(screen,/\['market','Research'\]/)
 })
 
 test('save item approves only a single item or grouped pair from result',()=>{

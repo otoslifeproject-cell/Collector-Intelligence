@@ -98,9 +98,9 @@ export default function AIIntake(){
         <div>
           <div className="eyebrow">AI CATALOGUE INTAKE</div>
           <h1>Add photos</h1><p>Choose photos → Analyse → Answer. Optional details can come later.</p>
-          <InfoDisclosure label="How intake works"><p>Photos are analysed into draft objects. You review and approve before anything enters your catalogue.</p></InfoDisclosure>
+
         </div>
-        <Link className="secondaryButton" to="/uploads">Saved uploads</Link>
+
       </div>
 
       <fieldset disabled={locked} style={{border:0,padding:0,margin:0,minWidth:0}}>
@@ -156,7 +156,7 @@ export default function AIIntake(){
         {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
         <div className="intakeActions">
           <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse photos</button>
-          <span>One requested AI analysis may incur a provider charge. Extra HIGH-cost inscription review is off unless separately approved. Nothing enters your catalogue until you approve.</span>
+
         </div>
 
 

@@ -7,6 +7,7 @@ import ItemCard from '../components/ItemCard'
 import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import InfoDisclosure from '../components/InfoDisclosure'
 import {ebayDraftCsv} from '../lib/ebayDraftExport'
+import {FRESH_START_AT} from '../lib/freshCollection'
 
 export default function Inventory() {
   const [items,setItems] = useState<Item[]>([])
@@ -43,7 +44,7 @@ export default function Inventory() {
         setOwnerMaterialCorrections(data)
         setCorrectionReadStatus('ready')
       }).catch(()=>{if(!cancelled)setCorrectionReadStatus('unavailable')})
-    void Promise.resolve(supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT').in('mode',['single','batch']).order('created_at',{ascending:false}).limit(30)).then(async ({data,error})=>{
+    void Promise.resolve(supabase.from('ai_analysis_runs').select('id,mode,status,created_at,input_photo_count,result').eq('status','DRAFT') .in('mode',['single','batch']).gte('created_at',FRESH_START_AT).order('created_at',{ascending:false}).limit(30)).then(async ({data,error})=>{
       if(cancelled)return
       if(error||!data){setDraftReadStatus('unavailable');return}
       const runs=(data||[]).filter((run:any)=>Array.isArray(run.result?.objects)||Array.isArray(run.result?.image_manifest))
@@ -70,7 +71,7 @@ export default function Inventory() {
       }))
       if(!cancelled)setDraftCovers(Object.fromEntries(results))
     }).catch(()=>{if(!cancelled)setDraftReadStatus('unavailable')})
-    void Promise.resolve(supabase.from('items').select('*').order('item_code')).then(async ({data,error:readError})=>{
+    void Promise.resolve(supabase.from('items').select('*').gte('created_at',FRESH_START_AT).neq('status','ARCHIVED').order('item_code')).then(async ({data,error:readError})=>{
       if(cancelled)return
       if(readError||!data){setItems([]);setLoadError('Catalogue unavailable. Reload inventory to recover saved objects.');setPhotoReadStatus('unavailable');return}
       const rows=(data||[]) as Item[]
@@ -137,7 +138,7 @@ export default function Inventory() {
   return (
     <div>
       <div className="pageHeader rowHeader">
-        <div><div className="eyebrow">YOUR OBJECTS</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Inventory</h1></div>
+        <div><div className="eyebrow">YOUR OBJECTS</div><h1 style={{fontSize:"clamp(28px,3vw,40px)"}}>Collection</h1></div>
         <Link to="/new" className="primaryButton inlineButton">+ Add item</Link>
       </div>
       <ObjectCollectionToolbar
@@ -146,8 +147,8 @@ export default function Inventory() {
         filter={status} onFilterChange={setStatus}
         filters={[
          {value:'ALL',label:'All statuses'},
-         {value:'DRAFT',label:'Unfinished drafts'},
-         ...['CATALOGUED','RESEARCH','ONE_QUICK_CHECK','SPECIALIST_REVIEW','READY_TO_SELL','LISTED','CONSIGNED','SOLD','ARCHIVED'].map(value=>({value,label:value.replaceAll('_',' ')}))
+         {value:'DRAFT',label:'Working drafts'},
+         ...['CATALOGUED','RESEARCH','ONE_QUICK_CHECK','SPECIALIST_REVIEW','READY_TO_SELL','LISTED','CONSIGNED','SOLD',].map(value=>({value,label:value.replaceAll('_',' ')}))
         ]}
       />
       {loadError&&<p role="alert">{loadError}<button className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory</button></p>}
@@ -157,7 +158,7 @@ export default function Inventory() {
         {photoReadStatus==='unavailable'&&!loadError&&<p>Photograph history unavailable. Do not infer that stored originals are missing.</p>}
         <button type="button" className="secondaryButton" onClick={()=>setReload(n=>n+1)}>Reload inventory sources</button>
       </div>}
-      <details className="panel ci-ebay-batch">
+      <details hidden className="panel ci-ebay-batch">
         <summary>Bulk eBay draft export · {ebayIds.length} selected</summary>
         <p>Select catalogued objects below, enter the category ID from your current UK Seller Hub draft template, then export. The CSV does not publish anything.</p>
         <p><a href="https://www.ebay.co.uk/help/selling/selling-tools/reports?id=4096" target="_blank" rel="noopener noreferrer">Get the official Seller Hub Create drafts template ↗</a></p>
@@ -172,8 +173,8 @@ export default function Inventory() {
         {ebayError&&<p role="alert">{ebayError}</p>}
         <p className="ci-page-meta">Review titles, pricing, condition and images before upload. Category-required fields may differ; verify against the downloaded template. No eBay import has been tested.</p>
       </details>
-      <div className="inventorySummary">{loadError?'Catalogue count unavailable':filtered.length+' permanent catalogue items'} · {draftReadStatus==='unavailable'?'Saved draft count unavailable':draftReadStatus==='checking'?'Checking saved drafts':unfinished.length+' unfinished draft lots/objects (recent 30 sessions)'}{draftReadStatus==='ready'&&pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''} · <Link to="/uploads">All saved uploads</Link></div>
-      {filtered.length>0&&<details className="ci-ebay-batch-select">
+      <div className="inventorySummary">{loadError?'Catalogue count unavailable':filtered.length+' permanent catalogue items'} · {draftReadStatus==='unavailable'?'Saved draft count unavailable':draftReadStatus==='checking'?'Checking saved drafts':unfinished.length+' unfinished draft lots/objects (recent 30 sessions)'}{draftReadStatus==='ready'&&pendingSessions.length>0?' · '+pendingSessions.length+' incomplete upload sessions':''} · <Link to="/archive">Archive</Link></div>
+      {filtered.length>0&&<details hidden className="ci-ebay-batch-select">
         <summary>Choose individual eBay draft items</summary>
         <div className="ci-ebay-selection-grid">{filtered.filter(x=>x.status!=='SOLD'&&x.status!=='ARCHIVED').map(x=><label key={x.id}><input type="checkbox" checked={ebayIds.includes(x.id)} onChange={e=>setEbayIds(prev=>e.target.checked?[...prev,x.id]:prev.filter(id=>id!==x.id))}/>{x.item_code} · {x.title||x.object_type||'Unidentified item'}</label>)}</div>
       </details>}
