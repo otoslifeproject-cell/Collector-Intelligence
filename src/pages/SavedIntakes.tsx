@@ -1,6 +1,8 @@
 import {useEffect,useRef,useState} from 'react'
 import {Link,useLocation,useNavigate,useParams} from 'react-router-dom'
 import {supabase} from '../lib/supabase'
+import IntakeProgress from '../components/IntakeProgress'
+import type {IntakeProgressPhase} from '../components/IntakeProgress'
 import {intakePageSize,listSavedIntakes,readSavedIntake,savedIntakePreviews,savedIntakeState,savedIntakeTitle,savedReportAvailable,SavedIntakeError,type SavedIntake} from '../lib/savedIntakes'
 
 type Photo={index:number;name:string;url:string}
@@ -15,6 +17,7 @@ function SavedPhoto({photo}:{photo:Photo}){
 export default function SavedIntakes(){
  const {id}=useParams(),location=useLocation(),nav=useNavigate(),[reload,setReload]=useState(0)
  const [analysing,setAnalysing]=useState(false),[actionMessage,setActionMessage]=useState('')
+ const [phase,setPhase]=useState<IntakeProgressPhase>('idle')
  const query=new URLSearchParams(location.search).get('page')||'1',page=/^[1-9]\d*$/.test(query)?Number(query):NaN
  const key=(id||'list:'+query)+':'+reload
  const [checked,setChecked]=useState<Checked|null>(null),[error,setError]=useState<{key:string;message:string}|null>(null)
@@ -45,7 +48,7 @@ export default function SavedIntakes(){
   if(row.result?.analysis_stage!=='UPLOADED'||row.model!=='PENDING'){
    setActionMessage('This analysis has already started. Check result.');return
   }
-  setAnalysing(true);setActionMessage('Analysing your saved photos…')
+  setAnalysing(true);setPhase('checking');setActionMessage('')
   try{
    const session=await supabase.auth.getSession()
    if(session.error||!session.data.session)throw new Error('Sign in again.')
@@ -58,7 +61,10 @@ export default function SavedIntakes(){
   }catch{/* A lost acknowledgement cannot approve a second AI charge. */}
   try{
    const saved=await readSavedIntake(supabase,id,()=>true)
-   if(saved&&savedReportAvailable(saved)){nav('/draft/'+id);return}
+   if(saved&&savedReportAvailable(saved)){setPhase('ready');nav('/draft/'+id);return}
+   if(saved?.result?.analysis_stage==='PROCESSING')setPhase('looking')
+   else if(saved?.result?.analysis_stage==='FIRST_PASS_SAVED')setPhase('nearly')
+   else setPhase('stopped')
    setActionMessage(saved?.result?.analysis_stage==='PROCESSING'?
     'Analysis has started. Check result to see the answer.':
     'Your photos are saved. The answer is not ready yet.')
@@ -66,6 +72,21 @@ export default function SavedIntakes(){
   finally{setAnalysing(false);setReload(v=>v+1)}
  }
 
+ useEffect(()=>{
+  if(!id||phase==='idle'||phase==='ready'||phase==='stopped')return
+  let cancelled=false
+  const poll=async()=>{
+   try{
+    const latest=await readSavedIntake(supabase,id,()=>!cancelled)
+    if(cancelled||!latest)return
+    if(savedReportAvailable(latest)){setPhase('ready');nav('/draft/'+id);return}
+    if(latest.result?.analysis_stage==='PROCESSING')setPhase('looking')
+    else if(latest.result?.analysis_stage==='FIRST_PASS_SAVED')setPhase('nearly')
+   }catch{/* Never reissue a paid run. */}
+  }
+  const timer=window.setInterval(()=>void poll(),2200)
+  return()=>{cancelled=true;window.clearInterval(timer)}
+ },[id,phase,nav])
  return <div>
   <div className="pageHeader"><div><div className="eyebrow">PRIVATE PHOTO UPLOADS</div><h1>{id?'Saved photo session':'Saved uploads'}</h1>
    <p>{id?'Check the original saved response before requesting another analysis.':'Find your drafts and earlier uploads. Checking this list does not run AI.'}</p></div>
@@ -77,10 +98,10 @@ export default function SavedIntakes(){
      <div className="panel"><div className="panelHeader"><h2>{savedIntakeTitle(row)}</h2><span>{savedIntakeState(row)}</span></div>
       <p>{row.input_photo_count} source {row.input_photo_count===1?'photograph':'photographs'} · {new Date(row.created_at).toLocaleString('en-GB')} · {row.mode==='batch'?'Mixed batch':'One object'}</p>
       {savedReportAvailable(row)?<Link className="primaryButton" to={'/draft/'+row.id}>View answer</Link>:
-       row.result?.analysis_stage==='UPLOADED'&&row.model==='PENDING'?
+       row.result?.analysis_stage==='UPLOADED'&&row.model==='PENDING'&&phase==='idle'?
         <button type="button" disabled={analysing} className="primaryButton intakeBigButton" onClick={()=>void analyseSaved()}>Analyse saved photos</button>:
         <button type="button" className="primaryButton" onClick={()=>setReload(v=>v+1)}>Check result</button>}
-      {actionMessage&&<p role="status">{actionMessage}</p>}
+      {(analysing||phase!=='idle')&&<IntakeProgress phase={phase==='idle'?'checking':phase} message={phase==='stopped'?actionMessage:undefined} onRetry={phase==='stopped'?()=>setReload(v=>v+1):undefined} retryLabel="Check result" disabled={analysing}/>}
      </div>
      {!data.previewsChecked?<p role="status">Checking photo previews…</p>:data.previews[row.id]?.length>0?<div className="panel"><h2>Saved source photographs</h2><div className="photoGrid">{data.previews[row.id].map(photo=><SavedPhoto key={photo.index} photo={photo}/>)}</div></div>:<p className="ci-page-meta">Photo previews are unavailable or the saved manifest needs review. Original photographs remain saved.</p>}
 
