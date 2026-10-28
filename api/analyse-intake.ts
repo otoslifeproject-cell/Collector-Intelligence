@@ -345,35 +345,52 @@ export default async function handler(req: any, res: any) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
-  const runtimeOidcToken = String(req.headers["x-vercel-oidc-token"] || "");
-  const gatewayToken = process.env.AI_GATEWAY_API_KEY || runtimeOidcToken || process.env.VERCEL_OIDC_TOKEN || "";
-  const directOpenAIKey = process.env.OPENAI_API_KEY || "";
-  const useGateway = Boolean(gatewayToken);
-  const apiKey = gatewayToken || directOpenAIKey;
+  // Only the owner's funded OpenAI API project. No Gateway/OIDC fallback.
+  const apiKey = process.env.OPENAI_API_KEY || "";
+  const model = (process.env.OPENAI_INTAKE_MODEL || "gpt-6-luna").replace(/^openai\//,"");
 
   if (!token) return res.status(401).json({ error: "Not signed in" });
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
-  if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
+  const runForAudit = typeof req.body?.run_id === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.run_id)
+    ? req.body.run_id : '';
+  const recordStop=async(stage:string,reason:string)=>{
+    if(!runForAudit)return;
+    try{
+      const who=await fetch(supabaseUrl+'/auth/v1/user',{headers:{apikey:supabaseKey,Authorization:'Bearer '+token}});
+      if(!who.ok)return;
+      const owner=await who.json();
+      if(typeof owner?.id!=='string')return;
+      await fetch(supabaseUrl+'/rest/v1/ci_intake_stop_events_v1',{
+        method:'POST',headers:{apikey:supabaseKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({run_id:runForAudit,owner_id:owner.id,stage,reason:reason.slice(0,120)})
+      });
+    }catch{/* Never expose diagnostics or trigger another charge. */}
+  };
+  const stop=async(status:number,stage:string,reason:string,message='Your photos are saved. Check result or try again.')=>{
+    await recordStop(stage,reason);
+    return res.status(status).json({error:message});
+  };
+  if (!apiKey) return stop(503,'OPENAI_KEY','OPENAI_KEY_MISSING');
   let canonical: CanonicalRuntimeContext;
   try { canonical = await loadCanonicalContext(supabaseUrl,supabaseKey,token); }
-  catch (e) { return res.status(503).json({error:"Required Collector Intelligence policy cannot be loaded; AI analysis stopped to prevent policy drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"}); }
+  catch (e) { return stop(503,'CANONICAL_POLICY','CANONICAL_LOAD_FAILED'); }
 
   // Trust gate preflight BEFORE any paid AI request. No unreviewed fallback.
   try {
     const gate = await fetch(`${supabaseUrl}/rest/v1/trusted_knowledge_v1?select=id&limit=1`,{
       headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}
     });
-    if (!gate.ok) return res.status(503).json({error:"Trusted Knowledge Brain unavailable; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_"+gate.status});
+    if (!gate.ok) return stop(503,'TRUSTED_KNOWLEDGE','TRUSTED_KNOWLEDGE_HTTP_'+gate.status);
     const rows = await gate.json();
-    if (!Array.isArray(rows)) return res.status(503).json({error:"Invalid trusted knowledge response; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_INVALID"});
+    if (!Array.isArray(rows)) return stop(503,'TRUSTED_KNOWLEDGE','TRUSTED_KNOWLEDGE_INVALID');
   } catch {
-    return res.status(503).json({error:"Trusted Knowledge Brain inaccessible; intake stopped before paid analysis.",code:"TRUSTED_KNOWLEDGE_NETWORK"});
+    return stop(503,'TRUSTED_KNOWLEDGE','TRUSTED_KNOWLEDGE_NETWORK');
   }
 
   let ownerMaterialLessons:any[];
   try{ownerMaterialLessons=await loadOwnerMaterialLessons(supabaseUrl,supabaseKey,token);}
-  catch(e:any){return res.status(503).json({error:'Owner correction retrieval unavailable. Stopped before paid AI to prevent repeating known material errors.',code:e?.message||'OWNER_CORRECTIONS_UNAVAILABLE'});}
+  catch(e:any){return stop(503,'OWNER_CORRECTIONS','OWNER_CORRECTIONS_UNAVAILABLE');}
   const { mode = "single", images:submittedImages = [], run_id, resume_saved = false } = req.body || {};
   let images:any[]=[];
   let context:any={};
@@ -403,7 +420,7 @@ export default async function handler(req: any, res: any) {
     const reason=e?.message||'Cannot verify saved intake manifest before AI request.';
     const progressed=reason.includes('already progressed');
     const mismatched=/Duplicate or missing requested photo index|Requested photograph does not match|Requested signed photo URL differs|Incoming owner notes differ|Incoming owner measurements differ/.test(reason);
-    return res.status(progressed||mismatched?409:503).json({error:reason,code:progressed?'INTAKE_SOURCE_ALREADY_PROCESSED':mismatched?'INTAKE_SOURCE_MISMATCH':'INTAKE_SOURCE_UNAVAILABLE',run_id});
+    return stop(progressed||mismatched?409:503,'SAVED_PHOTOS',progressed?'INTAKE_SOURCE_ALREADY_PROCESSED':mismatched?'INTAKE_SOURCE_MISMATCH':'INTAKE_SOURCE_UNAVAILABLE');
   }
 
   const contextText = [
@@ -422,14 +439,17 @@ export default async function handler(req: any, res: any) {
     content.push({ type: "input_image", image_url: image.url, detail: "original" });
   }
 
-  const configuredModel = process.env.OPENAI_INTAKE_MODEL || "gpt-5.6-luna";
-  const model = useGateway
-    ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
-    : configuredModel.replace(/^openai\//, "");
+  // No-charge model availability check on this exact OpenAI key before any claim.
+  try{
+    const available=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(model),{
+      headers:{Authorization:'Bearer '+apiKey}
+    });
+    if(!available.ok)return stop(503,'MODEL_ACCESS','MODEL_UNAVAILABLE_'+available.status);
+  }catch{return stop(503,'MODEL_ACCESS','MODEL_CHECK_NETWORK');}
 
   // A publication change during photo/knowledge preflight must stop this dispatch.
   try { canonical=await revalidateCanonicalBeforePaidCall({url:supabaseUrl,key:supabaseKey,token},'intake',canonical); }
-  catch(e){return res.status(503).json({error:'Approved source set changed or became unavailable before AI dispatch. No AI request made.',code:e instanceof Error?e.message:'CANONICAL_RECHECK_FAILED'});}
+  catch(e){return stop(503,'CANONICAL_RECHECK','CANONICAL_RECHECK_FAILED');}
 
   // Immutable server-owned paid claim is mandatory. No legacy mutable-status fallback.
   // If the proposal has not been installed on an isolated backend, STOP safely.
@@ -445,11 +465,11 @@ export default async function handler(req: any, res: any) {
         p_expected_photo_count:staged.input_photo_count
       })
     });
-    if(!response.ok)return res.status(503).json({error:'Protected claim unavailable or already claimed. Open the saved report; no paid request made.',code:'INTAKE_CLAIM_DENIED',run_id});
+    if(!response.ok)return stop(503,'PAID_CLAIM','INTAKE_CLAIM_DENIED_'+response.status);
     const result=await response.json();
-    if(result!=='CLAIMED')return res.status(409).json({error:'The original session has already been claimed. Check saved analysis, not a second charge.',code:'INTAKE_CLAIM_ALREADY_USED',run_id});
+    if(result!=='CLAIMED')return stop(409,'PAID_CLAIM','INTAKE_CLAIM_ALREADY_USED','Analysis was already requested. Check result; do not pay again.');
   } catch {
-    return res.status(503).json({error:'Paid claim acknowledgement uncertain. Check saved analysis; do not retry this request.',code:'INTAKE_CLAIM_UNCONFIRMED',run_id});
+    return stop(503,'PAID_CLAIM','INTAKE_CLAIM_UNCONFIRMED','Analysis may have started. Check result; do not pay again.');
   }
 
   const body = {
@@ -473,7 +493,7 @@ export default async function handler(req: any, res: any) {
   let response:Response,providerRaw:string;
   try {
    response = await fetch(
-    useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
+    "https://api.openai.com/v1/responses",
     {
     method: "POST",
     headers: {
@@ -485,7 +505,7 @@ export default async function handler(req: any, res: any) {
    );
    providerRaw=await response.text();
   } catch {
-   return res.status(503).json({error:'The AI request outcome is uncertain. Check the saved photo session; do not repeat paid analysis to recover it.',code:'PAID_INTAKE_OUTCOME_UNCONFIRMED',run_id});
+   return stop(503,'PROVIDER','PAID_INTAKE_OUTCOME_UNCONFIRMED','Analysis may have started. Check result; do not pay again.');
   }
   let payload:any;
   try {payload=JSON.parse(providerRaw)}catch{payload=null}
@@ -494,8 +514,7 @@ export default async function handler(req: any, res: any) {
     provider_usage:payload?.usage&&typeof payload.usage==='object'?payload.usage:null,
     // Actual billed amount is never inferred from tokens. Only a receipt supplied
     // by the gateway/provider is recorded as a cost; otherwise it is unknown.
-    provider_cost_usd:typeof payload?.providerMetadata?.gateway?.cost==='number'
-      ?payload.providerMetadata.gateway.cost:null};
+    provider_cost_usd:null};
   const providerModel=typeof payload?.model==='string'?payload.model:body.model;
   const retainUnparsed=async(stage:string)=>{
    try {
