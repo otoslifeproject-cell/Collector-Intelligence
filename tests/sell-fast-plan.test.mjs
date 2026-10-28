@@ -94,6 +94,26 @@ test('balanced choice uses conservative net rather than optimistic upside',()=>{
   const uncertain=assess({...scenario,mode:'BALANCED',grossLow:30,grossHigh:300}),stable=assess({...scenario,mode:'BALANCED',grossLow:60,grossHigh:70})
   assert.equal(chooseSaleScenario([uncertain,stable],'BALANCED').recommendation.scenario.grossLow,60)
 })
+test('verbose catalogue evidence stays in description, not an overlong or speculative listing title',()=>{
+ const verbose={...item,object_type:'Shallow bowl or dish',
+   material:'Glass; construction details and composition not independently established',
+   colour:'Intrinsic amber/golden-brown glass is supported across multiple views, with a dark brown/black band around the rim',
+   current_attribution:'Speculative 1970 designer attribution'}
+ const draft=prepareListing(verbose,assess(scenario,review,[comp],verbose),review,[comp])
+ assert.equal(draft.title,'amber/golden-brown Glass Shallow bowl or dish')
+ assert.ok(draft.title.length<=80)
+ assert.doesNotMatch(draft.title,/supported|construction|speculative|1970|designer/i)
+ assert.match(draft.description,/Condition:/)
+ assert.equal(draft.publicationStatus,'NOT_PUBLISHED')
+});
+test('long attribute notes cannot push a marketplace title over 80 characters',()=>{
+ const verbose={...item,colour:'A very lengthy uncertain colour description recorded for a photographed object',
+   material:'Glass; material science is unverified',
+   object_type:'Decorative collectible vessel with a broad upper mouth and tall tapered foot'}
+ const draft=prepareListing(verbose,assess(scenario,review,[comp],verbose),review,[comp])
+ assert.ok(draft.title.length<=80)
+ assert.doesNotMatch(draft.title,/uncertain colour description|material science/)
+});
 test('generic listing preserves reported MEDINA spelling without promoting maker/date assertions',()=>{
   const draft=prepareListing({...item,current_attribution:'Michael Harris Mdina 1970',period_wording:'1970'},assess(),review,[comp])
   assert.equal(draft.status,'PREPARED');assert.equal(draft.publicationStatus,'NOT_PUBLISHED')
