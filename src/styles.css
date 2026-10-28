@@ -1058,3 +1058,16 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-owner-details[open]>summary{margin:0 -18px 14px;border-bottom:1px solid var(--line);padding:17px 20px}
 .ci-owner-details .marketStack,.ci-owner-details .detailGrid{min-width:0}
 @media(max-width:700px){.ci-mini-appraisal{padding:16px}.ci-mini-steps{display:grid;gap:4px}.ci-mini-steps span+span:before,.ci-mini-steps strong:before{display:none}.ci-mini-cta{min-height:62px!important}.ci-owner-details[open]{padding:0 12px 12px}}
+
+
+/* Fresh release: five item tabs, each screen performs only its own job. */
+.ci-item-tabs{display:flex;gap:7px;overflow-x:auto;margin:12px 0 20px;padding:6px 3px;border-bottom:1px solid var(--line);scrollbar-width:thin}
+.ci-item-tab{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:12px 17px;min-height:46px;border-radius:11px;font:inherit;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+.ci-item-tab.is-active,.ci-item-tab[aria-selected=true]{background:var(--accent,#916321);color:#fff;border-color:var(--accent,#916321)}
+.ci-item-tab:focus-visible{outline:3px solid #3567a1;outline-offset:2px}
+.ci-item-tab-content{min-width:0;margin:0 0 20px}
+.ci-archive-links{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:14px}
+.ci-archive-links a{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--text);font-weight:650}
+.ci-archive-links small{font-size:11px;color:var(--muted)}
+.ci-archive-page section{margin-top:18px}
+@media(max-width:700px){.ci-item-tabs{margin:8px -6px 16px}.ci-item-tab{padding:11px 13px;font-size:13px}}
