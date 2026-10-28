@@ -48,7 +48,7 @@ function ItemDetailRecord({id}:{id:string}) {
     if(requested&&['overview','photos','identification','market','sales','catalogue'].includes(requested))setTab(requested)
   },[location.search,id])
   const [message,setMessage] = useState('')
-  const [detailsOpen,setDetailsOpen]=useState(false)
+
   const [copyStatus,setCopyStatus]=useState('')
   const [saving,setSaving]=useState(false)
   const [assessmentMutating,setAssessmentMutating]=useState(false)
@@ -307,7 +307,7 @@ function ItemDetailRecord({id}:{id:string}) {
    sourceReviewedVenue:reviewed?.assessment.routeGuidance||null
   })
   const copyMiniListing=async()=>{
-   if(item.status==='SOLD'){setTab('sales');setDetailsOpen(true);return}
+   if(item.status==='SOLD'){setTab('sales');return}
    const review={conditionReviewed:false,comparableReviewed:false,photosReviewed:false,
     attribution:'UNRESOLVED' as const,makerSource:'',specialistRisk:item.status==='SPECIALIST_REVIEW',shippingInstructions:''}
    const scenario=emptySaleScenario('FAST_CASH',item.currency||'')
@@ -318,7 +318,7 @@ function ItemDetailRecord({id}:{id:string}) {
     await navigator.clipboard.writeText(draft)
     setCopyStatus('Cautious review draft copied; no asking price set or listing published.')
    }catch{
-    setDetailsOpen(true);setTab('sales')
+    setTab('sales')
     setCopyStatus('Clipboard unavailable. Open the listing draft inside Details to copy manually.')
    }
   }
@@ -374,11 +374,15 @@ function ItemDetailRecord({id}:{id:string}) {
         </div>
 
       </div>
-      <MiniAppraisal appraisal={appraisal} onCopy={()=>void copyMiniListing()} copyStatus={copyStatus}
-       sold={item.status==='SOLD'} onOpenDetails={()=>setDetailsOpen(true)}/>
-      <details className="ci-owner-details" open={detailsOpen} onToggle={e=>setDetailsOpen(e.currentTarget.open)}>
-       <summary>Details · research, assumptions, photos, challenges and selling options</summary>
-      <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
+      <nav role="tablist" className="ci-item-tabs" aria-label="Item sections">
+       {([['overview','Answer'],['photos','Photos'],['market','Research'],['sales','Selling'],['catalogue','History']] as const).map(([value,label])=>
+        <button type="button" role="tab" key={value} aria-selected={tab===value}
+         className={tab===value?'ci-item-tab is-active':'ci-item-tab'} onClick={()=>setTab(value)}>{label}</button>)}
+      </nav>
+      {tab==='overview'&&<MiniAppraisal appraisal={appraisal} onCopy={()=>void copyMiniListing()} copyStatus={copyStatus}
+       sold={item.status==='SOLD'} onOpenDetails={()=>setTab('market')}/>}
+      <div className="ci-item-tab-content">
+      {tab==='catalogue'&&<nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
         <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
         <p className="ci-page-meta" role="status" aria-live="polite" style={{margin:'0.25rem 0'}}>
           {activeWizardStep>=0?`Step ${activeWizardStep+1} of ${wizardSteps.length}: ${wizardSteps[activeWizardStep].label}`:'Object details'}
@@ -406,7 +410,7 @@ function ItemDetailRecord({id}:{id:string}) {
           <button className="secondaryButton" onClick={()=>setTab('catalogue')}>Full catalogue record</button>
         </div>
       </details>
-      {tab==='overview' && <div>
+      {tab==='catalogue' && <div>
         <div className="panel">
           <div className="panelHeader"><h2>At a glance</h2><span>{item.item_code}</span></div>
           <div className="valueSummary ci-item-value-summary">
@@ -614,14 +618,14 @@ function ItemDetailRecord({id}:{id:string}) {
       {/* Evidence and owner-assessment tools remain mounted for every tab,
           after the selected task. This keeps keyboard and screen-reader order
           aligned with the visible two-click workflow. */}
-      <ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      {tab==='catalogue'&&<><ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
       {optionalTools.hold&&<ItemAssessment client={supabase} item={item} qualifiedReviewId={reviewed?.id} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>}
       {reviewedError&&!/storage is not active in this environment/i.test(reviewedError)&&<p className="ci-page-meta">{reviewedError}</p>}
       {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
 
       {reviewedHistory.length>0&&<details className="panel"><summary>Independent final assessment history ({reviewedHistory.length})</summary><p>Historical decisions retain their original evidence. Only the current qualified assessment can establish readiness.</p>{reviewedHistory.map(row=><article key={row.id}><strong>{row.assessment.decision.replaceAll('_',' ')} · {row.id===reviewed?.id?'current independent source review':'historical decision — not current readiness'}</strong><p>{row.assessment.rationale}</p><small>{row.created_at} · {row.assessment.reviewReference}</small><details><summary>Original assessment and source references</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>}
-
-      </details>
+      </>}
+      </div>
     </div>
   )
 }
