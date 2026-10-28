@@ -13,15 +13,15 @@ jobs:
         run: |
           set -euo pipefail
           url="https://collector-intelligence-sngf-otoss-projects.vercel.app/api/analyse-intake"
-          for attempt in $(seq 1 36); do
+          for attempt in $(seq 1 6); do
             code=$(curl -sS --max-time 18 -o /tmp/intake-smoke-get -w '%{http_code}' "$url" || true)
-            if [ "$code" = "405" ]; then
+            echo "Probe $attempt: HTTP $code"\n            if [ "$code" = "405" ]; then
               echo "PASS: production function loaded and rejected GET without invoking AI"
               break
             fi
-            if [ "$attempt" = "36" ]; then
+            if [ "$attempt" = "6" ]; then
               echo "FAIL: expected function-level 405, received $code"
-              head -c 300 /tmp/intake-smoke-get || true
+              echo "Response body withheld from logs; inspect status, Vercel runtime logs."
               exit 1
             fi
             sleep 10
