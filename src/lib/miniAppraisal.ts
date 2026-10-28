@@ -83,7 +83,7 @@ export function miniAppraisal(input:MiniAppraisalInput){
  }else if(/(?:lamp|furniture|mirror|large|heavy)/i.test(itemType)){
    venue='Local · easier in-person condition inspection; provisional route.'
  }else{
-   venue='eBay · broad second-hand audience; route not yet price-validated.'
+   venue='eBay · provisional'+(!input.period||/unknown|unconfirmed|likely|possible|undated|could|not established/i.test(input.period)?'; date unknown (Etsy needs 20+ years).':'; route not yet price-validated.')
  }
  return {identity,worth,worthBasis,decision:status,venue,hasVerifiedSold:sold.length>0,
    isReady:ready,valuationConfidence:input.valuationConfidence,
