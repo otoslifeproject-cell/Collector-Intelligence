@@ -339,7 +339,23 @@ async function saveStagedAnalysis(url:string,key:string,token:string,runId:strin
   return saved;
 }
 
+// Accept Vercel's parsed JSON body and the supported string/Buffer variants.
+async function parsedIntakeBody(req:any):Promise<Record<string,any>>{
+ const raw=req.body;
+ if(raw&&typeof raw==='object'&&!ArrayBuffer.isView(raw))return raw;
+ if(typeof raw==='string'||(raw&&ArrayBuffer.isView(raw))){
+  try{
+   const parsed=JSON.parse(typeof raw==='string'?raw:Buffer.from(raw).toString('utf8'));
+   return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
+  }catch{return {}}
+ }
+ if(typeof req.json==='function'){
+  try{const parsed=await req.json();return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{}}catch{}
+ }
+ return {};
+}
 export default async function handler(req: any, res: any) {
+  const intakeBody=await parsedIntakeBody(req);
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const auth = String(req.headers.authorization || "");
@@ -350,23 +366,29 @@ export default async function handler(req: any, res: any) {
   const apiKey = process.env.OPENAI_API_KEY || "";
   const model = (process.env.OPENAI_INTAKE_MODEL || "gpt-6-luna").replace(/^openai\//,"");
 
-  if (!token) return res.status(401).json({ error: "Not signed in" });
-  if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
-  if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
-  const runForAudit = typeof req.body?.run_id === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.run_id)
-    ? req.body.run_id : '';
+  if (!token){console.warn('CI_INTAKE_STOP','AUTH_MISSING',401);return res.status(401).json({error:'Please sign in and try again.'});}
+  if (!supabaseUrl || !supabaseKey){console.error('CI_INTAKE_STOP','SERVER_CONFIG',500);return res.status(500).json({error:'Your photos are safe. Please check result.'});}
+  if (!(await verifyUser(token, supabaseUrl, supabaseKey))){console.warn('CI_INTAKE_STOP','AUTH_INVALID',401);return res.status(401).json({error:'Please sign in and try again.'});}
+  const runForAudit = typeof intakeBody.run_id === 'string' && /^[0-9a-f-]{36}$/i.test(intakeBody.run_id)
+    ? intakeBody.run_id : '';
+  console.info('CI_INTAKE_START',JSON.stringify({run:runForAudit||'INVALID',bodyType:typeof req.body,
+    parsedKeys:Object.keys(intakeBody).filter(k=>['run_id','mode','resume_saved','images','context'].includes(k)),
+    resumed:intakeBody.resume_saved===true}));
   const recordStop=async(stage:string,reason:string)=>{
-    if(!runForAudit)return;
+    // Vercel logs are the independent fallback if the private row insert fails.
+    console.warn('CI_INTAKE_STOP',JSON.stringify({run:runForAudit||'INVALID',stage,reason}));
+    if(!runForAudit){console.error('CI_INTAKE_STOP_LOG_FAILED','INVALID_RUN_ID');return;}
     try{
       const who=await fetch(supabaseUrl+'/auth/v1/user',{headers:{apikey:supabaseKey,Authorization:'Bearer '+token}});
-      if(!who.ok)return;
+      if(!who.ok){console.error('CI_INTAKE_STOP_LOG_FAILED','AUTH_HTTP_'+who.status);return;}
       const owner=await who.json();
-      if(typeof owner?.id!=='string')return;
-      await fetch(supabaseUrl+'/rest/v1/ci_intake_stop_events_v1',{
+      if(typeof owner?.id!=='string'){console.error('CI_INTAKE_STOP_LOG_FAILED','OWNER_ID_MISSING');return;}
+      const saved=await fetch(supabaseUrl+'/rest/v1/ci_intake_stop_events_v1',{
         method:'POST',headers:{apikey:supabaseKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},
         body:JSON.stringify({run_id:runForAudit,owner_id:owner.id,stage,reason:reason.slice(0,120)})
       });
-    }catch{/* Never expose diagnostics or trigger another charge. */}
+      if(!saved.ok)console.error('CI_INTAKE_STOP_LOG_FAILED','DB_HTTP_'+saved.status);
+    }catch{console.error('CI_INTAKE_STOP_LOG_FAILED','DB_NETWORK');}
   };
   const stop=async(status:number,stage:string,reason:string,message='Your photos are saved. Check result or try again.')=>{
     await recordStop(stage,reason);
@@ -392,15 +414,15 @@ export default async function handler(req: any, res: any) {
   let ownerMaterialLessons:any[];
   try{ownerMaterialLessons=await loadOwnerMaterialLessons(supabaseUrl,supabaseKey,token);}
   catch(e:any){return stop(503,'OWNER_CORRECTIONS','OWNER_CORRECTIONS_UNAVAILABLE');}
-  const { mode = "single", images:submittedImages = [], run_id, resume_saved = false } = req.body || {};
+  const { mode = "single", images:submittedImages = [], run_id, resume_saved = false } = intakeBody;
   let images:any[]=[];
   let context:any={};
   if (resume_saved !== true && (!Array.isArray(submittedImages) || submittedImages.length < 1))
-    return res.status(400).json({error:'Choose photographs before analysing.'});
+    return stop(400,'INPUT','PHOTO_LIST_MISSING','Choose photos and try again.');
   if (resume_saved !== true && submittedImages.length > 40)
-    return res.status(400).json({error:'Too many photographs.'});
+    return stop(400,'INPUT','PHOTO_COUNT_OVER_LIMIT','Too many photos. Choose up to 20.');
   if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
-    return res.status(400).json({error:'The saved photos could not be found.'});
+    return stop(400,'INPUT','RUN_ID_INVALID','Your saved photos could not be confirmed. Check result.');
   let staged:any;
   try {
     staged=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
@@ -412,7 +434,7 @@ export default async function handler(req: any, res: any) {
         })))
       : submittedImages;
     const savedOriginals=bindSavedIntakePhotos(staged,requested,mode,supabaseUrl);
-    context=bindSavedIntakeContext(staged.user_context,resume_saved===true?staged.user_context:(req.body||{}).context);
+    context=bindSavedIntakeContext(staged.user_context,resume_saved===true?staged.user_context:intakeBody.context);
     images=await Promise.all(savedOriginals.map(async original=>({
       index:original.index,fileName:original.file_name,
       url:await signedOriginalURL(supabaseUrl,supabaseKey,token,original.storage_path)
