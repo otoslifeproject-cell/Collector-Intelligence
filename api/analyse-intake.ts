@@ -2,6 +2,7 @@ import {bindSavedIntakePhotos,bindSavedIntakeContext} from '../src/lib/intakeSou
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
+import {releaseRejectedIntake} from '../src/lib/releaseRejectedIntake.ts';
 
 const schema = {
   type: "object",
@@ -527,9 +528,26 @@ export default async function handler(req: any, res: any) {
   };
   const uncertainResponse=()=>({run_id,returned_response:{...providerArchive,model:providerModel},response_save_confirmed:false});
   if(!response.ok){
-   const retained=await retainUnparsed('PROVIDER_ERROR_SAVED');
-   return res.status(response.status).json({error:(typeof payload?.error?.message==='string'?payload.error.message:'AI service returned an error')+'. Check the saved photo session before another paid request.',
-    code:'PAID_INTAKE_PROVIDER_ERROR',run_id,response_save_confirmed:retained,...(!retained?uncertainResponse():{})});
+   // Only definite OpenAI refusals with no response ID or token usage may
+   // unlock photographs. A timeout, 5xx or ambiguous reply remains claimed.
+   const refusedWithoutUsage=[400,401,402,403,404,429].includes(response.status)
+     && payload?.error && typeof payload.error==='object'
+     && !payload?.id && !payload?.usage;
+   if(refusedWithoutUsage){
+    const refusalCode=String(payload.error.code||payload.error.type||'request_rejected')
+      .replace(/[^A-Za-z0-9_.-]/g,'_').slice(0,64)||'request_rejected';
+    try{
+     if(await releaseRejectedIntake(supabaseUrl,run_id,response.status,refusalCode)){
+      const reread=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
+      if(reread.status==='DRAFT'&&reread.model==='PENDING'
+       &&reread.result?.analysis_stage==='UPLOADED'&&!('claimed_at' in reread.result))
+       return res.status(409).json({error:'OpenAI refused the analysis. Your photos remain saved. Check the API account and try again.'});
+     }
+    }catch{/* Release not confirmed: keep the paid claim. */}
+   }
+   await recordStop('PROVIDER','OPENAI_REJECTION_UNCONFIRMED_'+response.status);
+   await retainUnparsed('PROVIDER_ERROR_SAVED');
+   return res.status(503).json({error:'Analysis is not confirmed. Check the saved result before retrying.'});
   }
   const text=extractText(payload);
   if(!text){
