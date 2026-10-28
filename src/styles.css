@@ -1104,3 +1104,20 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 /* Consistent plain-language research and archive typography. No source hashes, IDs or code on owner screens. */
 .mainContent pre,.mainContent code{display:none!important}
 .ci-policy-source-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.6}
+
+
+/* Real-stage photo progress: visible, large, never a fabricated countdown. */
+.ci-analysis-tracker{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:clamp(22px,3vw,34px);margin:22px 0;box-shadow:0 12px 32px rgba(18,39,65,.07)}
+.ci-analysis-tracker h2{margin:0 0 22px;font-size:clamp(24px,3vw,32px);font-weight:800;letter-spacing:-.025em}
+.ci-analysis-tracker-list{list-style:none!important;margin:0;padding:0;display:grid;gap:0}
+.ci-analysis-step{position:relative;display:flex;align-items:center;gap:18px;min-height:65px;padding:8px 5px;color:var(--muted);font-size:clamp(15px,1.8vw,19px)}
+.ci-analysis-step:not(:last-child):before{content:'';position:absolute;left:25px;top:48px;bottom:-16px;width:3px;background:var(--line)}
+.ci-analysis-dot{width:42px;height:42px;display:flex;flex:none;align-items:center;justify-content:center;font-weight:850;border:3px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);z-index:1}
+.ci-analysis-step[data-state="complete"] .ci-analysis-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.ci-analysis-step[data-state="active"]{color:var(--text)}
+.ci-analysis-step[data-state="active"] .ci-analysis-dot{border-color:var(--accent);color:var(--text);box-shadow:0 0 0 5px rgba(145,99,33,.13)}
+.ci-analysis-step[data-state="active"] strong{font-weight:850}
+.ci-analysis-current{font-size:13px;color:var(--muted);margin-left:auto}
+.ci-analysis-tracker-message{margin:20px 0 14px;font-size:16px;font-weight:650}
+.ci-analysis-tracker>.primaryButton{width:100%;min-height:56px;margin-top:14px}
+@media(max-width:630px){.ci-analysis-step{gap:12px;min-height:58px}.ci-analysis-dot{width:36px;height:36px}.ci-analysis-step:not(:last-child):before{left:22px;top:43px}.ci-analysis-current{font-size:11px}}
