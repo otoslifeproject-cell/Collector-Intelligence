@@ -115,6 +115,23 @@ function ItemDetailRecord({id}:{id:string}) {
   const [historyError,setHistoryError]=useState('')
   const [reviewedCandidate,setReviewed]=useState<ReviewedAssessment|null>(null)
   const [reviewedError,setReviewedError]=useState('')
+  // Hide advanced controls until their owner-scoped backing stores are available.
+  const [optionalTools,setOptionalTools]=useState({hold:false,army:false})
+  useEffect(()=>{
+    let live=true
+    const check=async()=>{
+      try{
+        const [context,holds,army]=await Promise.all([
+          supabase.from('item_assessment_context_v1').select('item_id').limit(1),
+          supabase.from('item_research_assessments').select('id').limit(1),
+          supabase.from('research_army_receipts_v1').select('id').limit(1)
+        ])
+        if(live)setOptionalTools({hold:!context.error&&!holds.error,army:!context.error&&!army.error})
+      }catch{if(live)setOptionalTools({hold:false,army:false})}
+    }
+    void check()
+    return()=>{live=false}
+  },[])
   const [reviewedHistory,setReviewedHistory]=useState<ReviewedAssessment[]>([])
   const [trustedComps,setTrustedComps]=useState<Comparable[]>([])
   const [listings,setListings]=useState<any[]>([])
@@ -499,7 +516,7 @@ function ItemDetailRecord({id}:{id:string}) {
       </div>}
 
       <div className="ci-research-workspace-shell" hidden={tab!=='market'}>
-        <ResearchArmyWorkspace key={item.id} item={item} onMutating={active=>{invalidateReviewed();setArmyMutating(active)}} onChanged={()=>void reloadResearch(item)}/>
+        {optionalTools.army&&<ResearchArmyWorkspace key={item.id} item={item} onMutating={active=>{invalidateReviewed();setArmyMutating(active)}} onChanged={()=>void reloadResearch(item)}/>}
       </div>
       {tab==='market' && <div className="marketStack">
         <ComparableEvidence rows={comps} trustedIds={trustedComps.map(c=>c.id)} error={historyError}/>
@@ -598,8 +615,8 @@ function ItemDetailRecord({id}:{id:string}) {
           after the selected task. This keeps keyboard and screen-reader order
           aligned with the visible two-click workflow. */}
       <ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
-      <ItemAssessment client={supabase} item={item} qualifiedReviewId={reviewed?.id} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>
-      {reviewedError&&<p className="ci-page-meta">{reviewedError}</p>}
+      {optionalTools.hold&&<ItemAssessment client={supabase} item={item} qualifiedReviewId={reviewed?.id} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>}
+      {reviewedError&&!/storage is not active in this environment/i.test(reviewedError)&&<p className="ci-page-meta">{reviewedError}</p>}
       {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
 
       {reviewedHistory.length>0&&<details className="panel"><summary>Independent final assessment history ({reviewedHistory.length})</summary><p>Historical decisions retain their original evidence. Only the current qualified assessment can establish readiness.</p>{reviewedHistory.map(row=><article key={row.id}><strong>{row.assessment.decision.replaceAll('_',' ')} · {row.id===reviewed?.id?'current independent source review':'historical decision — not current readiness'}</strong><p>{row.assessment.rationale}</p><small>{row.created_at} · {row.assessment.reviewReference}</small><details><summary>Original assessment and source references</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>}
