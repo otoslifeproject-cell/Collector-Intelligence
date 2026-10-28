@@ -91,7 +91,7 @@ test('brand-new owner: Home → Add item → photo → Analyse → Answer → Co
  await page.getByRole('button',{name:'Copy listing draft'}).click()
  await expect(answer).toContainText('Draft copied')
  const copied=await page.evaluate(()=>navigator.clipboard.readText())
- expect(copied).toContain('brand-new-bowl')
+ expect(copied).toContain('Original photo positions (1-based): 1')
  expect(copied).toContain('NOT PUBLISHED')
  expect(copied).toContain('Asking price: NOT ESTABLISHED')
  expect(uploads).toBe(1)
