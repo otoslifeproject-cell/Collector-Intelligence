@@ -90,7 +90,7 @@ export default function SavedIntakes(){
  return <div>
   <div className="pageHeader"><div><div className="eyebrow">PRIVATE PHOTO UPLOADS</div><h1>{id?'Saved photo session':'Saved uploads'}</h1>
    <p>{id?'Check the original saved response before requesting another analysis.':'Find your drafts and earlier uploads. Checking this list does not run AI.'}</p></div>
-   <div className="intakeActions">{id?<Link className="secondaryButton" to="/uploads">Saved uploads</Link>:<Link className="primaryButton" to="/intake">New photo upload</Link>}{refresh}</div>
+   <div className="intakeActions">{id?<Link className="secondaryButton" to="/uploads">Saved uploads</Link>:<Link className="primaryButton" to="/intake">New photo upload</Link>}{!id&&refresh}</div>
   </div>
   <section aria-label={id?'Saved photo session':'Saved uploads'} aria-busy={(!data&&!message)||!!data&&!data.previewsChecked}>
    {message?<div className="panel"><p role="alert">{message}</p><Link to="/uploads">Return to first page</Link></div>:!data?<p role="status">Checking saved uploads…</p>:id?
@@ -98,10 +98,10 @@ export default function SavedIntakes(){
      <div className="panel"><div className="panelHeader"><h2>{savedIntakeTitle(row)}</h2><span>{savedIntakeState(row)}</span></div>
       <p>{row.input_photo_count} source {row.input_photo_count===1?'photograph':'photographs'} · {new Date(row.created_at).toLocaleString('en-GB')} · {row.mode==='batch'?'Mixed batch':'One object'}</p>
       {savedReportAvailable(row)?<Link className="primaryButton" to={'/draft/'+row.id}>View answer</Link>:
-       row.result?.analysis_stage==='UPLOADED'&&row.model==='PENDING'&&phase==='idle'?
+       row.result?.analysis_stage==='UPLOADED'&&row.model==='PENDING'&&!analysing?
         <button type="button" disabled={analysing} className="primaryButton intakeBigButton" onClick={()=>void analyseSaved()}>Analyse saved photos</button>:
         <button type="button" className="primaryButton" onClick={()=>setReload(v=>v+1)}>Check result</button>}
-      {(analysing||phase!=='idle')&&<IntakeProgress phase={phase==='idle'?'checking':phase} message={phase==='stopped'?actionMessage:undefined} onRetry={phase==='stopped'?()=>setReload(v=>v+1):undefined} retryLabel="Check result" disabled={analysing}/>}
+      {(analysing||phase!=='idle')&&<IntakeProgress phase={phase==='idle'?'checking':phase} message={phase==='stopped'?actionMessage:undefined} onRetry={phase==='stopped'&&row.result?.analysis_stage!=='UPLOADED'?()=>setReload(v=>v+1):undefined} retryLabel="Check result" disabled={analysing}/>}
      </div>
      {!data.previewsChecked?<p role="status">Checking photo previews…</p>:data.previews[row.id]?.length>0?<div className="panel"><h2>Saved source photographs</h2><div className="photoGrid">{data.previews[row.id].map(photo=><SavedPhoto key={photo.index} photo={photo}/>)}</div></div>:<p className="ci-page-meta">Photo previews are unavailable or the saved manifest needs review. Original photographs remain saved.</p>}
 
