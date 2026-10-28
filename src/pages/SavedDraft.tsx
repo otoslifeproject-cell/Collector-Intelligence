@@ -57,7 +57,7 @@ function SavedDraftRecord({id}:{id:string}){
  const [pendingReview,setPendingReview]=useState<OwnerReviewRequest|null>(null)
  const [pendingApproval,setPendingApproval]=useState<CatalogueRequest|null>(null)
  const [activeTab,setActiveTab]=useState(()=>{
-   try{return new URLSearchParams(window.location.hash.split('?')[1]||'').get('tab')||'answer'}catch{return 'market'}
+   try{return new URLSearchParams(window.location.hash.split('?')[1]||'').get('tab')||'answer'}catch{return 'answer'}
  })
  const [researching,setResearching]=useState(false)
  const [checkingResearch,setCheckingResearch]=useState(false)
