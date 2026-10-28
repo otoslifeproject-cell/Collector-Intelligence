@@ -15,9 +15,9 @@ test('one-object intake is default with two visible choices and optional-details
  assert.match(intake,/> Analyse photos<\/button>/)
 })
 
-test('live progress shows only known upload and analysis states',()=>{
- assert.match(intake,/aria-label="Add item progress"/)
- assert.match(intake,/pending\?\.dispatched\?'current':'waiting'/)
- assert.match(intake,/Requested · awaiting saved result/)
- assert.doesNotMatch(intake,/100% complete|Visual matches found/)
+test('real-stage progress has no invented or contradictory analysis status',()=>{
+ assert.match(intake,/IntakeProgress/)
+ assert.match(intake,/FIRST_PASS_SAVED/)
+ assert.match(intake,/PROCESSING/)
+ assert.doesNotMatch(intake,/Session retained|Requested · awaiting saved result|100% complete|Visual matches found/)
 })
