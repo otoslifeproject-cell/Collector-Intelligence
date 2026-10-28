@@ -400,10 +400,10 @@ function ItemDetailRecord({id}:{id:string}) {
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
         <small style={{display:'block',marginTop:'0.5rem'}}>Saved research and photographs remain linked to this object. Steps do not approve research or publish listings automatically.</small>
-      </nav>
+      </nav>}
       {message && <div className="saveToast">{message}</div>}
 
-      <details className="ci-item-extra-views">
+      <details hidden={tab!=='catalogue'} className="ci-item-extra-views">
         <summary>Additional object records</summary>
         <div className="ci-page-actions">
           <button className="secondaryButton" onClick={()=>setTab('identification')}>Identification evidence</button>
