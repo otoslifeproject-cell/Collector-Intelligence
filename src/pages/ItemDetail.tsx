@@ -17,6 +17,7 @@ import {readReviewedAssessment,readReviewedHistory,reviewedAudit,reviewedDecisio
 import type {ReviewedAssessment} from '../lib/reviewedAssessment'
 import type {ItemResearchHistory} from '../lib/itemResearch'
 import SellFastPlan from '../components/SellFastPlan'
+import EbaySellerReview from '../components/EbaySellerReview'
 import ItemAssessment from '../components/ItemAssessment'
 import SaleEconomics from '../components/SaleEconomics'
 import RecordSaleOutcome from '../components/RecordSaleOutcome'
@@ -596,6 +597,8 @@ function ItemDetailRecord({id}:{id:string}) {
         {savedResearchRuns.length>0&&<button className="secondaryButton inlineButton" onClick={()=>setTab('market')}>View preserved market research →</button>}
        </div>
        {historyError&&<p role="alert">{historyError} Sale recommendation and publication status cannot be confirmed.</p>}
+       <EbaySellerReview item={item} trustedSales={historyError?[]:trustedComps}
+         approvedMaker={reviewed?.assessment.makerApproval?.maker||null} photoCount={photos.length}/>
        <SellFastPlan item={item} comparables={comps} trustedComparableIds={historyError?[]:trustedComps.map(c=>c.id)} listings={historyError?[]:listings} photoCount={photos.length} researchAudit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined}/>
        <SaleEconomics currency={item.currency||''} acquisitionPrice={item.acquisition_price} contextLabel={item.item_code}/>
        <RecordSaleOutcome client={supabase} itemId={item.id} onSold={(soldId,ownerId)=>setItem(current=>applyConfirmedSaleStatus(current,soldId,ownerId))}/>
