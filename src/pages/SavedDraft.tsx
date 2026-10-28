@@ -52,12 +52,12 @@ function SavedDraftRecord({id}:{id:string}){
  const [catalogued,setCatalogued]=useState<Array<{item_id:string;item_code:string;title:string;object_index:number}>>([])
  const [saveStatus,setSaveStatus]=useState('')
  const [copyStatus,setCopyStatus]=useState('')
- const [detailsOpen,setDetailsOpen]=useState(false)
+
  const [pendingCorrection,setPendingCorrection]=useState<CorrectionRequest|null>(null)
  const [pendingReview,setPendingReview]=useState<OwnerReviewRequest|null>(null)
  const [pendingApproval,setPendingApproval]=useState<CatalogueRequest|null>(null)
  const [activeTab,setActiveTab]=useState(()=>{
-   try{return new URLSearchParams(window.location.hash.split('?')[1]||'').get('tab')||'market'}catch{return 'market'}
+   try{return new URLSearchParams(window.location.hash.split('?')[1]||'').get('tab')||'answer'}catch{return 'market'}
  })
  const [researching,setResearching]=useState(false)
  const [checkingResearch,setCheckingResearch]=useState(false)
@@ -358,14 +358,14 @@ function SavedDraftRecord({id}:{id:string}){
    await navigator.clipboard.writeText(draft.text)
    setCopyStatus('Draft copied for review. Nothing was published.')
   }catch{
-   setDetailsOpen(true);setActiveTab('market')
+   setActiveTab('market')
    setCopyStatus('Clipboard unavailable. The copyable draft is inside Details; nothing was published.')
   }
  }
  const saveFromAnswer=()=>{
   if(!run||run.status!=='DRAFT')return
   if(paired||(run.result.objects||[]).length===1)void approveSaved()
-  else {setActiveTab('catalogue');setDetailsOpen(true)}
+  else setActiveTab('catalogue')
  }
  return <div className="ci-page ci-saved-draft">
   <header className="ci-page-header ci-report-heading">
@@ -441,12 +441,17 @@ function SavedDraftRecord({id}:{id:string}){
    {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
-   {answer&&<MiniAppraisal appraisal={answer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
+   <nav role="tablist" className="ci-item-tabs" aria-label="Item sections">
+    {([['answer','Answer'],['photos','Photos'],['market','Research'],['sales','Selling'],['catalogue','History']] as const).map(([value,label])=>
+     <button type="button" role="tab" key={value} aria-selected={activeTab===value}
+      className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
+      onClick={()=>setActiveTab(value)}>{label}</button>)}
+   </nav>
+   {activeTab==='answer'&&answer&&<MiniAppraisal appraisal={answer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
-    onOpenDetails={()=>{setActiveTab('market');setDetailsOpen(true)}}/>}
-   <details className="ci-owner-details" open={detailsOpen} onToggle={e=>setDetailsOpen(e.currentTarget.open)}>
-    <summary>Details · full research, evidence, photos and challenges</summary>
+    onOpenDetails={()=>setActiveTab('market')}/>}
+   {activeTab!=='answer'&&<section className="ci-item-tab-content">
    {!paired&&(run.result?.objects||[]).length>1&&<label className="ci-research-scope-selector">Choose object to research
     <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>{const next=Number(e.target.value);setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>
      {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
@@ -682,7 +687,7 @@ function SavedDraftRecord({id}:{id:string}){
     </article>
    })}</div>
    </>}
-   </details>
+   </section>}
   </>}
  </div>
 }
