@@ -45,15 +45,27 @@ function marketplace(venue:string|null|undefined):string|null{
 }
 export function miniAppraisal(input:MiniAppraisalInput){
  const sold=approvedSoldEvidence(input.verifiedSales)
- const byCurrency=new Map<string,number[]>()
- for(const row of sold){const unit=row.currency!;byCurrency.set(unit,[...(byCurrency.get(unit)||[]),Number(row.price)])}
- const oneCurrency=byCurrency.size===1?[...byCurrency][0]:null
+ // Never collapse auction hammer, premium-inclusive, and marketplace sold into
+ // one undifferentiated price range. Each achieved-price basis is distinct.
+ const priceGroups=new Map<string,number[]>()
+ for(const row of sold){
+  const key=(row.currency||'')+'|'+row.price_type
+  priceGroups.set(key,[...(priceGroups.get(key)||[]),Number(row.price)])
+ }
+ const selected=[...priceGroups.entries()].sort((a,b)=>b[1].length-a[1].length)[0]
+ const [currency,priceType]=selected?selected[0].split('|'):['','']
+ const basis:Record<string,string>={
+  HAMMER_REALIZED:'auction hammer',
+  REALIZED_INCL_BP:'buyer-premium-inclusive realised',
+  MARKETPLACE_SOLD:'marketplace sold',
+  DEALER_SOLD_CONFIRMED:'confirmed dealer sale'
+ }
  const fmt=(n:number,c:string)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:c}).format(n)
- const worth=oneCurrency?
-  'Verified achieved-sale examples: '+fmt(Math.min(...oneCurrency[1]),oneCurrency[0])+'–'+fmt(Math.max(...oneCurrency[1]),oneCurrency[0]):
+ const worth=selected?
+  'Verified '+basis[priceType]+': '+fmt(Math.min(...selected[1]),currency)+'–'+fmt(Math.max(...selected[1]),currency):
   'No sold prices found yet'
- const worthBasis=oneCurrency
-  ? 'Observed achieved sales only, not a valuation or promised asking price.'
+ const worthBasis=selected
+  ? 'Observed '+basis[priceType]+' only, not a valuation or promised asking price.'
   : 'Check one matching completed eBay sale or auction result.'
  const itemType=concise(input.objectType)||concise(input.workingTitle)||'Unidentified collectable'
  const identity=itemType+' · '+confidenceWord(input.identificationConfidence)
