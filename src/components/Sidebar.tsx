@@ -2,16 +2,17 @@ import {useState} from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Boxes, ChartNoAxesCombined, CircleDollarSign, FlaskConical,
-  LayoutDashboard, LogOut, Sun, Moon, Menu, X, UsersRound, Sparkles
+  LayoutDashboard, LogOut, Sun, Moon, Menu, X, UsersRound, Sparkles, Archive
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type {Appearance} from '../lib/appearance'
 
 const links = [
   ['/', 'Dashboard', LayoutDashboard],
-  ['/inventory', 'Collection', Boxes],
   ['/intake', 'Add item', Sparkles],
+  ['/inventory', 'Collection', Boxes],
   ['/sales', 'Sell', CircleDollarSign],
+  ['/archive', 'Archive', Archive],
 ]
 
 export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appearance;onToggleAppearance:()=>void}) {
@@ -44,13 +45,13 @@ export default function Sidebar({appearance,onToggleAppearance}:{appearance:Appe
             <span>{label}</span>
           </NavLink>
         ))}
-        <details className="ci-more-navigation"><summary className="navItem">More tools</summary>
+        {false&&<details className="ci-more-navigation"><summary className="navItem">More tools</summary>
 
           <NavLink className="navItem" to="/research" onClick={()=>setMobileMenuOpen(false)}><FlaskConical size={18}/> Research library</NavLink>
           <NavLink className="navItem" to="/lots" onClick={()=>setMobileMenuOpen(false)}><Boxes size={18}/> Lot optimiser</NavLink>
           <NavLink className="navItem" to="/contacts" onClick={()=>setMobileMenuOpen(false)}><UsersRound size={18}/> Contacts</NavLink>
           <NavLink className="navItem" to="/reports" onClick={()=>setMobileMenuOpen(false)}><ChartNoAxesCombined size={18}/> Reports</NavLink>
-        </details>
+        </details>}
         <button type="button" className="navItem buttonNav ci-mobile-signout" onClick={()=>supabase.auth.signOut()}>
          <LogOut size={18}/><span>Sign out</span>
         </button>
