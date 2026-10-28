@@ -148,11 +148,31 @@ export function storedPublication(listing:StoredListing, itemId:string, ownerId?
   if(['SOLD','ENDED','PAUSED'].includes(listing.listing_status))return listing.listing_status as 'SOLD'|'ENDED'|'PAUSED'
   return ['DRAFT','READY'].includes(listing.listing_status)?'PREPARED':'PUBLICATION_UNCONFIRMED'
 }
+// Catalogue colour and material fields may contain long forensic notes. Extract
+// concise physical descriptors for the marketplace title without asserting a maker.
+function listingTitleField(value:unknown,maxLength:number):string {
+  if(typeof value!=='string')return ''
+  const first=value.trim().replace(/^intrinsic\s+/i,'')
+    .split(/[,;.\n]|\b(?:is supported|are supported|appears|showing|with|across|including|rather than)\b/i)[0]
+    .replace(/\s+/g,' ').trim()
+  return first.length<=maxLength?first:''
+}
+function safeListingTitle(item:Item,documentary:boolean):string {
+  const maker=documentary?listingTitleField(item.maker,30):''
+  const material=listingTitleField(item.material,24)
+  let colour=listingTitleField(item.colour,34)
+  if(material&&colour.toLowerCase().endsWith(' '+material.toLowerCase()))colour=colour.slice(0,-material.length).trim()
+  const objectType=listingTitleField(item.object_type,50)||'Collectable object'
+  let parts=[maker,colour,material,objectType].filter(Boolean)
+  if(parts.join(' ').length>80)parts=[maker,material,objectType].filter(Boolean)
+  if(parts.join(' ').length>80)parts=[material,objectType].filter(Boolean)
+  if(parts.join(' ').length>80)parts=[objectType]
+  return parts.join(' ')
+}
 export function prepareListing(item:Item, assessment:ScenarioAssessment, review:ListingReview, comparables:Comparable[]):PreparedListing {
   const s=assessment.scenario
   const documentary=assessment.ready&&review.attribution==='DOCUMENTED_MAKER'&&!!item.maker?.trim()&&safeSourceUrl(review.makerSource)
-  const nouns=[documentary?item.maker:null,item.colour,item.material,item.object_type||'Collectable object'].filter(Boolean)
-  const title=nouns.join(' ').replace(/\s+/g,' ').trim()
+  const title=safeListingTitle(item,documentary)
   const condition=item.condition_summary?.trim()||'Condition needs inspection and a written report.'
   const description=[title+'.',`Condition: ${condition}`,item.marks_signatures_labels?`Recorded inscription / label: ${item.marks_signatures_labels}. Reading a mark does not authenticate a maker.`:'No maker mark is confirmed in this draft.',
     documentary?'Maker attribution uses the owner-reviewed documentary reference.':'Maker, origin and period are unconfirmed; no maker attribution is offered.',
