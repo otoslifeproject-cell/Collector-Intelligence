@@ -382,7 +382,7 @@ function ItemDetailRecord({id}:{id:string}) {
       {tab==='overview'&&<MiniAppraisal appraisal={appraisal} onCopy={()=>void copyMiniListing()} copyStatus={copyStatus}
        sold={item.status==='SOLD'} onOpenDetails={()=>setTab('market')}/>}
       <div className="ci-item-tab-content">
-      {tab==='catalogue'&&<nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
+      <nav hidden={tab!=='catalogue'} aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
         <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
         <p className="ci-page-meta" role="status" aria-live="polite" style={{margin:'0.25rem 0'}}>
           {activeWizardStep>=0?`Step ${activeWizardStep+1} of ${wizardSteps.length}: ${wizardSteps[activeWizardStep].label}`:'Object details'}
@@ -400,7 +400,7 @@ function ItemDetailRecord({id}:{id:string}) {
         {nextWizardStep&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(nextWizardStep.id)}>Next: {nextWizardStep.label}</button>}
         {activeWizardStep>0&&<button type="button" className="secondaryButton inlineButton" onClick={()=>setTab(wizardSteps[activeWizardStep-1].id)}>Previous step</button>}
         <small style={{display:'block',marginTop:'0.5rem'}}>Saved research and photographs remain linked to this object. Steps do not approve research or publish listings automatically.</small>
-      </nav>}
+      </nav>
       {message && <div className="saveToast">{message}</div>}
 
       <details hidden={tab!=='catalogue'} className="ci-item-extra-views">
@@ -618,7 +618,7 @@ function ItemDetailRecord({id}:{id:string}) {
       {/* Evidence and owner-assessment tools remain mounted for every tab,
           after the selected task. This keeps keyboard and screen-reader order
           aligned with the visible two-click workflow. */}
-      {tab==='catalogue'&&<><ResearchProgress compact={tab!=='overview'} audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      {tab==='catalogue'&&<><ResearchProgress compact audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
       {optionalTools.hold&&<ItemAssessment client={supabase} item={item} qualifiedReviewId={reviewed?.id} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>}
       {reviewedError&&!/storage is not active in this environment/i.test(reviewedError)&&<p className="ci-page-meta">{reviewedError}</p>}
       {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}
