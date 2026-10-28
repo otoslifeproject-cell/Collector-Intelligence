@@ -1,9 +1,8 @@
 import {useEffect,useRef,useState} from 'react'
 import type {ChangeEvent,DragEvent} from 'react'
-import {Link,useNavigate} from 'react-router-dom'
+import {useNavigate} from 'react-router-dom'
 import {Camera,Images,Sparkles,Trash2,UploadCloud} from 'lucide-react'
 import {supabase} from '../lib/supabase'
-import InfoDisclosure from '../components/InfoDisclosure'
 import {IntakeError,prepareIntake,settleIntake,readIntake,hasIntakeReport,intakeDispatch,verifyIntakeOriginals} from '../lib/intakeSession'
 import type {IntakeAttempt,IntakeContext,IntakeRow} from '../lib/intakeSession'
 
@@ -17,21 +16,33 @@ export default function AIIntake(){
  const [photos,setPhotos]=useState<UploadPhoto[]>([]),[context,setContext]=useState<IntakeContext>(emptyContext)
  const [pending,setPending]=useState<IntakeAttempt|null>(null),[working,setWorking]=useState(false)
  const [message,setMessage]=useState(''),[dragActive,setDragActive]=useState(false)
- const [rawReply,setRawReply]=useState(''),[savedData,setSavedData]=useState('')
+ const [showDetails,setShowDetails]=useState(false),[canResume,setCanResume]=useState(false)
  const locked=!!pending||working
  const chooseMode=(value:'single'|'batch')=>{if(!busy.current&&!held.current)setMode(value)}
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;for(const url of previewURLs.current)URL.revokeObjectURL(url);previewURLs.current.clear()}},[])
  useEffect(()=>{if(message&&!working)status.current?.focus()},[message,working])
  const addIncomingFiles=(files:File[])=>{
   if(busy.current||held.current)return
-  const supported=files.filter(f=>['image/jpeg','image/png','image/webp'].includes(f.type)),max=mode==='single'?20:40
-  const room=Math.max(0,max-choices.current.length),accepted=supported.slice(0,room).map((file,index)=>{
+  const max=mode==='single'?20:40
+  if(!files.length)return
+  if(files.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type))){
+   window.alert('Please choose JPEG, PNG or WebP photos. Nothing was removed.');return
+  }
+  if(files.some(f=>f.size<1||f.size>26214400)){
+   window.alert('One photo is empty or larger than 25 MB. Choose smaller photos. Nothing was removed.');return
+  }
+  if(files.length+choices.current.length>max){
+   window.alert('Too many photos: '+max+' is the maximum. Choose up to '+max+'.');return
+  }
+  const accepted=files.map((file,index)=>{
    const preview=URL.createObjectURL(file);previewURLs.current.add(preview)
    return {index:choices.current.length+index,file,preview}
   })
-  choices.current=[...choices.current,...accepted];setPhotos(choices.current)
-  setMessage(supported.length!==files.length?'Unsupported files were ignored. Use JPEG, PNG or WebP.':supported.length>room?'Photo limit reached: '+max+' for this intake mode.':accepted.length+' photographs added.')
+  choices.current=[...choices.current,...accepted]
+  setPhotos(choices.current)
+  setMessage('')
  }
+
  const addFiles=(e:ChangeEvent<HTMLInputElement>)=>{addIncomingFiles(Array.from(e.target.files||[]));e.target.value=''}
  const handleDragOver=(e:DragEvent<HTMLLabelElement>)=>{e.preventDefault();e.stopPropagation();if(!busy.current&&!held.current){e.dataTransfer.dropEffect='copy';setDragActive(true)}}
  const handleDragLeave=(e:DragEvent<HTMLLabelElement>)=>{e.preventDefault();e.stopPropagation();if(!e.currentTarget.contains(e.relatedTarget as Node|null))setDragActive(false)}
@@ -44,74 +55,75 @@ export default function AIIntake(){
  const updateContext=(key:string,value:string)=>{if(!busy.current&&!held.current)setContext(v=>({...v,[key]:value}))}
  const openVerified=async(attempt:IntakeAttempt,row:IntakeRow|null)=>{
   if(!row)return false
-  setSavedData(JSON.stringify(row,null,2))
   if(!hasIntakeReport(row))return false
   await verifyIntakeOriginals(supabase,attempt,current)
   if(current())nav('/draft/'+attempt.request.id)
   return true
  }
- const send=async(attempt:IntakeAttempt)=>{
-  setMessage('Saving and checking the original photographs and their private session…')
-  const row=await settleIntake(supabase,attempt,current)
-  if(await openVerified(attempt,row))return
-  const dispatch=await intakeDispatch(supabase,attempt,current)
-  if(!current())return
-  // A page-local attempt is dispatched at most once, including lost replies and
-  // timeouts. A timeout cannot establish that the server cancelled its work.
-  attempt.dispatched=true;setMessage('Photo session confirmed. Examining the evidence; the result will be checked independently…')
-  let response:Response|undefined,reply=''
-  try{
-   response=await fetch('/api/analyse-intake',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+dispatch.token},body:JSON.stringify(dispatch.body),signal:AbortSignal.timeout(120000)})
-   reply=await response.text()
-  }catch{/* Always check the same saved identity after an uncertain response. */}
-  if(!current())return
-  setRawReply(reply)
-  const saved=await readIntake(supabase,attempt,current)
-  if(await openVerified(attempt,saved))return
-  let reason=''
-  try{const parsed=JSON.parse(reply);if(typeof parsed?.error==='string')reason=parsed.error.slice(0,1000)+' '}catch{/* Raw reply remains inspectable. */}
-  setMessage(reason+'Analysis was requested, but a complete saved result is not yet confirmed. Check saved analysis; do not pay for a second run to recover it.')
+ const plainError=()=>{
+  setMessage('The answer is not ready. Your photos are saved.')
  }
+ const checkSaved=async(attempt:IntakeAttempt)=>{
+  const row=await readIntake(supabase,attempt,current)
+  if(await openVerified(attempt,row))return
+  const stage=row?.result?.analysis_stage
+  setCanResume(stage==='UPLOADED'&&row?.model==='PENDING')
+  if(stage==='UPLOADED')setMessage('Your photos are saved and can be analysed again.')
+  else if(stage==='PROCESSING')setMessage('Analysis is being checked. Your photos are safe.')
+  else plainError()
+ }
+ const send=async(attempt:IntakeAttempt,resumeSaved=false)=>{
+  setMessage('Analysing your photos…')
+  if(!resumeSaved){
+   const row=await settleIntake(supabase,attempt,current)
+   if(await openVerified(attempt,row))return
+  }
+  const dispatch=resumeSaved?null:await intakeDispatch(supabase,attempt,current)
+  if(!current())return
+  // Only the server can claim payment. A previously claimed session cannot be charged again.
+  attempt.dispatched=true;setCanResume(false)
+  try{
+   const session=await supabase.auth.getSession()
+   if(session.error||!session.data.session)throw new Error('Sign in again to check your photos.')
+   await fetch('/api/analyse-intake',{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.data.session.access_token},
+    body:JSON.stringify(resumeSaved?{run_id:attempt.request.id,mode:attempt.request.mode,resume_saved:true}:dispatch?.body),
+    signal:AbortSignal.timeout(120000)
+   })
+  }catch{/* Always read the saved result; a lost acknowledgement never authorises a second call. */}
+  if(!current())return
+  await checkSaved(attempt)
+ }
+
  const perform=async(action:()=>Promise<void>)=>{
   if(busy.current)return
   busy.current=true;setWorking(true)
   try{await action()}
-  catch(error){if(current())setMessage(error instanceof IntakeError?error.message:'The photo session could not be confirmed. Keep this page open and check the same session before continuing.')}
+  catch(error){if(current()){window.alert('Your photos could not be checked. Try again.');setMessage('Your photos are saved or still selected.')}}
   finally{busy.current=false;if(current())setWorking(false)}
  }
- const uploadAndAnalyse=()=>{if(held.current||!photos.length)return;void perform(async()=>{
+ const uploadAndAnalyse=()=>{if(!photos.length){window.alert('Choose at least one photo.');return}if(held.current)return;void perform(async()=>{
   const attempt=await prepareIntake(supabase,mode,choices.current.map(p=>p.file),context,current)
   if(!current())return
   held.current=attempt;setPending(attempt)
   await send(attempt)
  })}
- const retry=()=>{const attempt=held.current;if(!attempt||attempt.dispatched)return;void perform(()=>send(attempt))}
- const check=()=>{const attempt=held.current;if(!attempt)return;void perform(async()=>{
-  setMessage('Checking this saved photo session without requesting another analysis…')
-  const row=await readIntake(supabase,attempt,current)
-  if(await openVerified(attempt,row))return
-  if(current())setMessage(row?'The saved session is retained, but its analysis is not complete or needs review. No new analysis was requested.':'No saved session is confirmed yet. The selected files are retained here; retry the same photo session before analysis.')
- })}
+ const check=()=>{const attempt=held.current;if(!attempt)return;void perform(()=>checkSaved(attempt))}
+ const retry=()=>{const attempt=held.current;if(!attempt||!canResume)return;void perform(()=>send(attempt,true))}
+
   return (
     <div>
-      <div className="pageHeader">
-        <div>
-          <div className="eyebrow">AI CATALOGUE INTAKE</div>
-          <h1>Add photos</h1><p>Choose photos → Analyse → Answer. Optional details can come later.</p>
-
-        </div>
-
-      </div>
+      <div className="pageHeader"><div><h1>Add photos</h1><p>Choose photos, then press Analyse.</p></div></div>
 
       <fieldset disabled={locked} style={{border:0,padding:0,margin:0,minWidth:0}}>
-        <details className="ci-intake-advanced"><summary>More than one object? Choose batch mode</summary><div className="intakeModeGrid">
+        <div className="intakeModeGrid" role="group" aria-label="Number of objects">
           <button className={mode==='single'?'intakeMode active':'intakeMode'} onClick={()=>chooseMode('single')}>
             <Camera/><strong>One object</strong><span>Up to 20 photographs of one physical object.</span>
           </button>
           <button className={mode==='batch'?'intakeMode active':'intakeMode'} onClick={()=>chooseMode('batch')}>
             <Images/><strong>Mixed batch — up to 5</strong><span>Upload mixed photographs. AI performs object separation first.</span>
           </button>
-        </div></details>
+        </div>
 
         <div className="panel intakeDropPanel">
           <label
@@ -122,8 +134,8 @@ export default function AIIntake(){
             onDrop={handleDrop}
           >
             <UploadCloud size={34}/>
-            <strong>Drop or choose photographs</strong>
-            <span>{mode==='single'?'Overall, base, rim, mark, condition and detail shots are ideal.':'All photographs for up to five objects. Order does not need to be perfect.'}</span>
+            <strong>Choose photos · Up to {mode==='single'?20:40} photos</strong>
+            <span>{photos.length} of {mode==='single'?20:40} photos selected</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addFiles}/>
           </label>
           {photos.length>0 && <div className="intakeThumbGrid">
@@ -135,7 +147,8 @@ export default function AIIntake(){
           </div>}
         </div>
 
-        <details className="panel ci-intake-advanced"><summary>Optional details (purchase, size, notes)</summary>
+        <button type="button" className="secondaryButton ci-disclosure-button" aria-expanded={showDetails} onClick={()=>setShowDetails(v=>!v)}>Add details (optional)</button>
+        {showDetails&&<section className="panel ci-intake-advanced">
           <div className="panelHeader"><div><h2>Only what you know</h2><span>All fields optional. User facts are kept separate from AI inference.</span></div></div>
           <div className="formGrid">
             <label>Purchase price<input type="number" step="0.01" value={context.purchase_price} onChange={e=>updateContext('purchase_price',e.target.value)} placeholder="Optional"/></label>
@@ -145,7 +158,7 @@ export default function AIIntake(){
             <label>Storage location<input value={context.storage_location} onChange={e=>updateContext('storage_location',e.target.value)} placeholder="Shelf / box / room"/></label>
             <label>Your notes / hypothesis<input value={context.user_notes} onChange={e=>updateContext('user_notes',e.target.value)} placeholder="Optional — treated as a hypothesis, not a fact"/></label>
           </div>
-        </details>
+        </section>}
 
       </fieldset>
         <section className="ci-intake-journey" aria-label="Add item progress">
@@ -155,23 +168,16 @@ export default function AIIntake(){
         </section>
         {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
         <div className="intakeActions">
-          <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse photos</button>
+          <button className="primaryButton intakeBigButton ci-action-primary" disabled={locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse photos</button>
 
         </div>
 
 
-      {pending&&<section className="panel" aria-label="Held photo session">
-        <h2>{pending.dispatched?'Check your saved analysis':'Original photo session retained'}</h2>
-        <p>{pending.dispatched?'An analysis request has been sent. Check its saved result before any further paid run.':'The same original files, notes and session ID are held for recovery. Retrying reuses them.'}</p>
-        <label>Held session details<textarea aria-label="Held session details" readOnly rows={5} value={JSON.stringify({run_id:pending.request.id,mode:pending.request.mode,notes:pending.request.context,photographs:pending.request.originals.map(p=>({index:p.index,file_name:p.file_name,sha256:p.sha256}))},null,2)}/></label>
-        <div className="intakeActions">
-          <button type="button" className="secondaryButton" disabled={working} onClick={check}>Check saved analysis</button>
-          {!pending.dispatched&&<button type="button" className="primaryButton" disabled={working} onClick={retry}>Retry same photo session</button>}
-        </div>
-        <p className="ci-page-meta">Keep this page open during recovery. Reloading or leaving this page loses unsent choices; saved sessions and originals remain private.</p>
-        <Link to={'/uploads/'+pending.request.id}>Open this saved session</Link>
-        {savedData&&<details><summary>Saved session data</summary><pre className="ci-research-response">{savedData}</pre></details>}
-        {rawReply&&<details><summary>Unconfirmed service reply</summary><pre className="ci-research-response">{rawReply}</pre></details>}
+      {pending&&<section className="panel ci-recovery" aria-label="Saved photos">
+       <p>{working?'Checking your saved photos…':canResume?'Your photos are ready to analyse.':'Your photos are saved.'}</p>
+       <button type="button" className="primaryButton intakeBigButton" disabled={working} onClick={canResume?retry:check}>
+        {canResume?'Try again':'Check result'}
+       </button>
       </section>}
     </div>
   )
