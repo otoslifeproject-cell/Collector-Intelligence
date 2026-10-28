@@ -51,7 +51,7 @@ export default function Dashboard(){
   </nav>
   {mode==='error'&&<section className="ci-home-alert" role="alert"><p>{message}</p><button className="secondaryButton" onClick={()=>setRetry(v=>v+1)}><RefreshCw size={16}/> Retry</button></section>}
   {mode==='loading'&&<p role="status" className="ci-home-loading">Opening your collection…</p>}
-  {mode==='ready'&&<section className="ci-home-continue" aria-label="Continue your work">
+  {mode==='ready'&&items.length>0&&<section className="ci-home-continue" aria-label="Continue your work">
    <div className="ci-home-section-heading"><div><span>CONTINUE</span><h2>{latest?'Pick up where you left off':'Your first object'}</h2></div><Link to="/inventory">View collection <ArrowRight size={16}/></Link></div>
    {latest?<Link className="ci-home-feature" to={`/item/${latest.id}`}>
     <span className="ci-home-object-mark">{latest.item_code}</span>
