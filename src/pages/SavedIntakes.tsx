@@ -49,16 +49,36 @@ export default function SavedIntakes(){
    setActionMessage('This analysis has already started. Check result.');return
   }
   setAnalysing(true);setPhase('checking');setActionMessage('')
+  let stopMessage=''
   try{
    const session=await supabase.auth.getSession()
    if(session.error||!session.data.session)throw new Error('Sign in again.')
-   await fetch('/api/analyse-intake',{
+   const reply=await fetch('/api/analyse-intake',{
     method:'POST',
     headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.data.session.access_token},
     body:JSON.stringify({run_id:id,mode:row.mode,resume_saved:true}),
     signal:AbortSignal.timeout(120000)
    })
-  }catch{/* A lost acknowledgement cannot approve a second AI charge. */}
+   if(!reply.ok){
+    // Only user-safe error sentences from our own server are presented.
+    // Raw replies, stack traces and internal stop codes never reach this screen.
+    const payload=await reply.json().catch(()=>null)
+    const candidate=typeof payload?.error==='string'?payload.error:''
+    const safeMessages=[
+     'OpenAI rejected the API key. Replace it in Vercel before trying again.',
+     'OpenAI has not authorised this key. Check your OpenAI project access.',
+     'This AI model is not available to your OpenAI project.',
+     'OpenAI has limited requests. Check your account billing and usage.',
+     'OpenAI could not verify access. Your photographs are saved.'
+    ]
+    stopMessage=safeMessages.includes(candidate)?candidate:
+     'The analysis could not start. Your photos are saved. Check result.'
+   }
+  }catch{
+   // The provider outcome may be uncertain after an interrupted request.
+   // Never automatically reissue analysis or claim it is safe to retry.
+   stopMessage='The connection was interrupted. Your photos are saved. Check result before trying again.'
+  }
   try{
    const saved=await readSavedIntake(supabase,id,()=>true)
    if(saved&&savedReportAvailable(saved)){setPhase('ready');nav('/draft/'+id);return}
@@ -67,7 +87,7 @@ export default function SavedIntakes(){
    else setPhase('stopped')
    setActionMessage(saved?.result?.analysis_stage==='PROCESSING'?
     'Analysis has started. Check result to see the answer.':
-    'Your photos are saved. The answer is not ready yet.')
+    stopMessage||'Your photos are saved. The answer is not ready yet.')
   }catch{setActionMessage('Your photos are saved. Check result again.')}
   finally{setAnalysing(false);setReload(v=>v+1)}
  }
