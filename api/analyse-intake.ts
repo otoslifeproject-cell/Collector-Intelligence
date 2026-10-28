@@ -468,7 +468,18 @@ export default async function handler(req: any, res: any) {
     const available=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(model),{
       headers:{Authorization:'Bearer '+apiKey}
     });
-    if(!available.ok)return stop(503,'MODEL_ACCESS','MODEL_UNAVAILABLE_'+available.status);
+    if(!available.ok){
+      const message=available.status===401
+        ?'OpenAI rejected the API key. Replace it in Vercel before trying again.'
+        :available.status===403
+          ?'OpenAI has not authorised this key. Check your OpenAI project access.'
+          :available.status===404
+            ?'This AI model is not available to your OpenAI project.'
+            :available.status===429
+              ?'OpenAI has limited requests. Check your account billing and usage.'
+              :'OpenAI could not verify access. Your photographs are saved.';
+      return stop(503,'MODEL_ACCESS','MODEL_CHECK_HTTP_'+available.status,message);
+    }
   }catch{return stop(503,'MODEL_ACCESS','MODEL_CHECK_NETWORK');}
 
   // A publication change during photo/knowledge preflight must stop this dispatch.
