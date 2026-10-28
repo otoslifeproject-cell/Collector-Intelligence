@@ -36,7 +36,8 @@ jobs:
           endpoint="https://collector-intelligence-sngf-otoss-projects.vercel.app/api/analyse-intake"
           for attempt in $(seq 1 6); do
             status=$(curl --location --silent --show-error --max-time 15 --output /dev/null --write-out "%{http_code}" "$endpoint" || true)
-            echo "Production import probe $attempt: HTTP $status"\n            if [ "$status" = "405" ]; then
+            echo "Production import probe $attempt: HTTP $status"
+            if [ "$status" = "405" ]; then
               echo "Production analysis handler loaded and rejected a non-POST request without an AI charge."
               exit 0
             fi
