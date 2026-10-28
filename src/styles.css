@@ -1100,3 +1100,7 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 
 /* Raw archives and code blocks are not customer-facing user interface. Retain source data in storage. */
 .mainContent pre,.mainContent code{display:none!important}
+
+/* Consistent plain-language research and archive typography. No source hashes, IDs or code on owner screens. */
+.mainContent pre,.mainContent code{display:none!important}
+.ci-policy-source-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.6}
