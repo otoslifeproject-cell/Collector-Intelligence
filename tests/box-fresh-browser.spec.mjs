@@ -75,7 +75,13 @@ test('brand-new owner: Home → Add item → photo → Analyse → Answer → Co
  await page.locator('.intakeDrop input[type=file]').setInputFiles({name:'brand-new-bowl.png',mimeType:'image/png',buffer:bytes})
  await expect(page.getByRole('button',{name:'Analyse photos'})).toBeEnabled()
  await page.getByRole('button',{name:'Analyse photos'}).click()
- await expect(page).toHaveURL(/#\/draft\/[0-9a-f-]{36}/,{timeout:30000})
+ try{await expect(page).toHaveURL(/#\\/draft\\/[0-9a-f-]{36}/,{timeout:15000})}
+ catch(error){
+  const messages=await page.locator('[role="status"],[role="alert"],.note').allTextContents()
+  throw new Error('Fresh intake remained on '+page.url()+'; messages='+JSON.stringify(messages.slice(0,12))+
+   '; saved='+JSON.stringify(saved&&{id:saved.id,stage:saved.result?.analysis_stage})+
+   '; uploads='+uploads+'; analyses='+analyses+'; cause='+String(error).slice(0,160))
+ }
  const answer=page.getByRole('region',{name:'Your answer'})
  await expect(answer).toBeVisible()
  await expect(answer).toContainText('Small bowl')
