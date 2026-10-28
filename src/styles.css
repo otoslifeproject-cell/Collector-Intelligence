@@ -1121,3 +1121,14 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-analysis-tracker-message{margin:20px 0 14px;font-size:16px;font-weight:650}
 .ci-analysis-tracker>.primaryButton{width:100%;min-height:56px;margin-top:14px}
 @media(max-width:630px){.ci-analysis-step{gap:12px;min-height:58px}.ci-analysis-dot{width:36px;height:36px}.ci-analysis-step:not(:last-child):before{left:22px;top:43px}.ci-analysis-current{font-size:11px}}
+
+
+/* Seller review uses the shared application card and button system. */
+.ci-ebay-review{display:grid;gap:13px}
+.ci-ebay-review>.primaryButton{min-height:54px}
+.ci-ebay-review-details{border-top:1px solid var(--line);padding-top:14px;display:grid;gap:12px}
+.ci-ebay-review-details dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px;margin:0}
+.ci-ebay-review-details dl>div{padding:12px;border:1px solid var(--line);border-radius:10px}
+.ci-ebay-review-details dt{font-weight:750;font-size:12px;color:var(--muted)}
+.ci-ebay-review-details dd{margin:5px 0 0;line-height:1.45}
+.ci-ebay-review-details textarea{width:100%;white-space:pre-wrap}
