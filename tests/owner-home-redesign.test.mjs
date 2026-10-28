@@ -5,7 +5,9 @@ const dashboard=readFileSync(new URL('../src/pages/Dashboard.tsx',import.meta.ur
 const sidebar=readFileSync(new URL('../src/components/Sidebar.tsx',import.meta.url),'utf8')
 const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8')
 test('owner home only offers fresh work and the current resume journey',()=>{
- for(const label of ["Add item","Collection","Sell"])assert.ok(dashboard.includes("label:'"+label+"'"))
+ assert.match(dashboard,/label:'Add item'/)
+ assert.doesNotMatch(dashboard,/label:'Collection'/)
+ assert.doesNotMatch(dashboard,/label:'Sell'/)
  assert.match(dashboard,/Continue your work/)
  assert.match(dashboard,/FRESH_START_AT/)
  assert.match(dashboard,/to=\{\x60\/item\/\$\{latest\.id\}\x60\}/)
