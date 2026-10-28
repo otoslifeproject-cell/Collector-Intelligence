@@ -11,6 +11,7 @@ import {provisionalMoney} from '../lib/catalogueSaleState'
 import {draftResearchDashboard} from '../lib/draftResearchAudit'
 import SaleEconomics from '../components/SaleEconomics'
 import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
+import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import WorkspaceActionPanel from '../components/WorkspaceActionPanel'
 import InfoDisclosure from '../components/InfoDisclosure'
 import {feedbackForObject,currentOwnerMaterial,researchPredatesCorrection,materialContradictsVisualGuess} from '../lib/ownerCorrections'
@@ -473,6 +474,10 @@ function SavedDraftRecord({id}:{id:string}){
          : <button className="secondaryButton" disabled={!isPhotoManifestReady||!selectedIndices.length||!!error||approving||saving||researching||!!pendingReview||!!pendingApproval||!!pendingCorrection||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={()=>{if(paired||(run.result.objects||[]).length===1)void approveSaved();else setActiveTab('catalogue')}}>{approving?'Saving item…':paired||(run.result.objects||[]).length===1?'Save item to catalogue':'Choose items to save'}</button>}
       </div>
     </section>
+    {run.status==='DRAFT'&&!paired&&isPhotoManifestReady&&!needsPhotoCorrection&&
+     <ProvisionalDraftHandoff runId={run.id} index={scopeIndex}
+      object={run.result.objects[scopeIndex]} photoIndices={indicesForReview(scopeIndex)}
+      reviewedCondition={edits[scopeIndex]?.condition_summary}/>}
     {isPhotoManifestReady&&Object.values(images).some(Boolean)&&
      <VisualReferenceWorkbench
       analysisRunId={run.id} objectIndex={scopeIndex} paired={paired}
