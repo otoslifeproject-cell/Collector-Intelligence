@@ -39,8 +39,8 @@ export default function Dashboard(){
    <div className="ci-home-private"><ShieldCheck size={16}/> Private workspace</div>
   </header>
   <section className="ci-home-live-guide" aria-label="How Collector Intelligence works">
-    <strong>From photograph to decision</strong>
-    <p><span>1 · Add photographs</span><span>2 · Review the research</span><span>3 · Save or prepare to sell</span></p>
+    <strong>Three steps to an answer</strong>
+    <p><span>1 · Add photos</span><span>2 · Analyse</span><span>3 · Answer</span></p>
     <small>Visual suggestions are leads. Maker, age and sale prices need evidence before acceptance.</small>
   </section>
   <nav className="ci-home-actions" aria-label="Start an activity">

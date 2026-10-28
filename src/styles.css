@@ -1033,3 +1033,28 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-home-live-guide p span+span:before{content:'→';margin-right:16px;color:var(--muted)}
 .ci-home-live-guide small{display:block;color:var(--muted);line-height:1.5;font-size:12px}
 @media(max-width:660px){.ci-home-live-guide p{display:grid;gap:6px}.ci-home-live-guide p span+span:before{display:none}}
+
+
+/* 28 Oct owner lane: the answer is one compact card, detailed audits stay folded. */
+.ci-mini-appraisal{border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:clamp(18px,2.2vw,28px);margin:0 0 18px;box-shadow:0 10px 28px rgba(14,28,44,.05)}
+.ci-mini-appraisal h2{font-size:clamp(21px,2.25vw,28px);line-height:1.15;margin:4px 0 18px;letter-spacing:-.025em}
+.ci-mini-steps{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;margin:0 0 17px;color:var(--muted);font-size:13px;font-weight:650}
+.ci-mini-steps strong{color:var(--text)}
+.ci-mini-steps span+span:before,.ci-mini-steps strong:before{content:'→';display:inline-block;margin-right:16px;color:var(--muted)}
+.ci-mini-line{padding:12px 0;border-top:1px solid var(--line);min-width:0}
+.ci-mini-line>strong{display:block;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.015em;margin-bottom:5px}
+.ci-mini-line p,.ci-mini-line small{display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;margin:0;max-width:100%;line-height:1.45}
+.ci-mini-line p{font-size:clamp(15px,1.5vw,18px);font-weight:630;color:var(--text)}
+.ci-mini-line small{font-size:12px;color:var(--muted);margin-top:3px}
+.ci-mini-line p b{font-weight:800}
+.ci-mini-cta{display:flex;width:100%;align-items:center;justify-content:center;min-height:58px!important;padding:14px 20px!important;margin-top:16px;font-size:18px!important;font-weight:800!important;border-radius:12px!important}
+.ci-mini-feedback{font-size:13px;margin:10px 0 0;color:var(--text)}
+.ci-mini-secondary{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 0;align-items:center}
+.ci-mini-text-action{border:0;background:none;color:var(--text);font-size:13px;font-weight:650;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:7px 0}
+.ci-mini-text-action:disabled{opacity:.45;cursor:not-allowed}
+.ci-owner-details{border:1px solid var(--line);border-radius:14px;background:var(--panel);margin:0 0 24px;padding:0}
+.ci-owner-details>summary{font-size:15px;font-weight:750;cursor:pointer;padding:17px 20px;line-height:1.35}
+.ci-owner-details[open]{padding:0 18px 18px}
+.ci-owner-details[open]>summary{margin:0 -18px 14px;border-bottom:1px solid var(--line);padding:17px 20px}
+.ci-owner-details .marketStack,.ci-owner-details .detailGrid{min-width:0}
+@media(max-width:700px){.ci-mini-appraisal{padding:16px}.ci-mini-steps{display:grid;gap:4px}.ci-mini-steps span+span:before,.ci-mini-steps strong:before{display:none}.ci-mini-cta{min-height:62px!important}.ci-owner-details[open]{padding:0 12px 12px}}

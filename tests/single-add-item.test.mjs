@@ -12,7 +12,7 @@ test('one-object intake is default with advanced choices folded away',()=>{
  assert.match(intake,/useState<'single'\|'batch'>\('single'\)/)
  assert.match(intake,/<summary>More than one object\? Choose batch mode<\/summary>/)
  assert.match(intake,/<summary>Optional details \(purchase, size, notes\)<\/summary>/)
- assert.match(intake,/> Start research<\/button>/)
+ assert.match(intake,/> Analyse photos<\/button>/)
 })
 
 test('live progress shows only known upload and analysis states',()=>{

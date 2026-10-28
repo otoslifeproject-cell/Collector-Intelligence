@@ -5,7 +5,9 @@ import { supabase } from '../lib/supabase'
 import { Comparable, Item, ItemPhoto } from '../types'
 import { date } from '../lib/format'
 import {provisionalMoney} from '../lib/catalogueSaleState'
-import {knownSaleCurrency} from '../lib/sellFastPlan'
+import {knownSaleCurrency,emptySaleScenario,assessSaleScenario,prepareListing,formatListingHandoff} from '../lib/sellFastPlan'
+import {miniAppraisal} from '../lib/miniAppraisal'
+import MiniAppraisal from '../components/MiniAppraisal'
 import Confidence from '../components/Confidence'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
@@ -46,6 +48,8 @@ function ItemDetailRecord({id}:{id:string}) {
     if(requested&&['overview','photos','identification','market','sales','catalogue'].includes(requested))setTab(requested)
   },[location.search,id])
   const [message,setMessage] = useState('')
+  const [detailsOpen,setDetailsOpen]=useState(false)
+  const [copyStatus,setCopyStatus]=useState('')
   const [saving,setSaving]=useState(false)
   const [assessmentMutating,setAssessmentMutating]=useState(false)
   const [armyMutating,setArmyMutating]=useState(false)
@@ -276,6 +280,31 @@ function ItemDetailRecord({id}:{id:string}) {
 
   const reviewed=researching||uploading||saving||assessmentMutating||armyMutating?null:reviewedForItem(reviewedCandidate,item)
   if (!item) return <div className="empty" role={loadError?'alert':undefined}>{loadError||'Loading object record…'}</div>
+  const appraisal=miniAppraisal({
+   objectType:item.object_type||item.title,workingTitle:item.title,
+   identificationConfidence:item.identification_confidence,
+   valuationConfidence:item.valuation_confidence,
+   period:item.period_wording,status:item.status,
+   readyToList:!!reviewed&&reviewed.assessment.decision==='READY_TO_LIST'&&trustedComps.length>0&&!historyError,
+   verifiedSales:historyError?[]:trustedComps,
+   sourceReviewedVenue:reviewed?.assessment.routeGuidance||null
+  })
+  const copyMiniListing=async()=>{
+   if(item.status==='SOLD'){setTab('sales');setDetailsOpen(true);return}
+   const review={conditionReviewed:false,comparableReviewed:false,photosReviewed:false,
+    attribution:'UNRESOLVED' as const,makerSource:'',specialistRisk:item.status==='SPECIALIST_REVIEW',shippingInstructions:''}
+   const scenario=emptySaleScenario('FAST_CASH',item.currency||'')
+   const assessment=assessSaleScenario(scenario,item,[],review,new Date().toISOString().slice(0,10),[],{})
+   const draft=formatListingHandoff(prepareListing(item,assessment,review,[]))
+   try{
+    if(typeof navigator.clipboard?.writeText!=='function')throw Error('Clipboard unavailable')
+    await navigator.clipboard.writeText(draft)
+    setCopyStatus('Cautious review draft copied; no asking price set or listing published.')
+   }catch{
+    setDetailsOpen(true);setTab('sales')
+    setCopyStatus('Clipboard unavailable. Open the listing draft inside Details to copy manually.')
+   }
+  }
   const heroPhoto=photos.find(photo=>photo.is_hero)||photos[0]
   const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
   // One clear action. This is navigation only: it never promotes evidence,
@@ -324,10 +353,14 @@ function ItemDetailRecord({id}:{id:string}) {
           <div className="eyebrow">{item.item_code}</div>
           <h1 style={{fontSize:'clamp(1.65rem,2.6vw,2.55rem)',lineHeight:1.12,maxWidth:'26ch'}}>{(item.current_attribution || item.title || item.object_type || 'Unidentified object').length>76 ? (item.object_type || item.title || 'Unidentified object').slice(0,76) : (item.current_attribution || item.title || item.object_type || 'Unidentified object')}</h1>
           <p>{[item.maker,item.period_wording,item.region_country].filter(Boolean).join(' · ') || 'Identification in progress'}</p>
-          <div className="pillRow"><span className="pill accent">{item.status==='SOLD'?'SOLD':reviewed?reviewed.assessment.decision.replaceAll('_',' '):'FINAL RESEARCH DECISION REQUIRED'}</span></div>
+
         </div>
 
       </div>
+      <MiniAppraisal appraisal={appraisal} onCopy={()=>void copyMiniListing()} copyStatus={copyStatus}
+       sold={item.status==='SOLD'} onOpenDetails={()=>setDetailsOpen(true)}/>
+      <details className="ci-owner-details" open={detailsOpen} onToggle={e=>setDetailsOpen(e.currentTarget.open)}>
+       <summary>Details · research, assumptions, photos, challenges and selling options</summary>
       <nav aria-label="Object workflow" className="panel" style={{padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
         <div className="eyebrow">ONE OBJECT · ONE NEXT STEP</div>
         <p className="ci-page-meta" role="status" aria-live="polite" style={{margin:'0.25rem 0'}}>
@@ -362,7 +395,7 @@ function ItemDetailRecord({id}:{id:string}) {
           <div className="valueSummary ci-item-value-summary">
             <div><small>Identity</small><strong>{item.maker || 'Maker unknown'}</strong></div>
             <div><small>Confidence</small><strong>{item.identification_confidence ?? '—'}% ID</strong></div>
-            <div><small>Fast cash · provisional</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
+            <div><small>Verified sold context</small><strong>{appraisal.hasVerifiedSold?'See achieved-sale evidence':'No verified sold prices'}</strong></div>
             <div><small>Next action</small><strong>{item.status==='SOLD'?'Review sale history':'Complete evidence review and final item assessment'}</strong></div>
           </div>
           <p>{item.condition_summary ? item.condition_summary.slice(0,180) : 'Condition not yet recorded.'}</p>
@@ -534,7 +567,7 @@ function ItemDetailRecord({id}:{id:string}) {
         <div className="panelHeader"><h2>Sales and listing record</h2><span>Original collection object</span></div>
         <div className="valueSummary">
          <div><small>Acquisition · cash paid</small><strong>{provisionalMoney(item.acquisition_price,item.acquisition_currency)}</strong></div>
-         <div><small>Indicative fast cash · gross</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
+         <div><small>Verified sold context</small><strong>{appraisal.hasVerifiedSold?'See achieved-sale evidence':'No verified sold prices'}</strong></div>
          <div><small>Previously recorded expected net</small><strong>{provisionalMoney(item.expected_net,item.currency)}</strong></div>
         </div>
         <p className="ci-page-meta">Previously recorded prices are not evidence of achieved sales. Do not automatically use dealer asking as a realised price.</p>
@@ -571,6 +604,7 @@ function ItemDetailRecord({id}:{id:string}) {
 
       {reviewedHistory.length>0&&<details className="panel"><summary>Independent final assessment history ({reviewedHistory.length})</summary><p>Historical decisions retain their original evidence. Only the current qualified assessment can establish readiness.</p>{reviewedHistory.map(row=><article key={row.id}><strong>{row.assessment.decision.replaceAll('_',' ')} · {row.id===reviewed?.id?'current independent source review':'historical decision — not current readiness'}</strong><p>{row.assessment.rationale}</p><small>{row.created_at} · {row.assessment.reviewReference}</small><details><summary>Original assessment and source references</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(row.assessment,null,2)}</pre></details></article>)}</details>}
 
+      </details>
     </div>
   )
 }

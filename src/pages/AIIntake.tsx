@@ -97,7 +97,7 @@ export default function AIIntake(){
       <div className="pageHeader">
         <div>
           <div className="eyebrow">AI CATALOGUE INTAKE</div>
-          <h1>Add item</h1><p>Choose photos, then start research. You can add measurements later.</p>
+          <h1>Add photos</h1><p>Choose photos → Analyse → Answer. Optional details can come later.</p>
           <InfoDisclosure label="How intake works"><p>Photos are analysed into draft objects. You review and approve before anything enters your catalogue.</p></InfoDisclosure>
         </div>
         <Link className="secondaryButton" to="/uploads">Saved uploads</Link>
@@ -149,13 +149,13 @@ export default function AIIntake(){
 
       </fieldset>
         <section className="ci-intake-journey" aria-label="Add item progress">
-          <div className="ci-intake-journey-step" data-state={photos.length?'complete':'current'}><span>1</span><strong>Photographs</strong><small>{photos.length?photos.length+' selected':'Choose images'}</small></div>
-          <div className="ci-intake-journey-step" data-state={pending?'complete':working?'current':'waiting'}><span>2</span><strong>Secure originals</strong><small>{pending?'Session retained':working?'Checking uploads':'After Start research'}</small></div>
-          <div className="ci-intake-journey-step" data-state={pending?.dispatched?'current':'waiting'}><span>3</span><strong>Initial identification</strong><small>{pending?.dispatched?'Requested · awaiting saved result':'Not requested'}</small></div>
+          <div className="ci-intake-journey-step" data-state={photos.length?'complete':'current'}><span>1</span><strong>Add photos</strong><small>{photos.length?photos.length+' selected':'Choose images'}</small></div>
+          <div className="ci-intake-journey-step" data-state={pending?'complete':working?'current':'waiting'}><span>2</span><strong>Analyse</strong><small>{pending?'Session retained':working?'Checking uploads':'After Analyse'}</small></div>
+          <div className="ci-intake-journey-step" data-state={pending?.dispatched?'current':'waiting'}><span>3</span><strong>Answer</strong><small>{pending?.dispatched?'Requested · awaiting saved result':'Not requested'}</small></div>
         </section>
         {message && <p className="note" role="status" tabIndex={-1} ref={status}>{message}</p>}
         <div className="intakeActions">
-          <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Start research</button>
+          <button className="primaryButton intakeBigButton ci-action-primary" disabled={!photos.length||locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse photos</button>
           <span>One requested AI analysis may incur a provider charge. Extra HIGH-cost inscription review is off unless separately approved. Nothing enters your catalogue until you approve.</span>
         </div>
 
