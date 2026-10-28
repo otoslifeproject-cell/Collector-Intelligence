@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react'
-import {Link,useLocation,useParams} from 'react-router-dom'
+import {Link,useLocation,useNavigate,useParams} from 'react-router-dom'
 import {supabase} from '../lib/supabase'
 import {intakePageSize,listSavedIntakes,readSavedIntake,savedIntakePreviews,savedIntakeState,savedIntakeTitle,savedReportAvailable,SavedIntakeError,type SavedIntake} from '../lib/savedIntakes'
 
@@ -13,7 +13,8 @@ function SavedPhoto({photo}:{photo:Photo}){
  </div>
 }
 export default function SavedIntakes(){
- const {id}=useParams(),location=useLocation(),[reload,setReload]=useState(0)
+ const {id}=useParams(),location=useLocation(),nav=useNavigate(),[reload,setReload]=useState(0)
+ const [analysing,setAnalysing]=useState(false),[actionMessage,setActionMessage]=useState('')
  const query=new URLSearchParams(location.search).get('page')||'1',page=/^[1-9]\d*$/.test(query)?Number(query):NaN
  const key=(id||'list:'+query)+':'+reload
  const [checked,setChecked]=useState<Checked|null>(null),[error,setError]=useState<{key:string;message:string}|null>(null)
@@ -31,14 +32,40 @@ export default function SavedIntakes(){
      if(current())setChecked({key,rows:result.rows,total:result.total,previewsChecked:true,previews})
     }catch{if(current()){
      setChecked({key,rows:result.rows,total:result.total,previewsChecked:true,previews:{}})
-     setPreviewNote('Photo previews could not be checked. The saved session data is still available; check again to refresh private links.')
+     setPreviewNote('Photo previews could not be checked. Your photos remain saved. Check again.')
     }}
    }catch(e){if(current())setError({key,message:e instanceof SavedIntakeError?e.message:'Saved uploads could not be checked. Try again without requesting a new analysis.'})}
   })()
   return()=>{mounted=false}
  },[id,page,key])
  const data=checked?.key===key?checked:null,message=error?.key===key?error.message:'',row=data?.rows[0]
- const refresh=<button type="button" className="secondaryButton" onClick={()=>setReload(v=>v+1)}>Check saved {id?'session':'uploads'}</button>
+ const refresh=<button type="button" className="secondaryButton" onClick={()=>setReload(v=>v+1)}>Check result</button>
+ const analyseSaved=async()=>{
+  if(!row||!id||analysing)return
+  if(row.result?.analysis_stage!=='UPLOADED'||row.model!=='PENDING'){
+   setActionMessage('This analysis has already started. Check result.');return
+  }
+  setAnalysing(true);setActionMessage('Analysing your saved photos…')
+  try{
+   const session=await supabase.auth.getSession()
+   if(session.error||!session.data.session)throw new Error('Sign in again.')
+   await fetch('/api/analyse-intake',{
+    method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.data.session.access_token},
+    body:JSON.stringify({run_id:id,mode:row.mode,resume_saved:true}),
+    signal:AbortSignal.timeout(120000)
+   })
+  }catch{/* A lost acknowledgement cannot approve a second AI charge. */}
+  try{
+   const saved=await readSavedIntake(supabase,id,()=>true)
+   if(saved&&savedReportAvailable(saved)){nav('/draft/'+id);return}
+   setActionMessage(saved?.result?.analysis_stage==='PROCESSING'?
+    'Analysis has started. Check result to see the answer.':
+    'Your photos are saved. The answer is not ready yet.')
+  }catch{setActionMessage('Your photos are saved. Check result again.')}
+  finally{setAnalysing(false);setReload(v=>v+1)}
+ }
+
  return <div>
   <div className="pageHeader"><div><div className="eyebrow">PRIVATE PHOTO UPLOADS</div><h1>{id?'Saved photo session':'Saved uploads'}</h1>
    <p>{id?'Check the original saved response before requesting another analysis.':'Find your drafts and earlier uploads. Checking this list does not run AI.'}</p></div>
@@ -49,11 +76,14 @@ export default function SavedIntakes(){
     !row?<p className="note">This saved session is unavailable for your account.</p>:<>
      <div className="panel"><div className="panelHeader"><h2>{savedIntakeTitle(row)}</h2><span>{savedIntakeState(row)}</span></div>
       <p>{row.input_photo_count} source {row.input_photo_count===1?'photograph':'photographs'} · {new Date(row.created_at).toLocaleString('en-GB')} · {row.mode==='batch'?'Mixed batch':'One object'}</p>
-      {savedReportAvailable(row)?<Link className="primaryButton" to={'/draft/'+row.id}>Open saved draft</Link>:<p className="note">A complete usable draft is not confirmed. The original response is retained below. Checking this session will not start another paid analysis.</p>}
-      <details><summary>Session details</summary><p>Model: {row.model}</p><label>Saved session ID<input readOnly value={row.id}/></label></details>
+      {savedReportAvailable(row)?<Link className="primaryButton" to={'/draft/'+row.id}>View answer</Link>:
+       row.result?.analysis_stage==='UPLOADED'&&row.model==='PENDING'?
+        <button type="button" disabled={analysing} className="primaryButton intakeBigButton" onClick={()=>void analyseSaved()}>Analyse saved photos</button>:
+        <button type="button" className="primaryButton" onClick={()=>setReload(v=>v+1)}>Check result</button>}
+      {actionMessage&&<p role="status">{actionMessage}</p>}
      </div>
-     {!data.previewsChecked?<p role="status">Checking photo previews…</p>:data.previews[row.id]?.length>0?<div className="panel"><h2>Saved source photographs</h2><div className="photoGrid">{data.previews[row.id].map(photo=><SavedPhoto key={photo.index} photo={photo}/>)}</div></div>:<p className="ci-page-meta">Photo previews are unavailable or the saved manifest needs review. Original session data is preserved below.</p>}
-     <details className="panel"><summary>Saved session data</summary><p>Original saved data. Model statements and saved responses do not independently verify an attribution or sale.</p><pre className="ci-research-response">{JSON.stringify(row,null,2)}</pre></details>
+     {!data.previewsChecked?<p role="status">Checking photo previews…</p>:data.previews[row.id]?.length>0?<div className="panel"><h2>Saved source photographs</h2><div className="photoGrid">{data.previews[row.id].map(photo=><SavedPhoto key={photo.index} photo={photo}/>)}</div></div>:<p className="ci-page-meta">Photo previews are unavailable or the saved manifest needs review. Original photographs remain saved.</p>}
+
     </>:
     <><p className="ci-page-meta">{data.total?`Showing ${(page-1)*intakePageSize+1}–${(page-1)*intakePageSize+data.rows.length} of ${data.total} saved uploads`:'No saved photo uploads for this account.'}</p>
      <div className="cardGrid ci-object-grid ci-view-tiles">{data.rows.map(record=><Link key={record.id} to={'/uploads/'+record.id} className="itemCard ci-record-card">

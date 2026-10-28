@@ -374,19 +374,27 @@ export default async function handler(req: any, res: any) {
   let ownerMaterialLessons:any[];
   try{ownerMaterialLessons=await loadOwnerMaterialLessons(supabaseUrl,supabaseKey,token);}
   catch(e:any){return res.status(503).json({error:'Owner correction retrieval unavailable. Stopped before paid AI to prevent repeating known material errors.',code:e?.message||'OWNER_CORRECTIONS_UNAVAILABLE'});}
-  const { mode = "single", images:submittedImages = [], run_id } = req.body || {};
+  const { mode = "single", images:submittedImages = [], run_id, resume_saved = false } = req.body || {};
   let images:any[]=[];
   let context:any={};
-  if (!Array.isArray(submittedImages) || submittedImages.length < 1) return res.status(400).json({ error: "At least one image is required" });
-  if (submittedImages.length > 40) return res.status(400).json({ error: "Maximum 40 images per intake run" });
-  if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
-    return res.status(400).json({error:'Save the source photograph session before starting paid AI analysis.'});
+  if (resume_saved !== true && (!Array.isArray(submittedImages) || submittedImages.length < 1))
+    return res.status(400).json({error:'Choose photographs before analysing.'});
+  if (resume_saved !== true && submittedImages.length > 40)
+    return res.status(400).json({error:'Too many photographs.'});
+  if(typeof run_id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).test(run_id))
+    return res.status(400).json({error:'The saved photos could not be found.'});
   let staged:any;
   try {
     staged=await readStagedRun(supabaseUrl,supabaseKey,token,run_id);
-    const savedOriginals=bindSavedIntakePhotos(staged,submittedImages,mode,supabaseUrl);
-    context=bindSavedIntakeContext(staged.user_context,(req.body||{}).context);
-    // Do not use incoming client notes or signed URLs when constructing the model prompt.
+    // A recovery can only use an already-saved, owner-scoped manifest.
+    // Never trust a caller-supplied image URL or fresh notes on recovery.
+    const requested=resume_saved===true
+      ? await Promise.all((Array.isArray(staged.result?.image_manifest)?staged.result.image_manifest:[]).map(async (p:any)=>({
+          index:p.index,fileName:p.file_name,url:await signedOriginalURL(supabaseUrl,supabaseKey,token,p.storage_path)
+        })))
+      : submittedImages;
+    const savedOriginals=bindSavedIntakePhotos(staged,requested,mode,supabaseUrl);
+    context=bindSavedIntakeContext(staged.user_context,resume_saved===true?staged.user_context:(req.body||{}).context);
     images=await Promise.all(savedOriginals.map(async original=>({
       index:original.index,fileName:original.file_name,
       url:await signedOriginalURL(supabaseUrl,supabaseKey,token,original.storage_path)
@@ -482,7 +490,12 @@ export default async function handler(req: any, res: any) {
   let payload:any;
   try {payload=JSON.parse(providerRaw)}catch{payload=null}
   const providerArchive={provider_response_raw:providerRaw,provider_response_status:response.status,
-    provider_response_id:typeof payload?.id==='string'?payload.id:null};
+    provider_response_id:typeof payload?.id==='string'?payload.id:null,
+    provider_usage:payload?.usage&&typeof payload.usage==='object'?payload.usage:null,
+    // Actual billed amount is never inferred from tokens. Only a receipt supplied
+    // by the gateway/provider is recorded as a cost; otherwise it is unknown.
+    provider_cost_usd:typeof payload?.providerMetadata?.gateway?.cost==='number'
+      ?payload.providerMetadata.gateway.cost:null};
   const providerModel=typeof payload?.model==='string'?payload.model:body.model;
   const retainUnparsed=async(stage:string)=>{
    try {

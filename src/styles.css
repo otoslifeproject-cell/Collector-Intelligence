@@ -1071,3 +1071,29 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-archive-links small{font-size:11px;color:var(--muted)}
 .ci-archive-page section{margin-top:18px}
 @media(max-width:700px){.ci-item-tabs{margin:8px -6px 16px}.ci-item-tab{padding:11px 13px;font-size:13px}}
+
+
+/* One global owner-facing control system. Disclosure controls look like buttons,
+   without native fold-out triangles; the underlying content remains available. */
+.mainContent :is(.primaryButton,.secondaryButton,.ci-item-tab,button:not([class])){min-height:44px;border-radius:11px;font-weight:700}
+.mainContent :is(.panel,.ci-mini-appraisal,.itemCard,.ci-record-card){border-radius:14px}
+.mainContent .pageHeader h1{font-size:clamp(1.7rem,3vw,2.35rem);line-height:1.18;letter-spacing:-.025em}
+.mainContent :is(.panel,.pageHeader,.ci-mini-appraisal){margin-bottom:18px}
+.mainContent details>summary{display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;
+ list-style:none!important;appearance:none;cursor:pointer;font-size:14px;line-height:1.45;font-weight:700;
+ background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:11px;
+ padding:10px 16px;min-height:44px;margin:4px 0 10px;white-space:normal}
+.mainContent details>summary::-webkit-details-marker{display:none}
+.mainContent details>summary::marker{content:'';display:none}
+.mainContent details>summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.mainContent details[open]>summary{background:var(--panel);border-color:var(--accent)}
+/* A technical dump is never an owner-facing report. The structured Research and
+   History tabs continue to show the actual evidence and owner actions. */
+.mainContent :is(pre.ci-research-response,pre.ci-raw-json,pre.ci-api-response){display:none!important}
+.ci-intake-advanced{margin:12px 0}
+.intakeDrop>strong,.intakeDrop>span{display:block}
+.intakeDrop>strong{font-size:clamp(17px,1.75vw,21px)}
+.intakeDrop>span{font-weight:700;color:var(--text)}
+.ci-recovery{display:flex;flex-direction:column;gap:12px}
+.ci-recovery>.primaryButton{width:100%;min-height:58px}
+@media(max-width:650px){.mainContent details>summary{width:100%}.ci-intake-advanced{margin:8px 0}}
