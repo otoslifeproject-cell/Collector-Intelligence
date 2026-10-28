@@ -29,9 +29,7 @@ export default function Dashboard(){
  const latest=items[0]
  const incomplete=items.filter(i=>i.status!=='SOLD'&&i.status!=='ARCHIVED')
  const actions=[
-  {label:'Add item',description:'Add photographs and start research',url:'/intake',Icon:Camera},
-  {label:'Collection',description:'Browse your objects',url:'/inventory',Icon:FolderOpen},
-  {label:'Sell',description:'Plan a realistic sale',url:'/sales',Icon:Tag}
+  {label:'Add item',description:'Choose your photographs',url:'/intake',Icon:Camera}
  ]
  return <div className="ci-home">
   <header className="ci-home-header">
