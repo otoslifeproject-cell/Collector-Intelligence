@@ -3,6 +3,7 @@ import {Link} from 'react-router-dom'
 import {ArrowRight,Camera,FolderOpen,Search,Tag,ShieldCheck,RefreshCw} from 'lucide-react'
 import {supabase} from '../lib/supabase'
 import type {Item} from '../types'
+import {FRESH_START_AT} from '../lib/freshCollection'
 
 type Mode='loading'|'ready'|'error'
 export default function Dashboard(){
@@ -17,7 +18,7 @@ export default function Dashboard(){
    try{
     const {data:{user},error:authError}=await supabase.auth.getUser()
     if(authError||!user)throw new Error('Your session needs refreshing. Sign in again.')
-    const {data,error}=await supabase.from('items').select('*').eq('owner_id',user.id).neq('status','ARCHIVED').order('updated_at',{ascending:false}).limit(24)
+    const {data,error}=await supabase.from('items').select('*').eq('owner_id',user.id) .gte('created_at',FRESH_START_AT).neq('status','ARCHIVED').order('updated_at',{ascending:false}).limit(24)
     if(error||!data)throw new Error('The collection could not be loaded. Your saved records have not been changed.')
     if(active){setItems(data as Item[]);setMode('ready')}
    }catch(error){if(active){setMessage(error instanceof Error?error.message:'Could not load your collection.');setMode('error')}}
@@ -30,18 +31,17 @@ export default function Dashboard(){
  const actions=[
   {label:'Add item',description:'Add photographs and start research',url:'/intake',Icon:Camera},
   {label:'Collection',description:'Browse your objects',url:'/inventory',Icon:FolderOpen},
-  {label:'Research',description:'Continue saved investigations',url:'/research',Icon:Search},
   {label:'Sell',description:'Plan a realistic sale',url:'/sales',Icon:Tag}
  ]
  return <div className="ci-home">
   <header className="ci-home-header">
    <div><div className="ci-home-kicker">COLLECTOR INTELLIGENCE</div><h1>What would you like to do?</h1><p>One object at a time. Your research and photographs stay connected.</p></div>
-   <div className="ci-home-private"><ShieldCheck size={16}/> Private workspace</div>
+
   </header>
   <section className="ci-home-live-guide" aria-label="How Collector Intelligence works">
     <strong>Three steps to an answer</strong>
     <p><span>1 · Add photos</span><span>2 · Analyse</span><span>3 · Answer</span></p>
-    <small>Visual suggestions are leads. Maker, age and sale prices need evidence before acceptance.</small>
+
   </section>
   <nav className="ci-home-actions" aria-label="Start an activity">
    {actions.map(({label,description,url,Icon})=><Link key={label} to={url} className="ci-home-action">
@@ -60,6 +60,6 @@ export default function Dashboard(){
    </Link>:<div className="ci-home-empty"><p>No catalogue objects yet. Begin with photographs of one item.</p><Link className="primaryButton inlineButton" to="/intake">Add your first object</Link></div>}
    {items.length>0&&<p className="ci-home-footnote">{items.length} recent objects · {incomplete.length} not recorded sold · Values require verified evidence</p>}
   </section>}
-  <details className="ci-home-advanced"><summary>Saved uploads and tools</summary><div><Link to="/uploads">Saved photo sessions</Link><Link to="/lots">Lot optimiser</Link><Link to="/reports">Reports</Link><Link to="/contacts">Contacts</Link></div></details>
+
  </div>
 }
