@@ -16,6 +16,7 @@ import Login from './pages/Login'
 import PasswordRecovery from './pages/PasswordRecovery'
 import AIIntake from './pages/AIIntake'
 import SavedDraft from './pages/SavedDraft'
+import Archive from './pages/Archive'
 import SavedIntakes from './pages/SavedIntakes'
 import LotOptimiser from './pages/LotOptimiser'
 
@@ -52,6 +53,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard/>}/>
           <Route path="/inventory" element={<Inventory/>}/>
+          <Route path="/archive" element={<Archive/>}/>
           <Route path="/new" element={<Navigate to="/intake" replace/>}/>
           <Route path="/intake" element={<AIIntake/>}/>
           <Route path="/uploads" element={<SavedIntakes/>}/>
