@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Item } from '../types'
-import {catalogueSaleLabel,provisionalMoney} from '../lib/catalogueSaleState'
+import {catalogueSaleLabel} from '../lib/catalogueSaleState'
 
 export default function ItemCard({item,imageUrl,photoFallbackText='No photograph linked'}: {item:Item,imageUrl?:string,photoFallbackText?:string}) {
   const label = item.title || item.object_type || item.current_attribution || 'Unidentified object'
@@ -14,10 +14,7 @@ export default function ItemCard({item,imageUrl,photoFallbackText='No photograph
         <div className="itemMeta"><span>{item.category || 'Object'}</span><span>{catalogueSaleLabel(item)}</span></div>
         <h3>{label}</h3>
         <p>{item.maker?`Recorded attribution: ${item.maker} · verification required`:'Maker not confirmed'}</p>
-        <div className="itemPriceRow">
-          <div><small>Fast cash · provisional</small><strong>{provisionalMoney(item.quick_sale_value,item.currency)}</strong></div>
 
-        </div>
       </div>
     </Link>
   )
