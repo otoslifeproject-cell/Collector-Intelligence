@@ -561,12 +561,8 @@ function SavedDraftRecord({id}:{id:string}){
      <button className="secondaryButton" disabled={checkingResearch||researching||busy||!!error||saving||approving||savingDisagreement||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={()=>void checkSavedResearch()}>{checkingResearch?'Checking saved research…':'Check saved research'}</button>
      {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved complete responses · provisional</span>}
      {scopePending.length>0&&<p className="ci-page-meta">An unresolved attempt exists for this object. Check saved research before another paid request.</p>}
-     {unfinishedResearch.length>0&&<details className="ci-archive-section">
-      <summary>{unfinishedResearch.length} interrupted or staged investigation(s)</summary>
-      <p className="ci-page-meta">Checking reads saved records only. It never starts another search. Unknown or malformed responses remain preserved below.</p>
-      {unfinishedResearch.map((x:any)=><details key={x.id} className="ci-review-section ci-review-source"><summary>{x.id} · {x.result?.analysis_stage||'Unknown state'}</summary><pre className="ci-research-response">{JSON.stringify({model:x.model,created_at:x.created_at,user_context:x.user_context,result:x.result},null,2)}</pre></details>)}
-     </details>}
-     {unconfirmedResearch&&<details className="ci-archive-section"><summary>Returned response · save unconfirmed</summary><p>This response is retained in this page only. Check its saved session before using it or starting another paid request.</p><pre className="ci-research-response">{JSON.stringify(unconfirmedResearch,null,2)}</pre></details>}
+     {unfinishedResearch.length>0&&<p className="ci-page-meta">An earlier research attempt is unfinished. Use Check saved research above.</p>}
+     {unconfirmedResearch&&<p className="ci-page-meta">A research result needs checking before it can be used.</p>}
     </WorkspaceActionPanel>
     {!materialContradictsModel&&<div className="panel">
      <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
