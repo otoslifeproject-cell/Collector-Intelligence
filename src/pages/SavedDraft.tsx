@@ -438,6 +438,14 @@ function SavedDraftRecord({id}:{id:string}){
   void runDraftResearch('standard')
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[fullKey,quickWorthMore,busy,error,isPhotoManifestReady,imagesReady,researching,checkingResearch,researchBlocked,scopePending.length,existingResearchObsolete])
+ // ONE RUN: while the automatic chain is running OR about to start its next
+ // step, the tracker stays on screen, so the owner never sees a half-answer
+ // flash up between the quick check and full research.
+ const chainNextQuick=!anyScopeResearch&&!!autoKey&&!autoResearchTried.current.has(autoKey)
+ const chainNextFull=quickWorthMore&&!!fullKey&&!autoResearchTried.current.has(fullKey)
+ const chainWillStart=!autoResearchOff&&!!run&&run.status==='DRAFT'&&!error&&!researchBlocked&&!existingResearchObsolete&&!needsPhotoCorrection&&(chainNextQuick||chainNextFull)
+ const showChain=researching||waitingForSaved||chainWillStart
+ const chainQuick=researching?researchingDepth==='quick':waitingForSaved?scopePending[0]?.user_context?.research_depth==='quick':chainNextQuick
  // One Disagree button: the owner's correction is saved as an owner note (a lead),
  // then full research runs again from it.
  const disagreeAndResearch=async(kind:DisagreeKind,text:string)=>{
@@ -562,7 +570,7 @@ function SavedDraftRecord({id}:{id:string}){
     {researchIndex<(run.result.objects||[]).length-1&&<button type="button" className="ci-big-button ci-big-button-small ci-big-button-primary"
      onClick={()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>Next item →</button>}
    </nav>}
-   {activeTab==='answer'&&finishedAnswer&&!researching&&!waitingForSaved&&<ResultScreen listing={resultListing(visibleResearch,objectTitle)}
+   {activeTab==='answer'&&finishedAnswer&&!showChain&&<ResultScreen listing={resultListing(visibleResearch,objectTitle)}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saved={run.status==='APPROVED'||catalogued.length>0}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
@@ -571,8 +579,8 @@ function SavedDraftRecord({id}:{id:string}){
     onDetails={()=>setActiveTab('market')} status={saveStatus}
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
-   {activeTab==='answer'&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt} quick={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='quick'} deep={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='deep_dive'}/>}
-   {activeTab==='answer'&&!finishedAnswer&&!researching&&!waitingForSaved&&answer&&<>
+   {activeTab==='answer'&&showChain&&<ResearchRunning quick={chainQuick}/>}
+   {activeTab==='answer'&&!finishedAnswer&&!showChain&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">
      <p><strong>Research did not finish.</strong> {saveStatus}</p>
      <button type="button" className="primaryButton" disabled={researchBlocked||checkingResearch||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady} onClick={()=>void runDraftResearch('standard')}>Try research again</button>

@@ -1,3 +1,4 @@
+import {ItemProgress} from './IntakeProgress'
 import {useEffect,useState} from 'react'
 import type {ResearchAnswer as Answer} from '../lib/researchAnswer'
 import {RESEARCH_STEPS,researchStep} from '../lib/researchAnswer'
@@ -45,23 +46,8 @@ export default function ResearchAnswer({answer,onCopy,copyStatus,onSave,saveDisa
  </section>
 }
 
-export function ResearchRunning({startedAt,message,quick=false,deep=false}:{startedAt:number|null;message?:string;quick?:boolean;deep?:boolean}){
- const [now,setNow]=useState(()=>Date.now())
- useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer)},[])
- const elapsed=startedAt?Math.max(0,now-startedAt):0
- const active=startedAt?researchStep(elapsed):1
- return <section className="ci-analysis-tracker" role="status" aria-live="polite" aria-label="Research progress">
-  <h2>{quick?'Quick check':deep?'Deep dive':'Researching your item'}</h2>
-  <ol className="ci-analysis-tracker-list">
-   {RESEARCH_STEPS.map((label,index)=>{
-    const state=index<active?'complete':index===active?'active':'waiting'
-    return <li className="ci-analysis-step" data-state={state} key={label}>
-     <span className="ci-analysis-dot" aria-hidden="true">{state==='complete'?'✓':index+1}</span>
-     <strong>{label}</strong>
-     {state==='active'&&<span className="ci-analysis-current">In progress</span>}
-    </li>
-   })}
-  </ol>
-  <p className="ci-analysis-tracker-message">{message||(quick?'Usually under a minute. You can leave this page; the answer is saved.':deep?'Usually 3 to 5 minutes. You can leave this page; the answer is saved.':'This usually takes 1 to 4 minutes. You can leave this page; the answer is saved.')}</p>
- </section>
+// Research continues the same one-run tracker: steps 1-3 are already done by
+// the photo analysis. Quick check = step 4, full research = step 5.
+export function ResearchRunning({quick=false,lowValue=false}:{startedAt?:number|null;message?:string;quick?:boolean;deep?:boolean;lowValue?:boolean}){
+ return <ItemProgress step={quick?3:4} skipped={lowValue?[4]:[]} message="Usually 1 to 4 minutes in all. You can leave this page; the answer is saved."/>
 }
