@@ -62,7 +62,15 @@ test('result screen: eBay title max 80, Etsy title, price and format, checks',as
  assert.equal(r.price,'£180')
  assert.equal(r.format,'Auction · start £99')
  assert.deepEqual(r.checks,['Val Saint Lambert: confirm etched signature'])
+ assert.equal(r.priceBasis,'Based on 2 sold results')
  const old=resultListing(research,'Green glass bowl')
  assert.equal(old.ebayTitle,'Green glass bowl')
  assert.equal(old.price,'£60–£120')
+})
+
+test('result always has a price when any sold or asking lead exists',async()=>{
+ const {resultListing}=await import('../src/lib/researchAnswer.ts')
+ const r=resultListing({comparables:[{price_type:'MARKETPLACE_ASKING',price:30,currency:'GBP'},{price_type:'DEALER_ASKING',price:40,currency:'GBP'}],valuation:{}},'Mouse candle holder')
+ assert.equal(r.price,'£27')
+ assert.equal(r.priceBasis,'Just under similar items for sale')
 })

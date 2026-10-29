@@ -115,18 +115,26 @@ export function resultListing(research:any,fallbackTitle:string){
  const fit=(s:unknown,n:number)=>{const v=String(s??'').replace(/\s+/g,' ').trim();if(v.length<=n)return v;const cut=v.slice(0,n);const at=cut.lastIndexOf(' ');return (at>n*0.6?cut.slice(0,at):cut).trim()}
  const val=research?.valuation||{}
  const currency=typeof l.currency==='string'&&currencyOk(l.currency)?l.currency:'GBP'
- const price=typeof l.price==='number'&&Number.isFinite(l.price)?fmt(l.price,currency)
-  :Number.isFinite(val.balanced_low)&&Number.isFinite(val.balanced_high)?fmt(val.balanced_low,typeof val.currency==='string'&&currencyOk(val.currency)?val.currency:'GBP')+'–'+fmt(val.balanced_high,typeof val.currency==='string'&&currencyOk(val.currency)?val.currency:'GBP')
-  :null
+ // Always a price to list at: the research suggestion, else the provisional range,
+ // else the middle of what similar items are sold or asked at.
+ const comps=Array.isArray(research?.comparables)?research.comparables:[]
+ const leads=priceLeads(comps,SOLD),asks=priceLeads(comps,ASKING)
+ const middle=(xs:PriceLead[])=>{const gbp=xs.filter(x=>x.currency==='GBP').map(x=>x.price).sort((a,b)=>a-b);return gbp.length?gbp[Math.floor((gbp.length-1)/2)]:null}
+ const valCur=typeof val.currency==='string'&&currencyOk(val.currency)?val.currency:'GBP'
+ let price:string|null=null,priceBasis:string|null=null
+ if(typeof l.price==='number'&&Number.isFinite(l.price)){price=fmt(l.price,currency);priceBasis=leads.length?'Based on '+leads.length+' sold result'+(leads.length===1?'':'s'):asks.length?'Based on similar items for sale':'Suggested listing price'}
+ else if(Number.isFinite(val.balanced_low)&&Number.isFinite(val.balanced_high)){price=fmt(val.balanced_low,valCur)+'–'+fmt(val.balanced_high,valCur);priceBasis='Provisional range'}
+ else if(middle(leads)!==null){price=fmt(middle(leads) as number,'GBP');priceBasis='Middle of '+leads.length+' sold result'+(leads.length===1?'':'s')}
+ else if(middle(asks)!==null){price=fmt(Math.round((middle(asks) as number)*0.9),'GBP');priceBasis='Just under similar items for sale'}
  const format=l.sale_format==='AUCTION'?'Auction'+(typeof l.auction_start==='number'&&Number.isFinite(l.auction_start)?' · start '+fmt(l.auction_start,currency):'')
   :l.sale_format==='FIXED_PRICE'?'Buy it now':null
  const checks=(Array.isArray(l.title_checks)&&l.title_checks.length?l.title_checks:(Array.isArray(research?.next_evidence)?research.next_evidence.map((x:any)=>x?.title):[]))
-  .map((x:any)=>concise(x,110)).filter(Boolean).slice(0,3)
+  .map((x:any)=>concise(x,80)).filter(Boolean).slice(0,2)
  return {
   ebayTitle:fit(l.ebay_title||fallbackTitle||'Collectable item',80),
   etsyTitle:l.etsy_title?fit(l.etsy_title,140):null,
   etsyReason:typeof l.etsy_reason==='string'?concise(l.etsy_reason,120):null,
-  price,format,checks,
+  price,priceBasis,format,checks,
   stillChecking:research?.research_depth==='quick'&&research?.triage?.decision==='LOW_VALUE'
  }
 }

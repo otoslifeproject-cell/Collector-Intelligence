@@ -32,13 +32,13 @@ test('save item approves only a single item or grouped pair from result',()=>{
  assert.match(screen,/Saving item…/)
 })
 
-test('saved research is the only primary view; extras are folded away',()=>{
- assert.doesNotMatch(screen,/className="tabBar" role="tablist"/)
- assert.match(screen,/Saved research navigation/)
- assert.match(screen,/More object details/)
- assert.match(screen,/Back to research result/)
- assert.match(screen,/Identification evidence/)
- assert.match(screen,/Original photos/)
+test('detail views carry no extra navigation, audit boxes or object selector',()=>{
+ assert.doesNotMatch(screen,/More object details/)
+ assert.doesNotMatch(screen,/Choose object to research/)
+ assert.doesNotMatch(screen,/ci-object-research-summary/)
+ assert.match(screen,/Back to result/)
+ assert.match(screen,/Next item →/)
+ assert.match(screen,/Item \{i\+1\} of/)
 })
 
 test('visual reference suggestions start without a second manual action but never claim photo recognition',()=>{

@@ -8,6 +8,7 @@ export type ResultListing={
  etsyTitle:string|null
  etsyReason:string|null
  price:string|null
+ priceBasis?:string|null
  format:string|null
  checks:string[]
  stillChecking:boolean
@@ -56,13 +57,14 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
   <CopyLine label="eBay title" text={listing.ebayTitle}/>
   {listing.etsyTitle&&<CopyLine label="Etsy title" text={listing.etsyTitle}/>}
   <div className="ci-result-price">
-   <small>Price</small>
-   <p>{listing.price||'No sold prices found yet'}</p>
+   <small>Suggested price</small>
+   <p>{listing.price||'Not found yet'}</p>
+   {listing.priceBasis&&<small className="ci-result-basis">{listing.priceBasis}</small>}
    {listing.format&&<span>{listing.format}</span>}
   </div>
   {listing.checks.length>0&&<div className="ci-result-checks">
    <small>Check before posting</small>
-   {listing.checks.slice(0,3).map((c,i)=><p key={i}>{c}</p>)}
+   {listing.checks.slice(0,2).map((c,i)=><p key={i}>{c}</p>)}
   </div>}
   {listing.stillChecking&&<p className="ci-result-note">Quick check only: low value, so no full research was run.</p>}
   {!open&&<div className="ci-result-actions">

@@ -1178,3 +1178,6 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-disagree>.ci-big-button-primary{width:100%}
 .ci-disagree-foot{display:flex;justify-content:space-between;margin-top:12px}
 @media(max-width:700px){.ci-steps{grid-template-columns:repeat(5,1fr);gap:4px}.ci-steps li{font-size:0;padding:8px}.ci-steps li span{font-size:13px}.ci-result-title{grid-template-columns:1fr}.ci-big-button{min-height:64px;font-size:18px}}
+.ci-item-switch{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
+.ci-item-switch .ci-big-button{width:auto}
+.ci-result-basis{margin:6px 0 0!important;font-weight:600!important}

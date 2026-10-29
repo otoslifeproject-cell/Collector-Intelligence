@@ -542,6 +542,12 @@ function SavedDraftRecord({id}:{id:string}){
       className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
       onClick={()=>setActiveTab(value)}>{label}</button>)}
    </nav>}
+   {activeTab==='answer'&&!paired&&(run.result?.objects||[]).length>1&&<nav className="ci-item-switch" aria-label="Items in this upload">
+    {(run.result.objects||[]).map((o:any,i:number)=><button type="button" key={i} className={'ci-big-button ci-big-button-small'+(i===researchIndex?' is-chosen':'')} aria-current={i===researchIndex?'true':undefined}
+     onClick={()=>{setResearchIndex(i);const params=new URLSearchParams(location.search);params.set('object',String(i));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>Item {i+1} of {(run.result.objects||[]).length}</button>)}
+    {researchIndex<(run.result.objects||[]).length-1&&<button type="button" className="ci-big-button ci-big-button-small ci-big-button-primary"
+     onClick={()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>Next item →</button>}
+   </nav>}
    {activeTab==='answer'&&finishedAnswer&&!researching&&!waitingForSaved&&<ResultScreen listing={resultListing(visibleResearch,objectTitle)}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saved={run.status==='APPROVED'||catalogued.length>0}
@@ -560,22 +566,6 @@ function SavedDraftRecord({id}:{id:string}){
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
     onOpenDetails={()=>setActiveTab('market')}/></>}
    {activeTab!=='answer'&&<section className="ci-item-tab-content">
-   {!paired&&(run.result?.objects||[]).length>1&&<label className="ci-research-scope-selector">Choose object to research
-    <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>{const next=Number(e.target.value);setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>
-     {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
-    </select>
-   </label>}
-   {activeTab!=='market'&&<nav className="ci-report-navigation" aria-label="Saved research navigation">
-    {activeTab!=='market'&&<button type="button" className="primaryButton inlineButton" onClick={()=>setActiveTab('market')}>Back to research result</button>}
-    <details className="ci-report-extra-views">
-     <summary>More object details</summary>
-     <div className="ci-page-actions">
-      {['overview','photos','identification','sales','catalogue'].map(t=>
-       <button key={t} type="button" className={activeTab===t?'primaryButton':'secondaryButton'} aria-current={activeTab===t?'page':undefined} onClick={()=>setActiveTab(t)}>{t==='sales'?'Sale planning':t==='catalogue'?'Catalogue review':t==='identification'?'Identification evidence':t==='photos'?'Original photos':'Object overview'}</button>)}
-     </div>
-    </details>
-   </nav>}
-
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
       <p>Keep both objects and all their original photo evidence, but catalogue and sell them as one pair unless you deliberately separate them.</p>
@@ -718,27 +708,6 @@ function SavedDraftRecord({id}:{id:string}){
       </label>}
       <h3 className="ci-record-title">{title}</h3>
       <p className="ci-record-stage">{o.maker||'Maker not confirmed'} · Provisional identification</p>
-      <div className="ci-object-research-summary" onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
-       {paired?<>
-        <p className="ci-page-meta">Two physical pieces retain separate mark readings. Whole-lot market research above does not authenticate either piece.</p>
-        {(run.result.objects||[]).map((member:any,memberIndex:number)=>{
-         const dashboard=dashboardFor(memberIndex)
-         return dashboard&&<section key={memberIndex} className="ci-pair-piece-research" aria-label={'Physical piece '+(memberIndex+1)+' research'}>
-          <h4>Physical piece {memberIndex+1} · {member.working_title||'Original object'}</h4>
-          <ResearchProgress announceError={false} audit={dashboard.audit} history={dashboard.history} compact
-           objectLabel={'Physical piece '+(memberIndex+1)+' · '+(member.working_title||'Original object')}
-           confidence={dashboard.confidence} loading={busy||checkingResearch} error={researchError}/>
-         </section>
-        })}
-        <button type="button" className="secondaryButton inlineButton" onClick={()=>setActiveTab('identification')}>Review both original pieces</button>
-       </>:(()=>{
-        const dashboard=dashboardFor(i)
-        return dashboard&&<ResearchProgress announceError={false} audit={dashboard.audit} history={dashboard.history} compact
-         objectLabel={'Object '+(i+1)+' · '+title} confidence={dashboard.confidence}
-         loading={busy||checkingResearch} error={researchError}
-         onInvestigate={()=>{setResearchIndex(i);setActiveTab('market')}}/>
-       })()}
-      </div>
       <details className="ci-object-review">
        <summary>Review object & evidence</summary>
        <div className="ci-object-review-content">
