@@ -4,6 +4,8 @@ import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {CanonicalSourceError} from '../src/lib/approvedCanonicalSources.ts';
 import {releaseRejectedIntake} from '../src/lib/releaseRejectedIntake.ts';
 import {validIntakeRunId} from '../src/lib/validIntakeRunId.ts';
+import {runGoogleFirstLook,googleLeadsForResearch,googleNotRun,googleChecksThisMonth,GOOGLE_MONTHLY_LIMIT} from '../src/lib/googleFirstLook.ts';
+import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 
 const schema = {
   type: "object",
@@ -113,6 +115,7 @@ Hard rules:
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Inspect silhouette/proportions, colour/clarity, base, pontil, polished/ground areas, mould seams, bubbles/striae/inclusions, tooling, cut decoration, rim, handle joins/applied decoration, wear, labels, marks/signatures and visible chips/cracks/bruises/repairs.
 - For mixed batches, assign each image index to the object it depicts. Do not transfer evidence between objects.
+- GOOGLE LENS FIRST: when GOOGLE LENS VISUAL MATCHES are supplied and a match shows the same design and names a maker, model or pattern, use it as the leading identification (say it is a Lens lead), and read every legible mark in all photographs to confirm or reject it.
 - In single-object intake (ONE OBJECT MODE) return exactly one object record: multiple camera angles, and multiple parts of one item for sale (lid, base, stand, set, pair), must NOT become multiple object records. Describe the parts inside that one record.
 - image_indices MUST contain only the zero-based indices of actual uploaded images (the allowed list is supplied in this run). Never invent a nonexistent photo index or shift an index because descriptive notes count images from 1.
 - A matched PAIR is two physical pieces but can be one catalogue and selling lot. If a genuine matching pair is visible, describe the left and right pieces separately and retain their original photo indices so the owner can group them as one lot.
@@ -507,6 +510,22 @@ export default async function handler(req: any, res: any) {
     return stop(503,'PAID_CLAIM','INTAKE_CLAIM_UNCONFIRMED','Analysis may have started. Check result; do not pay again.');
   }
 
+  // GOOGLE FIRST (Dean, 29 Oct): Google Lens on the first 3 photographs runs before
+  // the AI looks at the photos, so the identification starts from Lens. Missing key,
+  // limit reached or any Google failure => "not run" and the analysis carries on.
+  let googleLook:GoogleFirstLook;
+  try{
+    googleLook=await runGoogleFirstLook({
+      apiKey:process.env.GOOGLE_CLOUD_VISION_API_KEY,
+      serpKey:process.env.SERPAPI_API_KEY,
+      imageUrl:images[0]?.url,
+      lensImageUrls:images.slice(0,3).map((i:any)=>i.url),
+      usedThisMonth:await googleChecksThisMonth(supabaseUrl,supabaseKey,token),
+      limit:GOOGLE_MONTHLY_LIMIT
+    });
+  }catch{googleLook=googleNotRun('Google check failed');}
+  content.splice(1,0,{type:'input_text',text:googleLeadsForResearch(googleLook)});
+
   const body = {
     model,
     reasoning: { effort: "medium" },
@@ -624,7 +643,7 @@ export default async function handler(req: any, res: any) {
       await saveStagedAnalysis(supabaseUrl,supabaseKey,token,run_id,payload.model||body.model,{
         ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
         initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
-        image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',
+        image_manifest_version:1,analysis_stage:'FIRST_PASS_SAVED',google_first_look:googleLook,
         canonical_policy_hashes:canonical.hashes,
         canonical_source_audit:canonicalSourceAudit(canonical),
         knowledge_lookup:{status:'PENDING',matches:[]},
@@ -650,7 +669,7 @@ export default async function handler(req: any, res: any) {
     const savedResult={
       ...staged.result,...result,...providerArchive,image_manifest:originalManifest,
       initial_ai_result:initialAiResult,initial_response_id:payload.id||null,
-      image_manifest_version:1,analysis_stage:'COMPLETE',
+      image_manifest_version:1,analysis_stage:'COMPLETE',google_first_look:googleLook,
       inscription_review,inscription_review_status,knowledge_lookup,
       canonical_policy_hashes:canonical.hashes,
       canonical_source_audit:canonicalSourceAudit(canonical)

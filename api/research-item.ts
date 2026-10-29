@@ -1,7 +1,7 @@
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {researchExecutionReceipt} from '../src/lib/researchExecution.ts';
-import {runGoogleFirstLook,googleLeadsForResearch,googleNotRun,GOOGLE_MONTHLY_LIMIT} from '../src/lib/googleFirstLook.ts';
+import {runGoogleFirstLook,googleLeadsForResearch,googleNotRun,googleChecksThisMonth,GOOGLE_MONTHLY_LIMIT} from '../src/lib/googleFirstLook.ts';
 import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 
 const researchSchema = {
@@ -231,19 +231,6 @@ function checkResearchEvidence(result:any) {
  return audited;
 }
 
-// Counts this month's research runs that actually called Google. null = unknown,
-// which makes the Google step fail closed (not run) rather than risk the limit.
-async function googleChecksThisMonth(url:string,key:string,token:string):Promise<number|null>{
- try{
-  const start=new Date();start.setUTCDate(1);start.setUTCHours(0,0,0,0);
-  const qp=new URLSearchParams({select:'id',mode:'eq.research',created_at:'gte.'+start.toISOString(),'result->google_first_look->>status':'eq.CALLED',limit:'1000'});
-  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+qp.toString(),{headers:{apikey:key,Authorization:'Bearer '+token}});
-  if(!response.ok)return null;
-  const rows=await response.json();
-  return Array.isArray(rows)?rows.length:null;
- }catch{return null;}
-}
-
 async function verifyUser(token: string, supabaseUrl: string, supabaseKey: string) {
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: supabaseKey }
@@ -318,6 +305,7 @@ export default async function handler(req: any, res: any) {
   let itemForResearch:any=item;
   let trustedComparableRows:any[]=[];
   let catalogueOrigin:any=null;
+  let intakeLook:any=null;
   let ownerCorrections:any[]=[];
   let visualReviews:any[]=[];
   if(draftMode){
@@ -334,6 +322,7 @@ export default async function handler(req: any, res: any) {
          ||rows[0].result?.analysis_stage!=='COMPLETE'||!['single','batch'].includes(rows[0].mode))
         return res.status(403).json({error:'Only an accessible, completed saved draft can be researched.'});
       const o=rows[0].result?.objects?.[draft_index];
+      intakeLook=rows[0].result?.google_first_look||null;
       if(!o)return res.status(400).json({error:'Saved draft object index is invalid.'});
       const isPair=Array.isArray(pair_source_indices)&&pair_source_indices.length===2&&
         pair_source_indices[0]===0&&pair_source_indices[1]===1&&
@@ -613,7 +602,9 @@ export default async function handler(req: any, res: any) {
   // research run. Missing key, limit reached or any Google failure => "not run";
   // research continues from the photographs. Leads are never facts or prices.
   let googleLook:GoogleFirstLook;
-  try{
+  // Google Lens already ran first, during the photo analysis: reuse it.
+  if(intakeLook?.status==='CALLED')googleLook=intakeLook;
+  else try{
     googleLook=await runGoogleFirstLook({
       apiKey:process.env.GOOGLE_CLOUD_VISION_API_KEY,
       serpKey:process.env.SERPAPI_API_KEY,

@@ -142,3 +142,11 @@ test('one object mode returns one record for an item with several parts',()=>{
  assert.match(intake,/ONE OBJECT MODE: the owner says every photograph shows ONE item for sale/)
  assert.match(intake,/return EXACTLY ONE object record/)
 })
+
+test('Google Lens runs first, in the photo analysis, and research reuses it',()=>{
+ const intake=readFileSync(new URL('../api/analyse-intake.ts',import.meta.url),'utf8')
+ assert.match(intake,/GOOGLE FIRST \(Dean, 29 Oct\)/)
+ assert.match(intake,/lensImageUrls:images\.slice\(0,3\)\.map/)
+ assert.match(intake,/analysis_stage:'COMPLETE',google_first_look:googleLook/)
+ assert.match(research,/if\(intakeLook\?\.status==='CALLED'\)googleLook=intakeLook/)
+})

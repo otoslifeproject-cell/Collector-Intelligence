@@ -183,3 +183,16 @@ export function googleLensLink(imageUrl:string|null|undefined):string{
  if(!imageUrl||!/^https:\/\//i.test(imageUrl))return 'https://lens.google.com/'
  return 'https://lens.google.com/uploadbyurl?url='+encodeURIComponent(imageUrl)
 }
+
+// Google checks this month across photo analysis and research runs. null = unknown,
+// which makes the Google step fail closed (not run) rather than risk the limit.
+export async function googleChecksThisMonth(url:string,key:string,token:string):Promise<number|null>{
+ try{
+  const start=new Date();start.setUTCDate(1);start.setUTCHours(0,0,0,0)
+  const qp=new URLSearchParams({select:'id',mode:'in.(single,batch,research)',created_at:'gte.'+start.toISOString(),'result->google_first_look->>status':'eq.CALLED',limit:'2000'})
+  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+qp.toString(),{headers:{apikey:key,Authorization:'Bearer '+token}})
+  if(!response.ok)return null
+  const rows=await response.json()
+  return Array.isArray(rows)?rows.length:null
+ }catch{return null}
+}
