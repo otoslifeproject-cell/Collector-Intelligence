@@ -287,6 +287,8 @@ function SavedDraftRecord({id}:{id:string}){
  const runDraftResearch=async(depth:'standard'|'deep_dive'|'quick'='standard')=>{
   if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
   researchBusy.current=true;setResearching(true);setResearchStartedAt(Date.now());setResearchingDepth(depth);setSaveStatus('')
+  // Always show the moving tracker where the owner can see it.
+  setActiveTab('answer');try{window.scrollTo({top:0,behavior:'smooth'})}catch{}
   let stagedId:string|null=null
   try{
    // Recheck complete history immediately before any new staged/paid request.
@@ -413,7 +415,7 @@ function SavedDraftRecord({id}:{id:string}){
  },[autoKey,busy,error,isPhotoManifestReady,needsPhotoCorrection,imagesReady,researching,checkingResearch,researchBlocked,anyScopeResearch,existingResearchObsolete])
  // A run still in progress elsewhere (page reloaded, slow reply): read the saved
  // result every 8 s, read-only, until it appears. Never starts a paid request.
- const waitingForSaved=scopePending.length>0&&!matchedResearchRun
+ const waitingForSaved=scopePending.length>0
  useEffect(()=>{
   if(!waitingForSaved||researching)return
   let tries=0
@@ -506,13 +508,13 @@ function SavedDraftRecord({id}:{id:string}){
       className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
       onClick={()=>setActiveTab(value)}>{label}</button>)}
    </nav>
-   {activeTab==='answer'&&finishedAnswer&&<ResearchAnswer answer={finishedAnswer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
+   {activeTab==='answer'&&finishedAnswer&&!researching&&!waitingForSaved&&<ResearchAnswer answer={finishedAnswer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
     onOpenResearch={()=>setActiveTab('market')}
     onFullResearch={()=>void runDraftResearch('standard')}
     fullResearchDisabled={researching||checkingResearch||researchBlocked||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady}/>}
-   {activeTab==='answer'&&!finishedAnswer&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt} quick={researchingDepth==='quick'||scopePending[0]?.user_context?.research_depth==='quick'}/>}
+   {activeTab==='answer'&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt} quick={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='quick'} deep={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='deep_dive'}/>}
    {activeTab==='answer'&&!finishedAnswer&&!researching&&!waitingForSaved&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">
      <p><strong>Research did not finish.</strong> {saveStatus}</p>
