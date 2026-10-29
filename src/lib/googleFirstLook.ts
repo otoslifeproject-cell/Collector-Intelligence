@@ -3,6 +3,10 @@
 // It is never a sold comparable, never an authentication and never a price.
 
 export type GoogleLookPage={url:string;title:string}
+// Google Lens visual matches, fetched through SerpApi's google_lens engine: the
+// same matches the owner sees in Lens. Prices shown are page prices (usually asking).
+export type LensMatch={title:string;url:string;source:string;price:string|null}
+export type LensLook={status:'CALLED'|'NOT_RUN';reason:string|null;matches:LensMatch[]}
 export type GoogleFirstLook={
  status:'CALLED'|'NOT_RUN'
  reason:string|null
@@ -12,6 +16,7 @@ export type GoogleFirstLook={
  entities:Array<{description:string;score:number|null}>
  pages:GoogleLookPage[]
  similar_images:string[]
+ lens?:LensLook|null
 }
 
 export const GOOGLE_MONTHLY_LIMIT=100
@@ -27,7 +32,33 @@ const webUrl=(value:unknown)=>{
 
 export function googleNotRun(reason:string,checkedAt=new Date().toISOString()):GoogleFirstLook{
  return {status:'NOT_RUN',reason:clean(reason,160)||'Google check not run',checked_at:checkedAt,
-  evidence_class:'UNVERIFIED_LEAD',best_guess:[],entities:[],pages:[],similar_images:[]}
+  evidence_class:'UNVERIFIED_LEAD',best_guess:[],entities:[],pages:[],similar_images:[],lens:null}
+}
+const lensNotRun=(reason:string):LensLook=>({status:'NOT_RUN',reason,matches:[]})
+
+export function normaliseLens(raw:any):LensLook{
+ const seen=new Set<string>(),matches:LensMatch[]=[]
+ const rows=[...(Array.isArray(raw?.visual_matches)?raw.visual_matches:[]),...(Array.isArray(raw?.exact_matches)?raw.exact_matches:[])]
+ for(const m of rows){
+  const url=webUrl(m?.link)
+  if(!url||seen.has(url))continue
+  seen.add(url)
+  const p=m?.price
+  const price=p?clean(p.value||(Number.isFinite(p.extracted_value)?String(p.extracted_value)+(p.currency?' '+p.currency:''):''),40)||null:null
+  matches.push({title:clean(m?.title,160)||url,url,source:clean(m?.source,60),price})
+  if(matches.length>=12)break
+ }
+ return {status:'CALLED',reason:null,matches}
+}
+
+async function runLens(serpKey:string,imageUrl:string,fetchImpl:FetchLike):Promise<LensLook>{
+ try{
+  const qp=new URLSearchParams({engine:'google_lens',url:imageUrl,hl:'en',country:'gb',api_key:serpKey})
+  const response=await fetchImpl('https://serpapi.com/search.json?'+qp.toString())
+  const payload=await response.json().catch(()=>null)
+  if(!response.ok||payload?.error)return lensNotRun('Google Lens service returned an error'+(response.status?' ('+response.status+')':''))
+  return normaliseLens(payload)
+ }catch{return lensNotRun('Google Lens service could not be reached')}
 }
 
 export function normaliseWebDetection(raw:any,checkedAt=new Date().toISOString()):GoogleFirstLook{
@@ -56,7 +87,12 @@ export function normaliseWebDetection(raw:any,checkedAt=new Date().toISOString()
 export function googleLeadsForResearch(look:GoogleFirstLook|null|undefined):string{
  if(!look)return 'GOOGLE FIRST LOOK: not available for this research run.'
  if(look.status!=='CALLED')return 'GOOGLE FIRST LOOK: not run ('+(look.reason||'no reason recorded')+'). Research from the photographs.'
- return [
+ const lens=look.lens?.status==='CALLED'&&look.lens.matches.length?[
+  'GOOGLE LENS VISUAL MATCHES for the main photograph (the same matches the owner sees in Google Lens). UNVERIFIED LEADS: a similar-looking item is not proof of maker; the prices shown are page prices, usually ASKING, never sold unless the page itself proves a sale:',
+  ...look.lens.matches.map((m,i)=>(i+1)+'. '+m.title+(m.source?' — '+m.source:'')+(m.price?' — page price '+m.price:'')+' — '+m.url),
+  'Where several Lens matches name the same maker or pattern, research that maker and pattern first: confirm or reject it from catalogues, collector references and SOLD results, and say so in identification_update.'
+ ]:[]
+ return [...lens,
   'GOOGLE FIRST LOOK (Google Cloud Vision Web Detection, run by Collector Intelligence on the main photograph). These are UNVERIFIED LEADS, not facts, not prices and not authentication.',
   'Google best guess: '+(look.best_guess.join('; ')||'none'),
   'Google web entities: '+(look.entities.map(e=>e.description+(e.score!==null?' ('+e.score+')':'')).join('; ')||'none'),
@@ -77,6 +113,7 @@ function toBase64(bytes:Uint8Array):string{
 // One call per research run, one photograph, fail closed on the monthly limit.
 export async function runGoogleFirstLook(opts:{
  apiKey:string|undefined
+ serpKey?:string|undefined
  imageUrl:string|undefined
  usedThisMonth:number|null
  limit?:number
@@ -86,10 +123,20 @@ export async function runGoogleFirstLook(opts:{
  const now=opts.now||(()=>new Date().toISOString())
  const fetchImpl:FetchLike=opts.fetchImpl||((input,init)=>fetch(input,init))
  const limit=opts.limit??GOOGLE_MONTHLY_LIMIT
- if(!opts.apiKey)return googleNotRun('Google key not configured',now())
+ if(!opts.apiKey&&!opts.serpKey)return googleNotRun('Google key not configured',now())
  if(!opts.imageUrl)return googleNotRun('No main photograph available',now())
  if(opts.usedThisMonth===null||!Number.isFinite(opts.usedThisMonth))return googleNotRun('Monthly Google limit could not be checked',now())
  if(opts.usedThisMonth>=limit)return googleNotRun('Monthly Google limit of '+limit+' checks reached',now())
+ const [web,lens]=await Promise.all([
+  opts.apiKey?webDetection(opts.apiKey,opts.imageUrl,fetchImpl,now):Promise.resolve(googleNotRun('Google key not configured',now())),
+  opts.serpKey?runLens(opts.serpKey,opts.imageUrl,fetchImpl):Promise.resolve(lensNotRun('Google Lens key not configured'))
+ ])
+ if(web.status==='CALLED'||lens.status==='CALLED')return {...web,status:'CALLED',reason:web.status==='CALLED'?null:web.reason,lens}
+ return {...web,lens}
+}
+
+async function webDetection(apiKey:string,imageUrl:string,fetchImpl:FetchLike,now:()=>string):Promise<GoogleFirstLook>{
+ const opts={apiKey,imageUrl}
  let image:any
  try{
   const photo=await fetchImpl(opts.imageUrl)

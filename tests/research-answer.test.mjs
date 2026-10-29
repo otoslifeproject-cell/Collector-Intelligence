@@ -37,3 +37,9 @@ test('no sold evidence and no Google run are said plainly',()=>{
 test('tracker moves with time but never claims ready',()=>{
  assert.deepEqual([0,20000,60000,200000].map(researchStep),[0,1,2,3])
 })
+
+test('the answer names the first Lens match when Lens ran',()=>{
+ const a=researchAnswer({...research,google_first_look:{status:'CALLED',best_guess:['circle'],entities:[],pages:[],
+  lens:{status:'CALLED',reason:null,matches:[{title:'WHITEFRIARS TINTED & THREADED ART GLASS BOWL',url:'https://e',source:'eBay UK',price:'£249'}]}}},'Bowl')
+ assert.equal(a.google,'Google Lens: WHITEFRIARS TINTED & THREADED ART GLASS BOWL · 1 visual match')
+})

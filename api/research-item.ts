@@ -577,6 +577,7 @@ export default async function handler(req: any, res: any) {
   try{
     googleLook=await runGoogleFirstLook({
       apiKey:process.env.GOOGLE_CLOUD_VISION_API_KEY,
+      serpKey:process.env.SERPAPI_API_KEY,
       imageUrl:images[0],
       usedThisMonth:await googleChecksThisMonth(supabaseUrl,supabaseKey,token),
       limit:GOOGLE_MONTHLY_LIMIT

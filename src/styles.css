@@ -1141,3 +1141,6 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-research-stopped p{margin:0 0 12px}
 .ci-research-stopped .primaryButton{width:100%;min-height:52px}
 .ci-research-answer .ci-mini-line small+small{margin-top:2px}
+.ci-lens-paste{display:grid;gap:6px;margin:16px 0 10px;font-weight:700;font-size:13px}
+.ci-lens-paste textarea{width:100%;font:inherit;font-weight:500;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text)}
+.ci-google-first-look>.primaryButton{width:100%;min-height:52px}

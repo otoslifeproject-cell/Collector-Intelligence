@@ -223,11 +223,12 @@ function SavedDraftRecord({id}:{id:string}){
  const existingResearchObsolete=correctionAfterResearch
  const finishCorrection=async(request:CorrectionRequest,submit:boolean)=>{
   const result=await settleCorrection(supabase,request,current,submit)
-  if(!current())return
-  if(!result){setSaveStatus('No correction is confirmed yet. Your observation is held unchanged. Check the save or retry the same correction; keep this page open.');return}
+  if(!current())return false
+  if(!result){setSaveStatus('No correction is confirmed yet. Your observation is held unchanged. Check the save or retry the same correction; keep this page open.');return false}
   setVerdictFeedback(result.rows);setPendingCorrection(null);setDisagreeOpen(false);setDisagreementNote('')
   if(reportMenuRef.current)reportMenuRef.current.open=false
   setSaveStatus('Correction saved and independently read back. Original AI and earlier observations preserved. Current owner history refreshed.')
+  return true
  }
  const recoverCorrection=async(submit:boolean)=>{
   if(!pendingCorrection||correctionBusy.current||reviewBusy.current||approvalBusy.current||busy||error)return
@@ -263,6 +264,24 @@ function SavedDraftRecord({id}:{id:string}){
   try{const rows=await updateResearchHistory();if(current()&&rows)setSaveStatus('Saved research checked: '+rows.filter(hasSavedResearchResult).length+' complete responses and '+rows.filter(row=>!hasSavedResearchResult(row)).length+' unresolved attempts. No AI requested.')}
   catch(error){if(current()){const message=error instanceof DraftResearchError||error instanceof CatalogueError?error.message:'Saved research history unavailable. Check again before starting another paid search.';setResearchError(message);setSaveStatus(message)}}
   finally{if(current())setCheckingResearch(false)}
+ }
+ // Paste-from-Lens: the owner's own Google Lens finding is saved as an owner note
+ // (a lead, never a fact) and a new research run starts from it.
+ const [lensNote,setLensNote]=useState('')
+ const saveLensAndResearch=async()=>{
+  const note=lensNote.trim()
+  if(!run||[...note].length<3||pendingCorrection||correctionBusy.current||researchBusy.current||researching||busy||error)return
+  correctionBusy.current=true;setSavingDisagreement(true)
+  let saved=false
+  try{
+   const request=await prepareCorrection(supabase,run,{source_object_index:paired?null:scopeIndex,feedback_type:'OTHER',corrected_material:null,
+    owner_statement:('OWNER GOOGLE LENS RESULT (lead to check, not a fact): '+note).slice(0,2000)},current)
+   if(!current())return
+   setPendingCorrection(request)
+   saved=!!(await finishCorrection(request,true))
+  }catch(e){if(current())setSaveStatus(e instanceof CorrectionError||e instanceof CatalogueError?e.message:'Your Lens note could not be saved. Nothing was researched.')}
+  finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
+  if(saved&&current()){setLensNote('');await runDraftResearch('standard')}
  }
  const runDraftResearch=async(depth:'standard'|'deep_dive'='standard')=>{
   if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
@@ -551,14 +570,26 @@ function SavedDraftRecord({id}:{id:string}){
    {activeTab==='market'&&<div className="marketStack">
     <section className="panel ci-google-first-look" aria-label="Google matches">
      <div className="panelHeader"><h2>Google matches</h2><span>Leads to check, not facts</span></div>
+     {researchLook?.lens?.status==='CALLED'&&researchLook.lens.matches.length>0&&<>
+      <p><strong>Google Lens matches</strong></p>
+      <ul className="ci-google-pages">{researchLook.lens.matches.map((m:any)=><li key={m.url}>
+       <a href={m.url} target="_blank" rel="noopener noreferrer">{m.title}</a>
+       {(m.source||m.price)&&<span className="ci-page-meta"> · {[m.source,m.price?m.price+' (page price, not a sale)':''].filter(Boolean).join(' · ')}</span>}
+      </li>)}</ul>
+     </>}
      {researchLook?.status==='CALLED'?<>
       {researchLook.best_guess.length>0&&<p><strong>Google's best guess:</strong> {researchLook.best_guess.join(', ')}</p>}
       {researchLook.entities.length>0&&<p className="ci-page-meta">Related names: {researchLook.entities.slice(0,6).map((e:any)=>e.description).join(' · ')}</p>}
-      {researchLook.pages.length>0
-       ?<ul className="ci-google-pages">{researchLook.pages.map((page:any)=><li key={page.url}><a href={page.url} target="_blank" rel="noopener noreferrer">{page.title}</a></li>)}</ul>
-       :<p>Google found no pages with matching pictures.</p>}
+      {researchLook.pages.length>0&&<ul className="ci-google-pages">{researchLook.pages.map((page:any)=><li key={page.url}><a href={page.url} target="_blank" rel="noopener noreferrer">{page.title}</a></li>)}</ul>}
+      {!researchLook.pages.length&&!researchLook.lens?.matches?.length&&<p>Google found no pages with matching pictures.</p>}
      </>:<p>{researchLook?'Google check not run: '+(researchLook.reason||'no reason recorded'):visibleResearch?'Google check not run for this research.':researching||waitingForSaved?'Google is checking the main photograph…':'Google checks the main photograph first when research starts.'}</p>}
      <a className="secondaryButton inlineButton" href={googleLensLink(mainPhoto)} target="_blank" rel="noopener noreferrer">Open in Google Lens ↗</a>
+     <label className="ci-lens-paste">What did Google Lens find?
+      <textarea rows={3} maxLength={1500} value={lensNote} readOnly={savingDisagreement||researching} onChange={e=>setLensNote(e.target.value)}
+       placeholder="Paste the names, prices and links Lens showed you"/>
+     </label>
+     <button type="button" className="primaryButton" disabled={[...lensNote.trim()].length<3||researching||checkingResearch||savingDisagreement||researchBlocked||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady||!!pendingCorrection}
+      onClick={()=>void saveLensAndResearch()}>{savingDisagreement?'Saving…':'Use this and research again · paid'}</button>
     </section>
     <section className="panel ci-fast-research-result" aria-label="Research result">
       <div className="eyebrow">YOUR OBJECT · RESEARCH</div>

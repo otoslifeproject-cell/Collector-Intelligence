@@ -48,3 +48,10 @@ test('visual reference suggestions start without a second manual action but neve
  assert.match(visual,/They are not photo matches/)
  assert.match(visual,/Google Lens requires you to upload or select the image manually/)
 })
+
+test('paste-from-Lens saves an owner lead and starts research from it',()=>{
+ assert.match(screen,/What did Google Lens find\?/)
+ assert.match(screen,/OWNER GOOGLE LENS RESULT \(lead to check, not a fact\)/)
+ assert.match(screen,/Use this and research again · paid/)
+ assert.match(screen,/Google Lens matches/)
+})

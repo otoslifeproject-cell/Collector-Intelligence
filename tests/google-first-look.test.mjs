@@ -68,3 +68,31 @@ test('Lens link opens the main photograph when a signed link exists',()=>{
  assert.match(googleLensLink('https://abc.supabase.co/storage/v1/object/sign/x.jpg?token=1'),/uploadbyurl\?url=https%3A/)
  assert.equal(googleLensLink(null),'https://lens.google.com/')
 })
+
+test('Lens visual matches come through as leads, with page prices never treated as sales',async()=>{
+ const lensPayload={visual_matches:[
+  {title:'WHITEFRIARS TINTED & THREADED ART GLASS BOWL 1930s',link:'https://www.ebay.co.uk/itm/9',source:'eBay UK',price:{value:'£249',extracted_value:249,currency:'£'}},
+  {title:'A Stevens and Williams Threaded Vase c1930',link:'https://scottishantiques.com/x',source:'Scottish Antiques'},
+  {title:'dup',link:'https://www.ebay.co.uk/itm/9'}]}
+ const calls=[]
+ const fetchImpl=async(url,init)=>{
+  calls.push(url)
+  if(String(url).startsWith('https://serpapi.com/'))return {ok:true,json:async()=>lensPayload}
+  if(!init)return okPhoto()
+  return {ok:true,json:async()=>({responses:[{webDetection:{bestGuessLabels:[{label:'circle'}]}}]})}
+ }
+ const look=await runGoogleFirstLook({apiKey:'k',serpKey:'s',imageUrl:'https://x/y.jpg',usedThisMonth:0,fetchImpl})
+ assert.equal(look.status,'CALLED')
+ assert.equal(look.lens.matches.length,2)
+ assert.equal(look.lens.matches[0].price,'£249')
+ assert.ok(calls.some(u=>String(u).includes('engine=google_lens')))
+ const text=googleLeadsForResearch(look)
+ assert.match(text,/GOOGLE LENS VISUAL MATCHES/)
+ assert.match(text,/usually ASKING, never sold/)
+ assert.match(text,/WHITEFRIARS TINTED/)
+ const lensOnly=await runGoogleFirstLook({apiKey:'',serpKey:'s',imageUrl:'https://x/y.jpg',usedThisMonth:0,fetchImpl})
+ assert.equal(lensOnly.status,'CALLED')
+ const lensDown=await runGoogleFirstLook({apiKey:'',serpKey:'s',imageUrl:'https://x/y.jpg',usedThisMonth:0,
+  fetchImpl:async()=>({ok:false,status:401,json:async()=>({error:'Invalid API key'})})})
+ assert.equal(lensDown.status,'NOT_RUN')
+})

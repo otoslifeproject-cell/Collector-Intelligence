@@ -65,8 +65,10 @@ export function researchAnswer(research:any,fallbackTitle:string):ResearchAnswer
  const period=concise(id.period_wording,40)
  const identity=name+(period&&!name.toLowerCase().includes(period.toLowerCase())?' · '+period:'')
  const identityBasis=confidence(id.identification_confidence)+' · not authenticated'
+ const lensMatches=look?.lens?.status==='CALLED'?look.lens.matches:[]
  const google=!look?'Google check not run for this research'
   :look.status!=='CALLED'?'Google check not run: '+(look.reason||'no reason recorded')
+  :lensMatches.length?'Google Lens: '+concise(lensMatches[0].title,70)+' · '+lensMatches.length+' visual match'+(lensMatches.length===1?'':'es')
   :'Google: '+(look.best_guess[0]||look.entities[0]?.description||'no clear match')+' · '+look.pages.length+' matching page'+(look.pages.length===1?'':'s')
  const soldLeads=priceLeads(comps,SOLD)
  const sold=rangeText(soldLeads)
