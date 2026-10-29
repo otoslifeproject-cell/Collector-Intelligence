@@ -129,7 +129,7 @@ export function resultListing(research:any,fallbackTitle:string){
  const format=l.sale_format==='AUCTION'?'Auction'+(typeof l.auction_start==='number'&&Number.isFinite(l.auction_start)?' · start '+fmt(l.auction_start,currency):'')
   :l.sale_format==='FIXED_PRICE'?'Buy it now':null
  const checks=(Array.isArray(l.title_checks)&&l.title_checks.length?l.title_checks:(Array.isArray(research?.next_evidence)?research.next_evidence.map((x:any)=>x?.title):[]))
-  .map((x:any)=>concise(x,80)).filter(Boolean).slice(0,2)
+  .map((x:any)=>concise(x,90)).filter(Boolean).slice(0,3)
  return {
   ebayTitle:fit(l.ebay_title||fallbackTitle||'Collectable item',80),
   etsyTitle:l.etsy_title?fit(l.etsy_title,140):null,

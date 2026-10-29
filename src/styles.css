@@ -1201,3 +1201,24 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-section-body .ci-big-button{justify-self:start}
 /* Existing fold-outs across the app: large full-width bars */
 details.ci-review-section>summary,details.ci-archive-section>summary,details.ci-object-review>summary{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:12px 18px;font-size:17px;font-weight:750;border:1px solid var(--line);border-radius:16px;background:var(--panel);cursor:pointer;width:100%}
+/* Large bars win over the generic small fold-out button (Dean, 29 Oct) */
+.mainContent details.ci-section>summary,.mainContent details.ci-review-section>summary,.mainContent details.ci-archive-section>summary,.mainContent details.ci-object-review>summary{display:flex;justify-content:space-between;width:100%;min-height:64px;margin:0;padding:16px 22px;font-size:19px;font-weight:800;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
+.mainContent details.ci-section>summary{border:0;border-radius:0}
+.mainContent details.ci-section>summary:after,.mainContent details.ci-review-section>summary:after,.mainContent details.ci-archive-section>summary:after,.mainContent details.ci-object-review>summary:after{content:'▾';font-size:22px;margin-left:12px;transition:transform .15s}
+.mainContent details[open].ci-section>summary:after,.mainContent details[open].ci-review-section>summary:after,.mainContent details[open].ci-archive-section>summary:after,.mainContent details[open].ci-object-review>summary:after{transform:rotate(180deg)}
+.ci-section>summary:after{content:none}
+/* Result screen fits the window: tighter boxes */
+.ci-result{gap:10px}
+.ci-result-title,.ci-result-price{padding:14px 20px}
+.ci-result-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.ci-result-price small{width:100%;margin:0!important}
+.ci-result-price span{margin-top:0}
+.ci-result .ci-big-button{min-height:62px}
+/* Ticked checks */
+.ci-check-list{display:grid;gap:8px}
+.ci-check{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;cursor:pointer;font-size:16px;font-weight:650;background:var(--panel)}
+.ci-check input{width:26px;height:26px;accent-color:#a47a36;flex:0 0 auto}
+.ci-check.is-ticked{border-color:#a47a36}
+/* Add photos page: same style, everything in view */
+.ci-intake-go{width:100%;min-height:72px;margin:14px 0}
+.ci-intake-top{scroll-margin-top:12px}

@@ -62,3 +62,18 @@ test('bulk triage: a quick check runs by itself; full research is a button',()=>
  assert.match(screen,/autoResearchTried\.current\.add\(fullKey\)/)
  assert.match(screen,/onDisagree=\{\(kind,text\)=>void disagreeAndResearch\(kind,text\)\}/)
 })
+
+test('checks can be ticked and confirmed, then the result updates',()=>{
+ const result=readFileSync(new URL('../src/components/ResultScreen.tsx',import.meta.url),'utf8')
+ assert.match(result,/type="checkbox"/)
+ assert.match(result,/Confirmed: update the result · paid/)
+ assert.match(screen,/OWNER CONFIRMS, from the item and its photographs/)
+ assert.match(screen,/onConfirm=\{ticked=>void confirmAndResearch\(ticked\)\}/)
+})
+test('Add photos keeps everything in view: steps at top, tracker replaces the form, one big Analyse',()=>{
+ const intake=readFileSync(new URL('../src/pages/AIIntake.tsx',import.meta.url),'utf8')
+ assert.match(intake,/<StepStrip current=\{pending\|\|working\?1:0\}\/>/)
+ assert.match(intake,/<fieldset hidden=\{!!\(pending\|\|working\)\}/)
+ assert.equal((intake.match(/Analyse photos<\/button>/g)||[]).length,1)
+ assert.match(intake,/window\.scrollTo\(\{top:0/)
+})

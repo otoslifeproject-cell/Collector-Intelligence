@@ -302,7 +302,7 @@ function SavedDraftRecord({id}:{id:string}){
    const i=scopeIndex,pair=paired?[0,1]:[]
    const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
    // Standard research reads 6 photographs (time limit); a deep dive reads up to 12.
-   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,depth==='deep_dive'?12:depth==='quick'?3:6)
+   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,depth==='quick'?3:12)
    const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
     user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:pair,research_depth:depth},
     result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
@@ -441,10 +441,18 @@ function SavedDraftRecord({id}:{id:string}){
  // One Disagree button: the owner's correction is saved as an owner note (a lead),
  // then full research runs again from it.
  const disagreeAndResearch=async(kind:DisagreeKind,text:string)=>{
-  if(!run||pendingCorrection||correctionBusy.current||researchBusy.current||researching||busy||error)return
   const type=kind==='MAKER'?'ATTRIBUTION_REJECTION':kind==='WHAT'?'IDENTIFICATION_CORRECTION':'OTHER'
   const what=kind==='MAKER'?'the maker':kind==='WHAT'?'what the object is':kind==='PRICE'?'the price':'the result'
-  const statement=('Owner disagrees with '+what+'.'+(text.trim()?' Owner says: '+text.trim():'')).slice(0,2000)
+  await noteAndResearch(type,'Owner disagrees with '+what+'.'+(text.trim()?' Owner says: '+text.trim():''))
+ }
+ // Ticked checks: the owner confirms them (e.g. "the mark is in the photo"), and
+ // the result is updated with them as confirmed facts.
+ const confirmAndResearch=async(ticked:string[])=>{
+  await noteAndResearch('OTHER','OWNER CONFIRMS, from the item and its photographs (treat as confirmed facts for the title, description and price; do not ask again): '+ticked.join(' | '))
+ }
+ const noteAndResearch=async(type:string,text:string)=>{
+  if(!run||pendingCorrection||correctionBusy.current||researchBusy.current||researching||busy||error)return
+  const statement=text.slice(0,2000)
   correctionBusy.current=true;setSavingDisagreement(true)
   let saved=false
   try{
@@ -559,6 +567,7 @@ function SavedDraftRecord({id}:{id:string}){
     saved={run.status==='APPROVED'||catalogued.length>0}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
     onDisagree={(kind,text)=>void disagreeAndResearch(kind,text)} disagreeBusy={savingDisagreement||researching}
+    onConfirm={ticked=>void confirmAndResearch(ticked)}
     onDetails={()=>setActiveTab('market')} status={saveStatus}
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}

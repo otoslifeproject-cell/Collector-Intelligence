@@ -130,3 +130,9 @@ test('quick depth: no web search tool, low reasoning, 3 small photos, triage req
  assert.match(research,/Etsy vintage rule/)
  assert.match(research,/Never mark a quick-check price as sold/)
 })
+
+test('research reads legible marks in every photo and never asks to verify them',()=>{
+ assert.match(research,/MARKS IN THE PHOTOGRAPHS: read every legible backstamp/)
+ assert.match(research,/Never add a title_check asking the owner to verify a mark that is legible in a photograph/)
+ assert.match(research,/detail:depth==='quick'\?"low":depth==='deep_dive'\?"original":"high"/)
+})

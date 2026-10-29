@@ -26,6 +26,7 @@ type Props={
  status?:string
  onNext?:()=>void
  nextLabel?:string
+ onConfirm?:(ticked:string[])=>void
 }
 const STEPS=['Photos','Analyse','Result','Save','Sell']
 
@@ -69,7 +70,19 @@ function CopyLine({label,text}:{label:string;text:string}){
  </div>
 }
 
-export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →'}:Props){
+function CheckList({checks,onConfirm,busy}:{checks:string[];onConfirm?:(t:string[])=>void;busy:boolean}){
+ const [ticked,setTicked]=useState<string[]>([])
+ const toggle=(c:string)=>setTicked(v=>v.includes(c)?v.filter(x=>x!==c):[...v,c])
+ return <div className="ci-check-list">
+  {checks.map(c=><label key={c} className={'ci-check'+(ticked.includes(c)?' is-ticked':'')}>
+   <input type="checkbox" checked={ticked.includes(c)} onChange={()=>toggle(c)}/>{c}
+  </label>)}
+  {onConfirm&&ticked.length>0&&<button type="button" className="ci-big-button ci-big-button-primary" disabled={busy} onClick={()=>onConfirm(ticked)}>
+   <Check size={22} aria-hidden="true"/>{busy?'Saving…':'Confirmed: update the result · paid'}</button>}
+ </div>
+}
+
+export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →',onConfirm}:Props){
  const [open,setOpen]=useState(false)
  const [kind,setKind]=useState<DisagreeKind|null>(null)
  const [note,setNote]=useState('')
@@ -83,8 +96,8 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
    {listing.format&&<span>{listing.format}</span>}
   </div>
   {listing.description&&<Section title="Description"><CopyBlock text={listing.description}/></Section>}
-  {listing.checks.length>0&&<Section title="Check before posting">
-   {listing.checks.slice(0,2).map((c,i)=><p key={i}>{c}</p>)}
+  {listing.checks.length>0&&<Section title={'Check before posting · '+listing.checks.length}>
+   <CheckList checks={listing.checks} onConfirm={onConfirm} busy={disagreeBusy}/>
   </Section>}
   {listing.stillChecking&&<p className="ci-result-note">Quick check only: low value, so no full research was run.</p>}
   {!open&&<div className="ci-result-actions">

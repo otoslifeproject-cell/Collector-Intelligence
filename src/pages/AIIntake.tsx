@@ -6,6 +6,7 @@ import {supabase} from '../lib/supabase'
 import {IntakeError,prepareIntake,settleIntake,readIntake,hasIntakeReport,intakeDispatch,verifyIntakeOriginals} from '../lib/intakeSession'
 import type {IntakeAttempt,IntakeContext,IntakeRow} from '../lib/intakeSession'
 import IntakeProgress from '../components/IntakeProgress'
+import {StepStrip} from '../components/ResultScreen'
 import type {IntakeProgressPhase} from '../components/IntakeProgress'
 
 type UploadPhoto={index:number;file:File;preview:string}
@@ -106,7 +107,7 @@ export default function AIIntake(){
   catch(error){if(current()){window.alert('Your photos could not be checked. Try again.');setMessage('Your photos are saved or still selected.')}}
   finally{busy.current=false;if(current())setWorking(false)}
  }
- const uploadAndAnalyse=()=>{if(!photos.length){window.alert('Choose at least one photo.');return}if(held.current)return;void perform(async()=>{
+ const uploadAndAnalyse=()=>{if(!photos.length){window.alert('Choose at least one photo.');return}if(held.current)return;try{window.scrollTo({top:0,behavior:'smooth'})}catch{};void perform(async()=>{
   const attempt=await prepareIntake(supabase,mode,choices.current.map(p=>p.file),context,current)
   if(!current())return
   held.current=attempt;setPending(attempt);setPhase('saved')
@@ -141,9 +142,14 @@ export default function AIIntake(){
 
   return (
     <div>
-      <div className="pageHeader"><div><h1>Add photos</h1><p>Choose photos, then press Analyse.</p></div></div>
+      <div className="ci-sticky-top"><StepStrip current={pending||working?1:0}/></div>
+      {(pending||working)&&<div className="ci-intake-top"><IntakeProgress phase={phase==='idle'?'saved':phase}
+          message={phase==='stopped'?message:undefined}
+          onRetry={pending&&!working?(canResume?retry:check):undefined}
+          retryLabel={canResume?'Try again':'Check result'} disabled={working}/></div>}
+      {!(pending||working)&&<div className="pageHeader"><div><h1>Add photos</h1><p>Choose photos, then press Analyse.</p></div></div>}
 
-      <fieldset disabled={locked} style={{border:0,padding:0,margin:0,minWidth:0}}>
+      <fieldset hidden={!!(pending||working)} disabled={locked} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="intakeModeGrid" role="group" aria-label="Number of objects">
           <button className={mode==='single'?'intakeMode active':'intakeMode'} onClick={()=>chooseMode('single')}>
             <Camera/><strong>One object</strong><span>Up to 20 photographs of one physical object.</span>
@@ -174,6 +180,7 @@ export default function AIIntake(){
             </div>)}
           </div>}
         </div>
+        <button type="button" className="ci-big-button ci-big-button-primary ci-intake-go" disabled={locked||!photos.length} onClick={uploadAndAnalyse}><Sparkles size={22}/> Analyse photos</button>
 
         <button type="button" className="secondaryButton ci-disclosure-button" aria-expanded={showDetails} onClick={()=>setShowDetails(v=>!v)}>Add details (optional)</button>
         {showDetails&&<section className="panel ci-intake-advanced">
@@ -189,15 +196,7 @@ export default function AIIntake(){
         </section>}
 
       </fieldset>
-        {(pending||working)&&<IntakeProgress phase={phase==='idle'?'saved':phase}
-          message={phase==='stopped'?message:undefined}
-          onRetry={pending&&!working?(canResume?retry:check):undefined}
-          retryLabel={canResume?'Try again':'Check result'} disabled={working}/>}
         {!pending&&message&&<p role="status" ref={status} className="note">{message}</p>}
-        <div className="intakeActions">
-          <button className="primaryButton intakeBigButton ci-action-primary" disabled={locked} onClick={uploadAndAnalyse}><Sparkles size={18}/> Analyse photos</button>
-
-        </div>
 
 
       
