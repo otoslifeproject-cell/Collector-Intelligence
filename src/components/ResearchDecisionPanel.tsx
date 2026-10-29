@@ -38,9 +38,9 @@ export default function ResearchDecisionPanel({research,sourceAudit,paired=false
   </div>
   {summary&&<div className="ci-research-brief-wrap">
     <p className="ci-research-brief">{short(summary,180)}</p>
-    {summary.length>180&&<InfoDisclosure label="Full research summary"><p className="ci-research-full-summary">{summary}</p></InfoDisclosure>}
+    {summary.length>180&&<InfoDisclosure label="Full research summary" showLabel><p className="ci-research-full-summary">{summary}</p></InfoDisclosure>}
    </div>}
-  <InfoDisclosure label="Evidence quality">
+  <InfoDisclosure label="Evidence quality" showLabel>
     <p>Model-supplied leads are not independently verified sold comparables or authenticated maker records.</p>
     {sourceAudit?.warning&&<p>{sourceAudit.warning}</p>}
     {paired&&!quotedPerPiece&&<p>Price scope is the proposed matched pair; verify both physical pieces are included in each reference.</p>}
