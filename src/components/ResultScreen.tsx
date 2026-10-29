@@ -50,7 +50,7 @@ export function Section({title,children,defaultOpen=false}:{title:string;childre
 function CopyBlock({text}:{text:string}){
  const [copied,setCopied]=useState(false)
  return <>
-  <pre className="ci-result-description">{text}</pre>
+  <div className="ci-result-description">{text}</div>
   <button type="button" className="ci-big-button ci-big-button-small" onClick={()=>void navigator.clipboard.writeText(text).then(()=>{setCopied(true);window.setTimeout(()=>setCopied(false),2000)}).catch(()=>setCopied(false))}>
    {copied?<Check size={20} aria-hidden="true"/>:<Copy size={20} aria-hidden="true"/>}{copied?'Copied':'Copy description'}
   </button>
@@ -71,7 +71,7 @@ function CopyLine({label,text}:{label:string;text:string}){
  </div>
 }
 
-function CheckList({checks,onConfirm,busy}:{checks:string[];onConfirm?:(t:string[])=>void;busy:boolean}){
+function CheckList({checks,onConfirm,busy,onSkip}:{checks:string[];onConfirm?:(t:string[])=>void;busy:boolean;onSkip:()=>void}){
  const [ticked,setTicked]=useState<string[]>([])
  const toggle=(c:string)=>setTicked(v=>v.includes(c)?v.filter(x=>x!==c):[...v,c])
  return <div className="ci-check-list">
@@ -80,11 +80,15 @@ function CheckList({checks,onConfirm,busy}:{checks:string[];onConfirm?:(t:string
   </label>)}
   {onConfirm&&ticked.length>0&&<button type="button" className="ci-big-button ci-big-button-primary" disabled={busy} onClick={()=>onConfirm(ticked)}>
    <Check size={22} aria-hidden="true"/>{busy?'Saving…':'Confirmed: update the result · paid'}</button>}
+  <button type="button" className="ci-big-button" onClick={onSkip}>Skip checks: use this result</button>
  </div>
 }
 
 export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →',onConfirm}:Props){
  const [open,setOpen]=useState(false)
+ // Checks come first: the description is only final once they are done or skipped.
+ const [skipped,setSkipped]=useState(false)
+ const checksOpen=listing.checks.length>0&&!skipped
  const [kind,setKind]=useState<DisagreeKind|null>(null)
  const [note,setNote]=useState('')
  return <section className="ci-result" aria-label="Your result">
@@ -96,13 +100,16 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
    {listing.priceBasis&&<small className="ci-result-basis">{listing.priceBasis}</small>}
    {listing.format&&<span>{listing.format}</span>}
   </div>
-  {listing.description&&<Section title="Description"><CopyBlock text={listing.description}/></Section>}
   {(listing.seen?.length??0)>0&&<Section title={'✓ Read from your photos · '+listing.seen!.length}>
    <ul className="ci-seen-list">{listing.seen!.map(s=><li key={s}><Check size={20} aria-hidden="true"/>{s}</li>)}</ul>
   </Section>}
-  {listing.checks.length>0&&<Section title={'Check before posting · '+listing.checks.length}>
-   <CheckList checks={listing.checks} onConfirm={onConfirm} busy={disagreeBusy}/>
+  {checksOpen&&<Section title={'Check first · '+listing.checks.length} defaultOpen>
+   <p className="ci-result-note">Each check can change the price or the wording. Tick what is true, or skip.</p>
+   <CheckList checks={listing.checks} onConfirm={onConfirm} busy={disagreeBusy} onSkip={()=>setSkipped(true)}/>
   </Section>}
+  {listing.description&&(checksOpen
+   ?<div className="ci-section ci-section-locked"><div className="ci-section-locked-bar">Description · ready after your checks</div></div>
+   :<Section title="Description"><CopyBlock text={listing.description}/></Section>)}
   {listing.stillChecking&&<p className="ci-result-note">Quick check only: low value, so no full research was run.</p>}
   {!open&&<div className="ci-result-actions">
    {onSave&&<button type="button" className="ci-big-button ci-big-button-primary" disabled={saveDisabled||saved} onClick={onSave}>

@@ -156,3 +156,8 @@ test('research lists what the photos prove separately from what to check',()=>{
  assert.match(research,/these are confirmed facts, not checks/)
  assert.match(research,/never repeat anything in seen_in_photos/)
 })
+
+test('a check must change the price, title or description',()=>{
+ assert.match(research,/whose answer would change the price, the title or the description/)
+ assert.match(research,/never add general care checks/)
+})

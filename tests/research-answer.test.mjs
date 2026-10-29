@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
 import {researchAnswer,researchStep} from '../src/lib/researchAnswer.ts'
 
 const research={
@@ -91,4 +92,12 @@ test('marks read from the photos are shown as confirmed, never as checks',async(
  assert.deepEqual(r.checks,['Set: confirm the matching dish/stand is included and fits.'])
  assert.equal(r.seen.length,3)
  assert.equal(r.seen[0],'Mark: Copeland Spode (photo 4)')
+})
+
+test('checks come first and lock the description; description is never a hidden <pre>',()=>{
+ const screen=readFileSync(new URL('../src/components/ResultScreen.tsx',import.meta.url),'utf8')
+ assert.doesNotMatch(screen,/<pre className="ci-result-description"/)
+ assert.match(screen,/Description · ready after your checks/)
+ assert.match(screen,/Skip checks: use this result/)
+ assert.ok(screen.indexOf("'Check first · '")<screen.indexOf('<CopyBlock'))
 })
