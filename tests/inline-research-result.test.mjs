@@ -55,3 +55,9 @@ test('paste-from-Lens saves an owner lead and starts research from it',()=>{
  assert.match(screen,/Use this and research again · paid/)
  assert.match(screen,/Google Lens matches/)
 })
+
+test('bulk triage: a quick check runs by itself; full research is a button',()=>{
+ assert.match(screen,/void runDraftResearch\('quick'\)/)
+ assert.match(screen,/onFullResearch=\{\(\)=>void runDraftResearch\('standard'\)\}/)
+ assert.match(screen,/Full research · paid/)
+})

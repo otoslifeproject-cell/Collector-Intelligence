@@ -7,7 +7,7 @@ import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 const researchSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence"],
+  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage"],
   properties: {
     identification_update: {
       type: "object",
@@ -87,6 +87,16 @@ const researchSchema = {
       }
     },
     research_summary: { type: "string" },
+    // Bulk triage: is full paid web research worth it for this item?
+    triage: {
+      type: "object",
+      additionalProperties: false,
+      required: ["decision","reason"],
+      properties: {
+        decision: { type: "string", enum: ["FULL_RESEARCH_WORTH_IT","LOW_VALUE","UNCLEAR"] },
+        reason: { type: "string" }
+      }
+    },
     next_evidence: {
       type: "array",
       items: {
@@ -283,7 +293,7 @@ export default async function handler(req: any, res: any) {
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
   const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [], research_run_id, depth = 'standard' } = req.body || {};
-  if(depth!=='standard' && depth!=='deep_dive')return res.status(400).json({error:'Unsupported research depth; no paid request.'});
+  if(depth!=='standard' && depth!=='deep_dive' && depth!=='quick')return res.status(400).json({error:'Unsupported research depth; no paid request.'});
   const draftMode=typeof draft_run_id==='string';
   const isUuid=(value:any)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
   let itemForResearch:any=item;
@@ -537,12 +547,20 @@ export default async function handler(req: any, res: any) {
 5. Produce a short actionable research_summary that answers likely type, current best attribution with honest confidence, strongest reference images/sources, realistic provisional WHOLE-LOT value, and best next physical discriminator. Provide competing hypotheses as explicit contradictions when unresolved.
 6. Reuse ONLY independently approved knowledge and source-backed owner corrections; don't fabricate reviewed Knowledge Brain records.
 7. Distinguish the user's original images from separately provided CC0 open-access museum reference images. Owner-marked NOT_A_MATCH is a documented negative comparator and must not be presented as a confirming maker/design match. POSSIBLE_LOOKALIKE is not authentication, even when a museum's own object is securely catalogued.`
+   : depth==='quick'
+   ? `QUICK CHECK (bulk triage; NO web search in this run):
+1. Use only the saved photo description, the owner notes, the small photographs and the GOOGLE LENS matches supplied. Do not claim any source you were not given.
+2. identification_update: name the likely identity from Lens matches whose pictures and titles agree with the photographs (maker + model/pattern when matches name one; say "lead" in the rationale). Otherwise describe the object type plainly.
+3. comparables: list up to 6 Lens matches that show a page price, as MARKETPLACE_ASKING or DEALER_ASKING with verification_status UNVERIFIED. Never mark a quick-check price as sold.
+4. valuation: leave ranges null unless the asking prices clearly cluster; notes must say QUICK CHECK — ASKING PRICES ONLY, NO SOLD EVIDENCE.
+5. triage.decision: FULL_RESEARCH_WORTH_IT when the matches name a specific maker, designer, model or pattern consistent with the photographs, or page prices for close matches are about £40 or more; LOW_VALUE when the matches are generic, mass-produced or priced under about £15; otherwise UNCLEAR. triage.reason: one plain sentence for the owner.
+6. routing.sale_readiness: RESEARCH_FIRST unless LOW_VALUE, then SELL_NOW with a fast-sale route.`
    : '';
   const content: any[] = [{
     type: "input_text",
-    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'} with live web search. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'}${depth==='quick'?' as a QUICK CHECK without web search':' with live web search'}. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
   }];
-  for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:"original" });
+  for (const image of images.slice(0, depth==='quick'?3:12)) content.push({ type:"input_image", image_url:image, detail:depth==='quick'?"low":"original" });
   if(depth==='deep_dive'){
     const referenceImages=visualReviews.filter((x:any)=>
       x.reference_provider==='The Metropolitan Museum of Art'&&
@@ -589,12 +607,12 @@ export default async function handler(req: any, res: any) {
   const body = {
     model,
     // Standard research must finish well inside the 300 s function limit.
-    reasoning: { effort: depth==='deep_dive' ? "high" : "medium" },
+    reasoning: { effort: depth==='deep_dive' ? "high" : depth==='quick' ? "low" : "medium" },
     instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
-    tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }],
+    ...(depth==='quick'?{}:{tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }]}),
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
-    max_output_tokens: 16000
+    max_output_tokens: depth==='quick' ? 6000 : 16000
   };
 
   let response:Response;

@@ -70,6 +70,7 @@ function SavedDraftRecord({id}:{id:string}){
  const [unconfirmedResearch,setUnconfirmedResearch]=useState<{runId:string;payload:any}|null>(null)
  const [researchIndex,setResearchIndex]=useState(0)
  const [researchStartedAt,setResearchStartedAt]=useState<number|null>(null)
+ const [researchingDepth,setResearchingDepth]=useState<string>('standard')
  const autoResearchTried=useRef(new Set<string>())
  // Object indices refer only to the saved run's objects; never map by photo order.
  // Invalid, hostile or stale links safely show object 0 without altering evidence.
@@ -283,9 +284,9 @@ function SavedDraftRecord({id}:{id:string}){
   finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
   if(saved&&current()){setLensNote('');await runDraftResearch('standard')}
  }
- const runDraftResearch=async(depth:'standard'|'deep_dive'='standard')=>{
+ const runDraftResearch=async(depth:'standard'|'deep_dive'|'quick'='standard')=>{
   if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
-  researchBusy.current=true;setResearching(true);setResearchStartedAt(Date.now());setSaveStatus('')
+  researchBusy.current=true;setResearching(true);setResearchStartedAt(Date.now());setResearchingDepth(depth);setSaveStatus('')
   let stagedId:string|null=null
   try{
    // Recheck complete history immediately before any new staged/paid request.
@@ -297,7 +298,7 @@ function SavedDraftRecord({id}:{id:string}){
    const i=scopeIndex,pair=paired?[0,1]:[]
    const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
    // Standard research reads 6 photographs (time limit); a deep dive reads up to 12.
-   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,depth==='deep_dive'?12:6)
+   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,depth==='deep_dive'?12:depth==='quick'?3:6)
    const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
     user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:pair,research_depth:depth},
     result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
@@ -394,8 +395,10 @@ function SavedDraftRecord({id}:{id:string}){
   if(paired||(run.result.objects||[]).length===1)void approveSaved()
   else setActiveTab('catalogue')
  }
- // AUTOMATIC CHAIN: once the photo answer is saved, research (Google first, then
- // web research) starts by itself, once per object. Kill switch: VITE_CI_AUTO_RESEARCH=off.
+ // AUTOMATIC CHAIN: once the photo answer is saved, a QUICK CHECK (Google Lens on
+ // 3 photos + a small AI triage, no web search) starts by itself, once per object.
+ // Full paid web research is one button away when the triage says it is worth it.
+ // Kill switch: VITE_CI_AUTO_RESEARCH=off.
  const autoResearchOff=import.meta.env.VITE_CI_AUTO_RESEARCH==='off'
  const autoKey=run?run.id+':'+scopeIndex+':'+(paired?'pair':'one'):''
  const imagesReady=Object.values(images).some(Boolean)
@@ -405,7 +408,7 @@ function SavedDraftRecord({id}:{id:string}){
   if(researching||checkingResearch||researchBusy.current||researchBlocked||anyScopeResearch||existingResearchObsolete)return
   if(!autoKey||autoResearchTried.current.has(autoKey))return
   autoResearchTried.current.add(autoKey)
-  void runDraftResearch('standard')
+  void runDraftResearch('quick')
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[autoKey,busy,error,isPhotoManifestReady,needsPhotoCorrection,imagesReady,researching,checkingResearch,researchBlocked,anyScopeResearch,existingResearchObsolete])
  // A run still in progress elsewhere (page reloaded, slow reply): read the saved
@@ -506,8 +509,10 @@ function SavedDraftRecord({id}:{id:string}){
    {activeTab==='answer'&&finishedAnswer&&<ResearchAnswer answer={finishedAnswer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
-    onOpenResearch={()=>setActiveTab('market')}/>}
-   {activeTab==='answer'&&!finishedAnswer&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt}/>}
+    onOpenResearch={()=>setActiveTab('market')}
+    onFullResearch={()=>void runDraftResearch('standard')}
+    fullResearchDisabled={researching||checkingResearch||researchBlocked||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady}/>}
+   {activeTab==='answer'&&!finishedAnswer&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt} quick={researchingDepth==='quick'||scopePending[0]?.user_context?.research_depth==='quick'}/>}
    {activeTab==='answer'&&!finishedAnswer&&!researching&&!waitingForSaved&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">
      <p><strong>Research did not finish.</strong> {saveStatus}</p>
@@ -607,10 +612,10 @@ function SavedDraftRecord({id}:{id:string}){
     </section>
     <WorkspaceActionPanel
      eyebrow="RESEARCH"
-     title={visibleResearch?'Research again':'Start research'}
+     title={visibleResearch?.research_depth==='quick'?'Full research':visibleResearch?'Research again':'Start research'}
      description={visibleResearch?'Runs a new paid search. The saved result stays.':''}
      primary={{
-      label:researching?'Research running…':visibleResearch?'Research again · paid':'Start research',
+      label:researching?'Research running…':visibleResearch?.research_depth==='quick'?'Full research · paid':visibleResearch?'Research again · paid':'Start research',
       onClick:()=>runDraftResearch('standard'),
       disabled:researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}

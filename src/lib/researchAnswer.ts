@@ -30,6 +30,14 @@ export type ResearchAnswer={
  decision:string
  checks:string[]
  soldLeads:PriceLead[]
+ quick:boolean
+ triage:'FULL_RESEARCH_WORTH_IT'|'LOW_VALUE'|'UNCLEAR'|null
+ triageText:string|null
+}
+const TRIAGE:Record<string,string>={
+ FULL_RESEARCH_WORTH_IT:'Worth full research',
+ LOW_VALUE:'Low value: sell quickly',
+ UNCLEAR:'Unclear: full research could help'
 }
 
 function priceLeads(comps:any[],types:Set<string>):PriceLead[]{
@@ -75,14 +83,17 @@ export function researchAnswer(research:any,fallbackTitle:string):ResearchAnswer
  const asking=rangeText(priceLeads(comps,ASKING))
  const currency=typeof val.currency==='string'&&currencyOk(val.currency)?val.currency:'GBP'
  const low=Number.isFinite(val.balanced_low)?val.balanced_low:null,high=Number.isFinite(val.balanced_high)?val.balanced_high:null
+ const quick=research?.research_depth==='quick'
+ const triageDecision=typeof research?.triage?.decision==='string'&&TRIAGE[research.triage.decision]?research.triage.decision:null
+ const triageText=triageDecision?TRIAGE[triageDecision]+(research.triage.reason?' · '+concise(research.triage.reason,140):''):null
  return {
-  identity,identityBasis,google,
+  identity,identityBasis,google,quick,triage:triageDecision,triageText,
   sold:sold?'Sold: '+sold.text+' ('+sold.count+' result'+(sold.count===1?'':'s')+')':'No sold prices found',
   soldBasis:sold?'Sources listed in Research · not independently checked':'Asking prices are not sales',
   asking:asking?'Asking: '+asking.text+' ('+asking.count+' listing'+(asking.count===1?'':'s')+', not sales)':null,
   range:low!==null&&high!==null?'Provisional range '+fmt(low,currency)+'–'+fmt(high,currency):null,
   venue:concise(route.best_venue,90)||'Not established yet',
-  decision:READINESS[route.sale_readiness]||'Do the checks below before listing',
+  decision:quick&&triageDecision?TRIAGE[triageDecision]:READINESS[route.sale_readiness]||'Do the checks below before listing',
   checks:(Array.isArray(research?.next_evidence)?research.next_evidence:[]).map((x:any)=>concise(x?.title,90)).filter(Boolean).slice(0,3),
   soldLeads
  }

@@ -47,7 +47,7 @@ export async function readDraftResearch(client:SupabaseClient,expected:Catalogue
   const ctx=row.user_context,pair=ctx?.pair_source_indices??[]
   return !uuid.test(row.id)||row.owner_id!==source.owner_id||row.mode!=='research'||typeof row.created_at!=='string'||!Number.isFinite(Date.parse(row.created_at))||!plain(row.result)||!plain(ctx)||ctx.source_analysis_run_id!==source.id||!Number.isInteger(ctx.source_object_index)||ctx.source_object_index<0||ctx.source_object_index>=source.result.objects.length||!Array.isArray(pair)||
    !(pair.length===0||(stable(pair)==='[0,1]'&&source.mode==='single'&&source.result.objects.length===2&&ctx.source_object_index===0))||
-   (ctx.research_depth!==undefined&&!['standard','deep_dive'].includes(ctx.research_depth))
+   (ctx.research_depth!==undefined&&!['standard','deep_dive','quick'].includes(ctx.research_depth))
  }))return fail()
  return rows
 }

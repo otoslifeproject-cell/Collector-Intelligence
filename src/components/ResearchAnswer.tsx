@@ -9,10 +9,14 @@ type Props={
  onSave?:()=>void
  saveDisabled?:boolean
  onOpenResearch:()=>void
+ onFullResearch?:()=>void
+ fullResearchDisabled?:boolean
 }
-export default function ResearchAnswer({answer,onCopy,copyStatus,onSave,saveDisabled=false,onOpenResearch}:Props){
+export default function ResearchAnswer({answer,onCopy,copyStatus,onSave,saveDisabled=false,onOpenResearch,onFullResearch,fullResearchDisabled=false}:Props){
+ const worthIt=answer.quick&&answer.triage!=='LOW_VALUE'
  return <section className="ci-mini-appraisal ci-research-answer" aria-label="Your answer">
-  <h2>Your answer</h2>
+  <h2>{answer.quick?'Quick check':'Your answer'}</h2>
+  {answer.quick&&answer.triageText&&<p className="ci-triage" data-triage={answer.triage||'UNCLEAR'}><b>{answer.triageText}</b></p>}
   <div className="ci-mini-line">
    <strong>What it probably is</strong><p title={answer.identity}>{answer.identity}</p>
    <small>{answer.identityBasis}</small>
@@ -31,7 +35,8 @@ export default function ResearchAnswer({answer,onCopy,copyStatus,onSave,saveDisa
    <strong>What to do</strong><p><b>{answer.decision}</b></p>
    {answer.checks.map((check,i)=><small key={i} title={check}>• {check}</small>)}
   </div>
-  <button type="button" className="primaryButton ci-mini-cta" onClick={onCopy}>Copy listing draft</button>
+  {worthIt&&onFullResearch&&<button type="button" className="primaryButton ci-mini-cta" disabled={fullResearchDisabled} onClick={onFullResearch}>Do full research · paid</button>}
+  <button type="button" className={worthIt&&onFullResearch?'secondaryButton ci-mini-cta':'primaryButton ci-mini-cta'} onClick={onCopy}>Copy listing draft</button>
   {copyStatus&&<p className="ci-mini-feedback" role="status">{copyStatus}</p>}
   <div className="ci-mini-secondary">
    {onSave&&<button type="button" disabled={saveDisabled} className="ci-mini-text-action" onClick={onSave}>Save item to catalogue</button>}
@@ -40,13 +45,13 @@ export default function ResearchAnswer({answer,onCopy,copyStatus,onSave,saveDisa
  </section>
 }
 
-export function ResearchRunning({startedAt,message}:{startedAt:number|null;message?:string}){
+export function ResearchRunning({startedAt,message,quick=false}:{startedAt:number|null;message?:string;quick?:boolean}){
  const [now,setNow]=useState(()=>Date.now())
  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer)},[])
  const elapsed=startedAt?Math.max(0,now-startedAt):0
  const active=startedAt?researchStep(elapsed):1
  return <section className="ci-analysis-tracker" role="status" aria-live="polite" aria-label="Research progress">
-  <h2>Researching your item</h2>
+  <h2>{quick?'Quick check':'Researching your item'}</h2>
   <ol className="ci-analysis-tracker-list">
    {RESEARCH_STEPS.map((label,index)=>{
     const state=index<active?'complete':index===active?'active':'waiting'
@@ -57,6 +62,6 @@ export function ResearchRunning({startedAt,message}:{startedAt:number|null;messa
     </li>
    })}
   </ol>
-  <p className="ci-analysis-tracker-message">{message||'This usually takes 1 to 4 minutes. You can leave this page; the answer is saved.'}</p>
+  <p className="ci-analysis-tracker-message">{message||(quick?'Usually under a minute. You can leave this page; the answer is saved.':'This usually takes 1 to 4 minutes. You can leave this page; the answer is saved.')}</p>
  </section>
 }

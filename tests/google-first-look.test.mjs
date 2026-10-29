@@ -120,3 +120,11 @@ test('research must test a named Lens maker/model before calling an object unatt
  assert.match(research,/Only call the object unattributed after checking every specific maker\/model named in the Lens matches/)
  assert.match(research,/lensImageUrls:images\.slice\(0,3\)/)
 })
+
+test('quick depth: no web search tool, low reasoning, 3 small photos, triage required',()=>{
+ assert.match(research,/depth!=='quick'\)return res\.status\(400\)/)
+ assert.match(research,/\.\.\.\(depth==='quick'\?\{\}:\{tools:/)
+ assert.match(research,/depth==='quick' \? "low"/)
+ assert.match(research,/"next_evidence","triage"\]/)
+ assert.match(research,/Never mark a quick-check price as sold/)
+})

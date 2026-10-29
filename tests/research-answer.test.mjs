@@ -43,3 +43,13 @@ test('the answer names the first Lens match when Lens ran',()=>{
   lens:{status:'CALLED',reason:null,matches:[{title:'WHITEFRIARS TINTED & THREADED ART GLASS BOWL',url:'https://e',source:'eBay UK',price:'£249'}]}}},'Bowl')
  assert.equal(a.google,'Google Lens: WHITEFRIARS TINTED & THREADED ART GLASS BOWL · 1 visual match')
 })
+
+test('quick check shows the triage decision instead of a listing decision',()=>{
+ const a=researchAnswer({...research,research_depth:'quick',triage:{decision:'FULL_RESEARCH_WORTH_IT',reason:'Lens names Val Saint Lambert Duplex E.L.52.'}},'Bowl')
+ assert.equal(a.quick,true)
+ assert.equal(a.decision,'Worth full research')
+ assert.match(a.triageText,/Val Saint Lambert/)
+ const low=researchAnswer({...research,research_depth:'quick',triage:{decision:'LOW_VALUE',reason:'Generic pressed glass.'}},'Bowl')
+ assert.equal(low.decision,'Low value: sell quickly')
+ assert.equal(researchAnswer(research,'Bowl').quick,false)
+})
