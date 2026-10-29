@@ -5,7 +5,7 @@
 export type GoogleLookPage={url:string;title:string}
 // Google Lens visual matches, fetched through SerpApi's google_lens engine: the
 // same matches the owner sees in Lens. Prices shown are page prices (usually asking).
-export type LensMatch={title:string;url:string;source:string;price:string|null}
+export type LensMatch={title:string;url:string;source:string;price:string|null;seen_in?:number}
 export type LensLook={status:'CALLED'|'NOT_RUN';reason:string|null;matches:LensMatch[]}
 export type GoogleFirstLook={
  status:'CALLED'|'NOT_RUN'
@@ -51,6 +51,23 @@ export function normaliseLens(raw:any):LensLook{
  return {status:'CALLED',reason:null,matches}
 }
 
+async function runLensOnPhotos(serpKey:string,urls:string[],fetchImpl:FetchLike):Promise<LensLook>{
+ const looks=await Promise.all(urls.filter(Boolean).map(url=>runLens(serpKey,url,fetchImpl)))
+ return mergeLens(looks)
+}
+export function mergeLens(looks:LensLook[]):LensLook{
+ const called=looks.filter(l=>l.status==='CALLED')
+ if(!called.length)return looks[0]||lensNotRun('Google Lens not run')
+ const byUrl=new Map<string,{m:LensMatch;rank:number;seen:number}>()
+ called.forEach(look=>look.matches.forEach((m,i)=>{
+  const hit=byUrl.get(m.url)
+  if(hit){hit.seen++;hit.rank=Math.min(hit.rank,i)}
+  else byUrl.set(m.url,{m,rank:i,seen:1})
+ }))
+ const matches=[...byUrl.values()].sort((a,b)=>b.seen-a.seen||a.rank-b.rank).slice(0,15)
+  .map(x=>({...x.m,seen_in:x.seen}))
+ return {status:'CALLED',reason:null,matches}
+}
 async function runLens(serpKey:string,imageUrl:string,fetchImpl:FetchLike):Promise<LensLook>{
  try{
   const qp=new URLSearchParams({engine:'google_lens',url:imageUrl,hl:'en',country:'gb',api_key:serpKey})
@@ -89,7 +106,7 @@ export function googleLeadsForResearch(look:GoogleFirstLook|null|undefined):stri
  if(look.status!=='CALLED')return 'GOOGLE FIRST LOOK: not run ('+(look.reason||'no reason recorded')+'). Research from the photographs.'
  const lens=look.lens?.status==='CALLED'&&look.lens.matches.length?[
   'GOOGLE LENS VISUAL MATCHES for the main photograph (the same matches the owner sees in Google Lens). UNVERIFIED LEADS: a similar-looking item is not proof of maker; the prices shown are page prices, usually ASKING, never sold unless the page itself proves a sale:',
-  ...look.lens.matches.map((m,i)=>(i+1)+'. '+m.title+(m.source?' — '+m.source:'')+(m.price?' — page price '+m.price:'')+' — '+m.url),
+  ...look.lens.matches.map((m,i)=>(i+1)+'. '+m.title+(m.source?' — '+m.source:'')+(m.price?' — page price '+m.price:'')+((m.seen_in||1)>1?' — found from '+m.seen_in+' photographs':'')+' — '+m.url),
   'Where several Lens matches name the same maker or pattern, research that maker and pattern first: confirm or reject it from catalogues, collector references and SOLD results, and say so in identification_update.'
  ]:[]
  return [...lens,
@@ -115,6 +132,9 @@ export async function runGoogleFirstLook(opts:{
  apiKey:string|undefined
  serpKey?:string|undefined
  imageUrl:string|undefined
+ // Lens runs on up to 3 of the object's photographs, so one poor first photo
+ // does not decide the leads. Matches found from several photos rank first.
+ lensImageUrls?:string[]
  usedThisMonth:number|null
  limit?:number
  fetchImpl?:FetchLike
@@ -129,7 +149,7 @@ export async function runGoogleFirstLook(opts:{
  if(opts.usedThisMonth>=limit)return googleNotRun('Monthly Google limit of '+limit+' checks reached',now())
  const [web,lens]=await Promise.all([
   opts.apiKey?webDetection(opts.apiKey,opts.imageUrl,fetchImpl,now):Promise.resolve(googleNotRun('Google key not configured',now())),
-  opts.serpKey?runLens(opts.serpKey,opts.imageUrl,fetchImpl):Promise.resolve(lensNotRun('Google Lens key not configured'))
+  opts.serpKey?runLensOnPhotos(opts.serpKey,(opts.lensImageUrls?.length?opts.lensImageUrls:[opts.imageUrl]).slice(0,3),fetchImpl):Promise.resolve(lensNotRun('Google Lens key not configured'))
  ])
  if(web.status==='CALLED'||lens.status==='CALLED')return {...web,status:'CALLED',reason:web.status==='CALLED'?null:web.reason,lens}
  return {...web,lens}

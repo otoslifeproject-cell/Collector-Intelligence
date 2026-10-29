@@ -96,3 +96,27 @@ test('Lens visual matches come through as leads, with page prices never treated 
   fetchImpl:async()=>({ok:false,status:401,json:async()=>({error:'Invalid API key'})})})
  assert.equal(lensDown.status,'NOT_RUN')
 })
+
+test('Lens runs on up to 3 photos and ranks matches found from several photos first',async()=>{
+ const byPhoto={'https://x/1.jpg':[{title:'Etsy green bowl',link:'https://etsy/a'},{title:"VSL coupe 'Duplex' E.L.52",link:'https://pin/vsl'}],
+  'https://x/2.jpg':[{title:"VSL coupe 'Duplex' E.L.52",link:'https://pin/vsl'}],
+  'https://x/3.jpg':[{title:"VSL coupe 'Duplex' E.L.52",link:'https://pin/vsl'},{title:'Orrefors',link:'https://ebay/o'}]}
+ let lensCalls=0
+ const fetchImpl=async(url)=>{
+  if(String(url).startsWith('https://serpapi.com/')){lensCalls++
+   const photo=new URL(url).searchParams.get('url')
+   return {ok:true,json:async()=>({visual_matches:byPhoto[photo]||[]})}}
+  return okPhoto()
+ }
+ const look=await runGoogleFirstLook({apiKey:'',serpKey:'s',imageUrl:'https://x/1.jpg',
+  lensImageUrls:['https://x/1.jpg','https://x/2.jpg','https://x/3.jpg','https://x/4.jpg'],usedThisMonth:0,fetchImpl})
+ assert.equal(lensCalls,3)
+ assert.equal(look.lens.matches[0].title,"VSL coupe 'Duplex' E.L.52")
+ assert.equal(look.lens.matches[0].seen_in,3)
+ assert.match(googleLeadsForResearch(look),/found from 3 photographs/)
+})
+test('research must test a named Lens maker/model before calling an object unattributed',()=>{
+ assert.match(research,/LEADING HYPOTHESIS/)
+ assert.match(research,/Only call the object unattributed after checking every specific maker\/model named in the Lens matches/)
+ assert.match(research,/lensImageUrls:images\.slice\(0,3\)/)
+})

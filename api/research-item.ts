@@ -121,7 +121,7 @@ Non-negotiable rules:
 - Adjust for size, condition, colour, maker certainty, signed/labelled status, rarity, age and market.
 - When the object's colour, owner notes or linked photographs suggest uranium/vaseline glass, explicitly investigate that hypothesis and its non-uranium alternatives. Distinguish documented UV fluorescence from a merely presumed reaction; request paired daylight and UV photographs of the same object if absent. Bright green fluorescence is suggestive, not sole chemical authentication. Never suppress uranium glass as a candidate just because maker and period are unknown, and never inflate valuation from an unverified composition claim.
 - If sold evidence is inadequate, valuation ranges may be null and notes must say PROVISIONAL VALUE — SOLD EVIDENCE INADEQUATE.
-- Do not upgrade a visual attribution merely because similar marketplace listings use that maker name.
+- Do not upgrade an attribution merely because a seller uses a maker name. BUT when a Google Lens match shows the same design (same shape, cut or decoration pattern and colour) and names a specific maker and model or pattern, treat it as the LEADING HYPOTHESIS: search that exact maker and model name, compare its documented features with the photographs point by point, and if they agree, name it in identification_update.attribution as the likely identification (maker + model/pattern) with the matching features in the rationale. Keep authentication (signature, label, physical check) separate and list it in next_evidence. Only call the object unattributed after checking every specific maker/model named in the Lens matches and stating in contradictions why each one fails.
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Specialist route is not the same as an actual matched buyer.
 - If attribution uncertainty could change value materially, route to RESEARCH_FIRST or SPECIALIST_REVIEW.
@@ -579,6 +579,7 @@ export default async function handler(req: any, res: any) {
       apiKey:process.env.GOOGLE_CLOUD_VISION_API_KEY,
       serpKey:process.env.SERPAPI_API_KEY,
       imageUrl:images[0],
+      lensImageUrls:images.slice(0,3),
       usedThisMonth:await googleChecksThisMonth(supabaseUrl,supabaseKey,token),
       limit:GOOGLE_MONTHLY_LIMIT
     });
