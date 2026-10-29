@@ -58,6 +58,7 @@ test('paste-from-Lens saves an owner lead and starts research from it',()=>{
 
 test('bulk triage: a quick check runs by itself; full research is a button',()=>{
  assert.match(screen,/void runDraftResearch\('quick'\)/)
- assert.match(screen,/onFullResearch=\{\(\)=>void runDraftResearch\('standard'\)\}/)
- assert.match(screen,/Full research · paid/)
+ assert.match(screen,/quickWorthMore=latestIsQuick&&matchedResearchRun\?\.result\?\.triage\?\.decision!=='LOW_VALUE'/)
+ assert.match(screen,/autoResearchTried\.current\.add\(fullKey\)/)
+ assert.match(screen,/onDisagree=\{\(kind,text\)=>void disagreeAndResearch\(kind,text\)\}/)
 })

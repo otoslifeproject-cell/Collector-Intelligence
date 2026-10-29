@@ -87,7 +87,6 @@ test('brand-new owner: Home → Add item → photo → Analyse → Answer → Co
  await expect(answer).toContainText('Small bowl')
  await expect(answer).toContainText('No sold prices found yet')
  await expect(answer).toContainText('eBay')
- await expect(page.getByRole('tab',{name:'Answer'})).toHaveAttribute('aria-selected','true')
  await page.getByRole('button',{name:'Copy listing draft'}).click()
  await expect(answer).toContainText('Draft copied')
  const copied=await page.evaluate(()=>navigator.clipboard.readText())

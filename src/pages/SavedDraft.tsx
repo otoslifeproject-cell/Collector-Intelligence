@@ -10,7 +10,9 @@ import ResearchProgress from '../components/ResearchProgress'
 import {draftResearchDashboard} from '../lib/draftResearchAudit'
 import SaleEconomics from '../components/SaleEconomics'
 import ResearchAnswer,{ResearchRunning} from '../components/ResearchAnswer'
-import {researchAnswer} from '../lib/researchAnswer'
+import ResultScreen,{StepStrip} from '../components/ResultScreen'
+import type {DisagreeKind} from '../components/ResultScreen'
+import {researchAnswer,resultListing} from '../lib/researchAnswer'
 import {googleLensLink} from '../lib/googleFirstLook'
 import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import MiniAppraisal from '../components/MiniAppraisal'
@@ -423,6 +425,37 @@ function SavedDraftRecord({id}:{id:string}){
   return()=>window.clearInterval(timer)
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[waitingForSaved,researching,run?.id])
+ // Chain step 2: a quick check that is not low value continues straight into full
+ // research by itself, so the owner gets the best result without extra clicks.
+ const latestIsQuick=matchedResearchRun?.result?.research_depth==='quick'
+ const quickWorthMore=latestIsQuick&&matchedResearchRun?.result?.triage?.decision!=='LOW_VALUE'
+ const fullKey=matchedResearchRun?'full:'+matchedResearchRun.id:''
+ useEffect(()=>{
+  if(autoResearchOff||!run||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady||!imagesReady)return
+  if(!quickWorthMore||researching||checkingResearch||researchBusy.current||researchBlocked||scopePending.length>0||existingResearchObsolete)return
+  if(!fullKey||autoResearchTried.current.has(fullKey))return
+  autoResearchTried.current.add(fullKey)
+  void runDraftResearch('standard')
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[fullKey,quickWorthMore,busy,error,isPhotoManifestReady,imagesReady,researching,checkingResearch,researchBlocked,scopePending.length,existingResearchObsolete])
+ // One Disagree button: the owner's correction is saved as an owner note (a lead),
+ // then full research runs again from it.
+ const disagreeAndResearch=async(kind:DisagreeKind,text:string)=>{
+  if(!run||pendingCorrection||correctionBusy.current||researchBusy.current||researching||busy||error)return
+  const type=kind==='MAKER'?'ATTRIBUTION_REJECTION':kind==='WHAT'?'IDENTIFICATION_CORRECTION':'OTHER'
+  const what=kind==='MAKER'?'the maker':kind==='WHAT'?'what the object is':kind==='PRICE'?'the price':'the result'
+  const statement=('Owner disagrees with '+what+'.'+(text.trim()?' Owner says: '+text.trim():'')).slice(0,2000)
+  correctionBusy.current=true;setSavingDisagreement(true)
+  let saved=false
+  try{
+   const request=await prepareCorrection(supabase,run,{source_object_index:paired?null:scopeIndex,feedback_type:type,corrected_material:null,owner_statement:statement},current)
+   if(!current())return
+   setPendingCorrection(request)
+   saved=!!(await finishCorrection(request,true))
+  }catch(e){if(current())setSaveStatus(e instanceof CorrectionError||e instanceof CatalogueError?e.message:'Your note could not be saved. Nothing was researched.')}
+  finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
+  if(saved&&current()){setSaveStatus('');await runDraftResearch('standard')}
+ }
  const objectTitle=paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'
  const finishedAnswer=visibleResearch&&!existingResearchObsolete?researchAnswer(visibleResearch,objectTitle):null
  const researchLook=visibleResearch?.google_first_look||null
@@ -502,18 +535,20 @@ function SavedDraftRecord({id}:{id:string}){
    {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
-   <nav role="tablist" className="ci-item-tabs" aria-label="Item sections">
+   {activeTab!=='answer'&&<button type="button" className="ci-big-button ci-back-to-result" onClick={()=>setActiveTab('answer')}>← Back to result</button>}
+   {activeTab!=='answer'&&<nav role="tablist" className="ci-item-tabs" aria-label="Item sections">
     {([['answer','Answer'],['photos','Photos'],['market','Research'],['sales','Selling'],['catalogue','History']] as const).map(([value,label])=>
      <button type="button" role="tab" key={value} aria-selected={activeTab===value}
       className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
       onClick={()=>setActiveTab(value)}>{label}</button>)}
-   </nav>
-   {activeTab==='answer'&&finishedAnswer&&!researching&&!waitingForSaved&&<ResearchAnswer answer={finishedAnswer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
+   </nav>}
+   {activeTab==='answer'&&finishedAnswer&&!researching&&!waitingForSaved&&<ResultScreen listing={resultListing(visibleResearch,objectTitle)}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
+    saved={run.status==='APPROVED'||catalogued.length>0}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
-    onOpenResearch={()=>setActiveTab('market')}
-    onFullResearch={()=>void runDraftResearch('standard')}
-    fullResearchDisabled={researching||checkingResearch||researchBlocked||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady}/>}
+    onDisagree={(kind,text)=>void disagreeAndResearch(kind,text)} disagreeBusy={savingDisagreement||researching}
+    onDetails={()=>setActiveTab('market')} status={saveStatus}/>}
+   {activeTab==='answer'&&(researching||waitingForSaved)&&<StepStrip current={1}/>}
    {activeTab==='answer'&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt} quick={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='quick'} deep={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='deep_dive'}/>}
    {activeTab==='answer'&&!finishedAnswer&&!researching&&!waitingForSaved&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">

@@ -53,3 +53,16 @@ test('quick check shows the triage decision instead of a listing decision',()=>{
  assert.equal(low.decision,'Low value: sell quickly')
  assert.equal(researchAnswer(research,'Bowl').quick,false)
 })
+
+test('result screen: eBay title max 80, Etsy title, price and format, checks',async()=>{
+ const {resultListing}=await import('../src/lib/researchAnswer.ts')
+ const r=resultListing({...research,listing:{ebay_title:'Val Saint Lambert Duplex Green Cut to Clear Crystal Coupe Bowl Belgian 1920s Art Deco Vintage Used Extra Words',etsy_title:'Vintage Val Saint Lambert green cut to clear crystal bowl',etsy_reason:'',price:180,currency:'GBP',sale_format:'AUCTION',auction_start:99,title_checks:['Val Saint Lambert: confirm etched signature']}},'Bowl')
+ assert.ok(r.ebayTitle.length<=80)
+ assert.ok(!r.ebayTitle.endsWith(' '))
+ assert.equal(r.price,'£180')
+ assert.equal(r.format,'Auction · start £99')
+ assert.deepEqual(r.checks,['Val Saint Lambert: confirm etched signature'])
+ const old=resultListing(research,'Green glass bowl')
+ assert.equal(old.ebayTitle,'Green glass bowl')
+ assert.equal(old.price,'£60–£120')
+})

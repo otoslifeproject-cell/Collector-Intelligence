@@ -7,7 +7,7 @@ import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 const researchSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage"],
+  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage","listing"],
   properties: {
     identification_update: {
       type: "object",
@@ -87,6 +87,22 @@ const researchSchema = {
       }
     },
     research_summary: { type: "string" },
+    // The end article for the owner: marketplace titles and a price.
+    listing: {
+      type: "object",
+      additionalProperties: false,
+      required: ["ebay_title","etsy_title","etsy_reason","price","currency","sale_format","auction_start","title_checks"],
+      properties: {
+        ebay_title: { type: "string" },
+        etsy_title: { type: ["string","null"] },
+        etsy_reason: { type: "string" },
+        price: { type: ["number","null"] },
+        currency: { type: "string" },
+        sale_format: { type: "string", enum: ["AUCTION","FIXED_PRICE"] },
+        auction_start: { type: ["number","null"] },
+        title_checks: { type: "array", items: { type: "string" } }
+      }
+    },
     // Bulk triage: is full paid web research worth it for this item?
     triage: {
       type: "object",
@@ -135,6 +151,7 @@ Non-negotiable rules:
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Specialist route is not the same as an actual matched buyer.
 - If attribution uncertainty could change value materially, route to RESEARCH_FIRST or SPECIALIST_REVIEW.
+- LISTING (the owner's end article). listing.ebay_title: up to 80 characters, most important words first because phones cut the end; for collectables use this order: maker, item type, pattern or model, colour, size, era, material, condition word (Used, Vintage, Boxed); use the words buyers search with, taken from SOLD listings of similar items; no filler (amazing, L@@K, bargain, stunning, rare unless proven), no ALL CAPS words except maker initials such as VSL, no repeated words, no unsearched abbreviations. Put the maker, pattern or date in the title only when identification_update supports it at least as a likely lead, and for each such word add one short line to title_checks saying what to check (for example "Val Saint Lambert: confirm etched signature on base"). listing.etsy_title: up to 140 characters, natural buyer phrase, only when the item is likely at least 20 years old (Etsy vintage rule); otherwise null, with the reason in etsy_reason. listing.price: suggested listing price in GBP from the best sold evidence, null if none; sale_format AUCTION for rare or hard-to-value items, FIXED_PRICE for common items with a known price; auction_start: a starting bid in GBP or null. currency: "GBP".
 - Return no prose outside the required structured output.`;
 
 function extractText(payload: any) {
@@ -643,6 +660,11 @@ export default async function handler(req: any, res: any) {
   const text = extractText(payload);
   try {
     const result=JSON.parse(text);
+    if(result?.listing){
+      const fit=(s:any,n:number)=>{const v=String(s||'').replace(/\s+/g,' ').trim();if(v.length<=n)return v;const cut=v.slice(0,n);const at=cut.lastIndexOf(' ');return (at>n*0.6?cut.slice(0,at):cut).trim();};
+      result.listing.ebay_title=fit(result.listing.ebay_title,80);
+      if(result.listing.etsy_title)result.listing.etsy_title=fit(result.listing.etsy_title,140);
+    }
     const source_audit=checkResearchEvidence(result);
     source_audit.trusted_database_comparables=trustedComparableRows.length;
     source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
