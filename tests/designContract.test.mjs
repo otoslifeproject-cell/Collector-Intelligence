@@ -52,7 +52,7 @@ test('report metadata and correction controls are inside one closed menu, never 
  const navStart=draft.indexOf('className="ci-item-tabs"')
  const notice=draft.indexOf('Source photo index needs review')
  const reportDetail=draft.indexOf('Report details')
- assert.ok(menuStart>=0&&notice>menuStart&&reportDetail>menuStart&&navStart>reportDetail)
+ assert.ok(menuStart>=0&&notice>menuStart&&reportDetail>menuStart&&navStart>=0&&navStart<menuStart)
  assert.match(draft,/activeTab==='catalogue'&&needsPhotoCorrection&&<label className="ci-catalogue-photo-confirm"/)
 })
 test('compare action is visible in two clicks without filling screen with advice',()=>{

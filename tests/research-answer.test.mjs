@@ -74,3 +74,10 @@ test('result always has a price when any sold or asking lead exists',async()=>{
  assert.equal(r.price,'£27')
  assert.equal(r.priceBasis,'Just under similar items for sale')
 })
+
+test('description comes through ready to copy',async()=>{
+ const {resultListing}=await import('../src/lib/researchAnswer.ts')
+ const r=resultListing({listing:{ebay_title:'Caithness Oban Twist Bud Vase',description:'Caithness Glass Oban twist bud vase.\nKey features:\n- Green ribbons\nEra: c.1970\nMarkings: none visible\nCondition: please see photographs.'}},'Vase')
+ assert.match(r.description,/Key features:/)
+ assert.equal(resultListing({},'X').description,null)
+})

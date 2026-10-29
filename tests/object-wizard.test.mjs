@@ -6,7 +6,8 @@ const detail=readFileSync(new URL('../src/pages/ItemDetail.tsx',import.meta.url)
 
 test('one guided object workflow survives without competing hero actions',()=>{ assert.match(detail,/aria-label="Object workflow"/); assert.match(detail,/wizardSteps\.map/); assert.doesNotMatch(detail,/className="heroActions"/); assert.doesNotMatch(detail,/className="tabBar"/); })
 test('wizard navigates without replacing evidence and sales safeguards',()=>{
-  for(const token of ['<ResearchProgress','<ItemAssessment','<ResearchArmyWorkspace','<SellFastPlan','<RecordSaleOutcome']) {
+  assert.ok(!detail.includes('<ResearchProgress'),'Research audit box removed from the item page (Dean, 29 Oct)')
+  for(const token of ['<ItemAssessment','<ResearchArmyWorkspace','<SellFastPlan','<RecordSaleOutcome']) {
     assert.ok(detail.includes(token),`Existing controlled workflow remains: ${token}`)
   }
   assert.match(detail,/Steps do not approve research or publish listings automatically/)

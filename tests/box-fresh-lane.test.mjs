@@ -33,7 +33,8 @@ test('fresh photo flow has one Analyse action leading to a saved answer',()=>{
  assert.match(intake,/nav\('\/draft\/'\+attempt\.request\.id\)/)
  assert.match(draft,/get\('tab'\)\|\|'answer'/)
  assert.match(draft,/activeTab==='answer'&&finishedAnswer&&!researching&&!waitingForSaved&&<ResultScreen/)
- assert.match(draft,/activeTab!=='answer'&&<nav role="tablist"/)
+ assert.match(draft,/className="ci-sticky-top"/)
+ assert.match(draft,/←\s*Back to result/)
  assert.match(draft,/activeTab==='answer'&&\(researching\|\|waitingForSaved\)&&<ResearchRunning/)
  assert.match(draft,/setActiveTab\('answer'\);try\{window\.scrollTo/)
  assert.match(draft,/<MiniAppraisal appraisal=\{answer\}/)
@@ -41,7 +42,7 @@ test('fresh photo flow has one Analyse action leading to a saved answer',()=>{
 test('both new and catalogued items have exactly five owner-facing tabs',()=>{
  for(const path of ['pages/SavedDraft.tsx','pages/ItemDetail.tsx']){
   const content=source(path)
-  for(const label of ['Answer','Photos','Research','Selling','History'])assert.match(content,new RegExp("'"+label+"'"))
+  for(const label of path.includes('SavedDraft')?['Photos','Research','Selling','History']:['Answer','Photos','Research','Selling','History'])assert.match(content,new RegExp("'"+label+"'"))
   assert.match(content,/role="tablist"/)
   assert.match(content,/role="tab"/)
  }

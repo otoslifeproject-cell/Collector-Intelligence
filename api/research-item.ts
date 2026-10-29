@@ -91,7 +91,7 @@ const researchSchema = {
     listing: {
       type: "object",
       additionalProperties: false,
-      required: ["ebay_title","etsy_title","etsy_reason","price","currency","sale_format","auction_start","title_checks"],
+      required: ["ebay_title","etsy_title","etsy_reason","price","currency","sale_format","auction_start","title_checks","description"],
       properties: {
         ebay_title: { type: "string" },
         etsy_title: { type: ["string","null"] },
@@ -100,7 +100,8 @@ const researchSchema = {
         currency: { type: "string" },
         sale_format: { type: "string", enum: ["AUCTION","FIXED_PRICE"] },
         auction_start: { type: ["number","null"] },
-        title_checks: { type: "array", items: { type: "string" } }
+        title_checks: { type: "array", items: { type: "string" } },
+        description: { type: "string" }
       }
     },
     // Bulk triage: is full paid web research worth it for this item?
@@ -151,7 +152,7 @@ Non-negotiable rules:
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Specialist route is not the same as an actual matched buyer.
 - If attribution uncertainty could change value materially, route to RESEARCH_FIRST or SPECIALIST_REVIEW.
-- LISTING (the owner's end article). listing.ebay_title: up to 80 characters, most important words first because phones cut the end; for collectables use this order: maker, item type, pattern or model, colour, size, era, material, condition word (Used, Vintage, Boxed); use the words buyers search with, taken from SOLD listings of similar items; no filler (amazing, L@@K, bargain, stunning, rare unless proven), no ALL CAPS words except maker initials such as VSL, no repeated words, no unsearched abbreviations. The owner wants to list now: when identification_update names a likely maker, model or pattern (for example a well-known design that Google Lens matches show again and again), PUT IT IN THE TITLE; leave it out only when it is a weak guess. For each maker, pattern or date word in the title add one short line (under 70 characters) to title_checks saying what to check (for example "Val Saint Lambert: confirm etched signature on base"). listing.etsy_title: up to 140 characters, natural buyer phrase, only when the item is likely at least 20 years old (Etsy vintage rule); otherwise null, with the reason in etsy_reason. listing.price: ALWAYS give a suggested listing price in GBP for this one item (never null): use sold evidence first; if there is none, use the asking prices of the same or closely matching items, set a little below the typical ask so it sells; for low-value items give a realistic quick-sale price. This is a listing suggestion, separate from the verified valuation; sale_format AUCTION for rare or hard-to-value items, FIXED_PRICE for common items with a known price; auction_start: a starting bid in GBP or null. currency: "GBP".
+- LISTING (the owner's end article). listing.ebay_title: up to 80 characters, most important words first because phones cut the end; for collectables use this order: maker, item type, pattern or model, colour, size, era, material, condition word (Used, Vintage, Boxed); use the words buyers search with, taken from SOLD listings of similar items; no filler (amazing, L@@K, bargain, stunning, rare unless proven), no ALL CAPS words except maker initials such as VSL, no repeated words, no unsearched abbreviations. The owner wants to list now: when identification_update names a likely maker, model or pattern (for example a well-known design that Google Lens matches show again and again), PUT IT IN THE TITLE; leave it out only when it is a weak guess. For each maker, pattern or date word in the title add one short line (under 70 characters) to title_checks saying what to check (for example "Val Saint Lambert: confirm etched signature on base"). listing.etsy_title: up to 140 characters, natural buyer phrase, only when the item is likely at least 20 years old (Etsy vintage rule); otherwise null, with the reason in etsy_reason. listing.price: ALWAYS give a suggested listing price in GBP for this one item (never null): use sold evidence first; if there is none, use the asking prices of the same or closely matching items, set a little below the typical ask so it sells; for low-value items give a realistic quick-sale price. This is a listing suggestion, separate from the verified valuation; sale_format AUCTION for rare or hard-to-value items, FIXED_PRICE for common items with a known price; auction_start: a starting bid in GBP or null. currency: "GBP". listing.description: the ready-to-post item description, plain text, short, in this shape: one opening sentence saying what it is (maker, pattern or model, designer and date when likely; "attributed to" or "in the style of" when only a lead); a line "Key features:" followed by 3 short lines starting with "- " describing what the photographs show (form, decoration, base, rim, colour); "Era: ..."; "Markings: ..." (what is visible, or none visible); "Condition: please see photographs; ask any questions before buying." Never invent measurements, marks, damage or provenance.
 - Return no prose outside the required structured output.`;
 
 function extractText(payload: any) {

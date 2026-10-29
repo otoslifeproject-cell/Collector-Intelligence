@@ -525,22 +525,8 @@ function ItemDetailRecord({id}:{id:string}) {
       </div>
       {tab==='market' && <div className="marketStack">
         <ComparableEvidence rows={comps} trustedIds={trustedComps.map(c=>c.id)} error={historyError}/>
-        {photos.some(p=>!!photoUrls[p.id])&&
-         <VisualReferenceWorkbench
-          itemId={item.id}
-          legacySourceRunId={(item as any).source_analysis_run_id||null}
-          legacyObjectIndex={(item as any).source_object_index??null}
-          legacyPaired={originalReportPaired}
-          photos={Object.fromEntries(photos.map((p,i)=>[i,photoUrls[p.id]||'']))}
-          photoIndices={photos.map((_,i)=>i)}
-          itemPhotoIdsByIndex={Object.fromEntries(photos.map((p,i)=>[i,p.id]))}
-          ownerMaterial={item.material||null}
-          latestResearchAt={pendingResearchRuns[0]?.created_at||savedResearchRuns[0]?.created_at||null}
-          workingTitle={item.title||item.object_type||'Collection object'}
-         />}
 
-        {pendingResearchRuns.length>0 && <div className="panel">
-          <div className="panelHeader"><h2>Recovered research drafts</h2><span>{pendingResearchRuns.length} saved drafts</span></div>
+        {pendingResearchRuns.length>0 && <details className="ci-section"><summary>Recovered research drafts · {pendingResearchRuns.length}</summary><div className="ci-section-body">
           {pendingResearchRuns.map((run:any)=><div className="note" key={run.id}>
             <strong>{new Date(run.created_at).toLocaleString()} — saved provisional research{run.user_context?.source_analysis_run_id?' · from original photo draft':''}</strong>
             <p>{String(run.result?.research_summary||'Research result saved').slice(0,350)}</p>
@@ -549,7 +535,7 @@ function ItemDetailRecord({id}:{id:string}) {
               setMessage('Existing research draft restored. No new AI research has run.')
             }}>Restore existing draft</button>
           </div>)}
-        </div>}
+        </div></details>}
         {savedResearchRuns.length>0 && <div className="panel" style={{padding:16}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
             <div><strong>Saved research · {savedResearchRuns.length}</strong><div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>Provisional — maker and sold prices not verified</div></div>
@@ -621,7 +607,7 @@ function ItemDetailRecord({id}:{id:string}) {
       {/* Evidence and owner-assessment tools remain mounted for every tab,
           after the selected task. This keeps keyboard and screen-reader order
           aligned with the visible two-click workflow. */}
-      {tab==='catalogue'&&<><ResearchProgress compact audit={researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} finalDecision={reviewed?reviewedDecision(reviewed):undefined} history={researchHistory} error={historyError} loading={historyLoading} objectLabel={item.item_code} confidence={{identification:item.identification_confidence,dating:item.dating_confidence,valuation:item.valuation_confidence}} onReload={()=>void reloadResearch(item)} onInvestigate={()=>setTab('market')}/>
+      {tab==='catalogue'&&<>
       {optionalTools.hold&&<ItemAssessment client={supabase} item={item} qualifiedReviewId={reviewed?.id} onRefreshFacts={refreshStoredFacts} audit={!historyError&&researchHistory?reviewedAudit(itemResearchAudit(researchHistory,trustedComps),reviewed):undefined} onMutating={active=>{invalidateReviewed();setAssessmentMutating(active)}} onChanged={()=>{invalidateReviewed();void reloadResearch(item)}}/>}
       {reviewedError&&!/storage is not active in this environment/i.test(reviewedError)&&<p className="ci-page-meta">{reviewedError}</p>}
       {reviewed&&<section className="panel" aria-label="Independently reviewed final assessment"><h2>Source-reviewed final assessment</h2><strong>{reviewed.assessment.decision.replaceAll('_',' ')}</strong><p>{reviewed.assessment.rationale}</p><p>Next action: {reviewed.assessment.nextAction}</p><p>Selling guidance: {reviewed.assessment.routeGuidance}</p><p>Unresolved: {reviewed.assessment.unresolvedIssues}</p><small>{reviewed.created_at} · {reviewed.assessment.reviewReference}</small><details><summary>Reviewed evidence and category decisions</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(reviewed.assessment,null,2)}</pre></details></section>}

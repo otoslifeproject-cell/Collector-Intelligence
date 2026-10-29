@@ -1181,3 +1181,23 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-item-switch{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
 .ci-item-switch .ci-big-button{width:auto}
 .ci-result-basis{margin:6px 0 0!important;font-weight:600!important}
+
+/* Sticky top bar: steps on the result, Back + tabs on detail views (Dean, 29 Oct) */
+.ci-sticky-top{position:sticky;top:0;z-index:30;background:var(--bg,#f4f6f9);padding:12px 0 6px;margin:-12px 0 14px}
+.ci-sticky-top .ci-steps{margin:0}
+.ci-sticky-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.ci-sticky-row .ci-item-tabs{margin:0;border:0}
+.ci-sticky-row .ci-back-to-result{margin:0}
+.ci-item-tabs{position:sticky;top:0;z-index:20;background:var(--bg,#f4f6f9)}
+/* Long, large sections that open downwards and fold back up */
+.ci-section{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:0 7px 26px rgba(20,31,41,.035);overflow:hidden}
+.ci-section>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:68px;padding:16px 24px;font-size:20px;font-weight:800}
+.ci-section>summary::-webkit-details-marker{display:none}
+.ci-section>summary:after{content:'▾';font-size:22px;transition:transform .15s}
+.ci-section[open]>summary:after{transform:rotate(180deg)}
+.ci-section-body{padding:0 24px 22px;display:grid;gap:10px}
+.ci-section-body p{margin:0;font-size:16px;font-weight:600}
+.ci-result-description{white-space:pre-wrap;font:inherit;font-size:16px;line-height:1.55;margin:0;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:var(--bg,#f7f8fa)}
+.ci-section-body .ci-big-button{justify-self:start}
+/* Existing fold-outs across the app: large full-width bars */
+details.ci-review-section>summary,details.ci-archive-section>summary,details.ci-object-review>summary{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:12px 18px;font-size:17px;font-weight:750;border:1px solid var(--line);border-radius:16px;background:var(--panel);cursor:pointer;width:100%}

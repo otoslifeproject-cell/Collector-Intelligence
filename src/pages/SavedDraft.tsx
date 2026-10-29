@@ -337,7 +337,7 @@ function SavedDraftRecord({id}:{id:string}){
   if(!result){setSaveStatus('No catalogue result is confirmed yet. Your original approval is held unchanged. Check the result or retry the same approval; keep this page open.');return}
   setCatalogued(result.records);setRun(result.source);setPendingApproval(null)
   setSaveStatus(result.records.length+' catalogue records saved and read back with their original photo links. No AI rerun.')
-  if(result.records.length===1)navigate('/item/'+result.records[0].item_id+'?tab=market')
+  // Stay on the result screen after saving: step 4 done, next item is one tap away.
  }
  const recoverApproval=async(submit:boolean)=>{
   if(!pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
@@ -462,6 +462,19 @@ function SavedDraftRecord({id}:{id:string}){
  const mainPhoto=images[indicesForReview(scopeIndex).find(n=>!!images[n])??-1]
  const pendingStartedAt=researchStartedAt??(scopePending[0]?Date.parse(scopePending[0].created_at):null)
  return <div className="ci-page ci-saved-draft">
+  {run&&<div className="ci-sticky-top">
+   {activeTab==='answer'
+    ?<StepStrip current={researching||waitingForSaved?1:finishedAnswer?(run.status==='APPROVED'||catalogued.length>0?4:2):2}/>
+    :<div className="ci-sticky-row">
+     <button type="button" className="ci-big-button ci-back-to-result" onClick={()=>setActiveTab('answer')}>← Back to result</button>
+     <nav role="tablist" className="ci-item-tabs" aria-label="Item sections">
+      {([['photos','Photos'],['market','Research'],['sales','Selling'],['catalogue','History']] as const).map(([value,label])=>
+       <button type="button" role="tab" key={value} aria-selected={activeTab===value}
+        className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
+        onClick={()=>setActiveTab(value)}>{label}</button>)}
+     </nav>
+    </div>}
+  </div>}
   <header className="ci-page-header ci-report-heading">
     <div className="ci-report-heading-copy">
 
@@ -535,13 +548,6 @@ function SavedDraftRecord({id}:{id:string}){
    {busy&&<p role="status">Opening your saved report…</p>}
   {error&&<p role="alert">{error}</p>}
   {run&&<>
-   {activeTab!=='answer'&&<button type="button" className="ci-big-button ci-back-to-result" onClick={()=>setActiveTab('answer')}>← Back to result</button>}
-   {activeTab!=='answer'&&<nav role="tablist" className="ci-item-tabs" aria-label="Item sections">
-    {([['answer','Answer'],['photos','Photos'],['market','Research'],['sales','Selling'],['catalogue','History']] as const).map(([value,label])=>
-     <button type="button" role="tab" key={value} aria-selected={activeTab===value}
-      className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
-      onClick={()=>setActiveTab(value)}>{label}</button>)}
-   </nav>}
    {activeTab==='answer'&&!paired&&(run.result?.objects||[]).length>1&&<nav className="ci-item-switch" aria-label="Items in this upload">
     {(run.result.objects||[]).map((o:any,i:number)=><button type="button" key={i} className={'ci-big-button ci-big-button-small'+(i===researchIndex?' is-chosen':'')} aria-current={i===researchIndex?'true':undefined}
      onClick={()=>{setResearchIndex(i);const params=new URLSearchParams(location.search);params.set('object',String(i));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>Item {i+1} of {(run.result.objects||[]).length}</button>)}
@@ -553,8 +559,9 @@ function SavedDraftRecord({id}:{id:string}){
     saved={run.status==='APPROVED'||catalogued.length>0}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
     onDisagree={(kind,text)=>void disagreeAndResearch(kind,text)} disagreeBusy={savingDisagreement||researching}
-    onDetails={()=>setActiveTab('market')} status={saveStatus}/>}
-   {activeTab==='answer'&&(researching||waitingForSaved)&&<StepStrip current={1}/>}
+    onDetails={()=>setActiveTab('market')} status={saveStatus}
+    onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
+    nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
    {activeTab==='answer'&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt} quick={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='quick'} deep={(researching?researchingDepth:scopePending[0]?.user_context?.research_depth)==='deep_dive'}/>}
    {activeTab==='answer'&&!finishedAnswer&&!researching&&!waitingForSaved&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">

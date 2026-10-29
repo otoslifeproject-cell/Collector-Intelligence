@@ -135,6 +135,7 @@ export function resultListing(research:any,fallbackTitle:string){
   etsyTitle:l.etsy_title?fit(l.etsy_title,140):null,
   etsyReason:typeof l.etsy_reason==='string'?concise(l.etsy_reason,120):null,
   price,priceBasis,format,checks,
+  description:typeof l.description==='string'&&l.description.trim()?l.description.trim().slice(0,2500):null,
   stillChecking:research?.research_depth==='quick'&&research?.triage?.decision==='LOW_VALUE'
  }
 }
