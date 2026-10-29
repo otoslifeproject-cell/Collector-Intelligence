@@ -2,15 +2,22 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 const screen=readFileSync(new URL('../src/pages/SavedDraft.tsx',import.meta.url),'utf8')
-test('research result appears before visual search controls within object view',()=>{
- assert.ok(screen.indexOf('className="panel ci-fast-research-result"')<screen.indexOf('<VisualReferenceWorkbench'))
+test('Google matches come first, then the research result; museum keyword search is off the main path',()=>{
+ assert.ok(screen.indexOf('className="panel ci-google-first-look"')<screen.indexOf('className="panel ci-fast-research-result"'))
+ assert.doesNotMatch(screen,/<VisualReferenceWorkbench/)
+ assert.doesNotMatch(screen,/Preliminary AI estimate/)
  assert.match(screen,/Identification, value and selling recommendation/)
- assert.match(screen,/Research running · examining matches and checking evidence/)
+ assert.match(screen,/Research running · Google first, then sold prices/)
+ assert.match(screen,/Open in Google Lens/)
 })
-test('one start action and sale handoff retain guarded research',()=>{
- assert.match(screen,/label:researching\?'Research running…':'Start research'/)
- assert.match(screen,/Sell item · prepare listing/)
+test('research starts by itself once per object; paid repeats stay manual',()=>{
+ assert.match(screen,/autoResearchTried\.current\.add\(autoKey\)/)
+ assert.match(screen,/void runDraftResearch\('standard'\)/)
+ assert.match(screen,/VITE_CI_AUTO_RESEARCH==='off'/)
+ assert.match(screen,/Research again · paid/)
  assert.match(screen,/runDraftResearch\('deep_dive'\)/)
+ assert.match(screen,/Sell item · prepare listing/)
+ assert.match(screen,/<ResearchRunning/)
 })
 
 test('Answer is the default saved-object view, Research remains one tab away',()=>{

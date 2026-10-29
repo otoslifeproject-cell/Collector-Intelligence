@@ -27,7 +27,7 @@ export default function MiniAppraisal({appraisal,onCopy,copyStatus,onSave,saveDi
    <strong>Where to sell</strong><p title={appraisal.venue}>{appraisal.venue}</p>
   </div>
   <div className="ci-mini-line">
-   <strong>What to do</strong><p><b>{appraisal.decision}</b></p>
+   <strong>What to do</strong><p><b>{appraisal.decision==='Check'?'Research needed before selling':appraisal.decision}</b></p>
   </div>
   <button type="button" className="primaryButton ci-mini-cta" onClick={onCopy}>
    {sold?'View recorded sale':'Copy listing draft'}

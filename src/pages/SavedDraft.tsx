@@ -7,10 +7,11 @@ import {suggestSingleIntakePair} from '../lib/pairGrouping'
 import {money} from '../lib/format'
 import ResearchDecisionPanel from '../components/ResearchDecisionPanel'
 import ResearchProgress from '../components/ResearchProgress'
-import {provisionalMoney} from '../lib/catalogueSaleState'
 import {draftResearchDashboard} from '../lib/draftResearchAudit'
 import SaleEconomics from '../components/SaleEconomics'
-import VisualReferenceWorkbench from '../components/VisualReferenceWorkbench'
+import ResearchAnswer,{ResearchRunning} from '../components/ResearchAnswer'
+import {researchAnswer} from '../lib/researchAnswer'
+import {googleLensLink} from '../lib/googleFirstLook'
 import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import MiniAppraisal from '../components/MiniAppraisal'
 import {miniAppraisal} from '../lib/miniAppraisal'
@@ -28,6 +29,10 @@ import type {CorrectionRequest} from '../lib/verdictCorrection'
 import {DraftResearchError,hasSavedResearchResult,readDraftResearch,researchForScope} from '../lib/draftResearch'
 
 type SavedRun=CatalogueSource
+// A STAGED research row that was never claimed is older than the server's 300 s
+// limit: no AI request was made for it, so it no longer blocks a new attempt.
+const ABANDONED_STAGED_MS=6*60*1000
+const livePending=(row:any)=>!(row?.result?.analysis_stage==='STAGED'&&Date.now()-Date.parse(row?.created_at)>ABANDONED_STAGED_MS)
 export default function SavedDraft(){
  const {id}=useParams()
  if(!id)return <div role="alert">This saved report could not be identified.</div>
@@ -64,6 +69,8 @@ function SavedDraftRecord({id}:{id:string}){
  const [researchError,setResearchError]=useState('')
  const [unconfirmedResearch,setUnconfirmedResearch]=useState<{runId:string;payload:any}|null>(null)
  const [researchIndex,setResearchIndex]=useState(0)
+ const [researchStartedAt,setResearchStartedAt]=useState<number|null>(null)
+ const autoResearchTried=useRef(new Set<string>())
  // Object indices refer only to the saved run's objects; never map by photo order.
  // Invalid, hostile or stale links safely show object 0 without altering evidence.
  useEffect(()=>{
@@ -200,7 +207,7 @@ function SavedDraftRecord({id}:{id:string}){
  const matchedResearchRun=researchHistory.find((x:any)=>
    x.user_context?.source_object_index===scopeIndex &&
    (Array.isArray(x.user_context?.pair_source_indices)&&x.user_context.pair_source_indices.length===2)===paired)
- const scopePending=unfinishedResearch.filter(row=>researchForScope(row,scopeIndex,paired))
+ const scopePending=unfinishedResearch.filter(row=>researchForScope(row,scopeIndex,paired)&&livePending(row))
  const researchBlocked=!!researchError||scopePending.length>0
  const visibleResearch=researchError?null:matchedResearchRun?.result || null
  const visibleAudit=matchedResearchRun?.result?.source_audit || null
@@ -259,18 +266,19 @@ function SavedDraftRecord({id}:{id:string}){
  }
  const runDraftResearch=async(depth:'standard'|'deep_dive'='standard')=>{
   if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
-  researchBusy.current=true;setResearching(true);setSaveStatus('Preserving the research session before requesting '+(depth==='deep_dive'?'deep':'standard')+' research…')
+  researchBusy.current=true;setResearching(true);setResearchStartedAt(Date.now());setSaveStatus('')
   let stagedId:string|null=null
   try{
    // Recheck complete history immediately before any new staged/paid request.
    const rows=await readDraftResearch(supabase,run,current)
-   if(rows.some(row=>researchForScope(row,scopeIndex,paired)&&!hasSavedResearchResult(row)))throw new DraftResearchError('An unresolved research attempt already exists for this object. Check saved research; do not repeat the paid request.')
+   if(rows.some(row=>researchForScope(row,scopeIndex,paired)&&!hasSavedResearchResult(row)&&livePending(row)))throw new DraftResearchError('An unresolved research attempt already exists for this object. Check saved research; do not repeat the paid request.')
    const {data:{session}}=await supabase.auth.getSession()
    if(!current())return
    if(!session||session.user.id!==run.owner_id)throw Error('Sign in again to use your private research.')
    const i=scopeIndex,pair=paired?[0,1]:[]
    const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
-   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
+   // Standard research reads 6 photographs (time limit); a deep dive reads up to 12.
+   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,depth==='deep_dive'?12:6)
    const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
     user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:pair,research_depth:depth},
     result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
@@ -278,7 +286,7 @@ function SavedDraftRecord({id}:{id:string}){
    if(!current())return
    if(stageError||!staged?.id)throw Error('The research session could not be confirmed. Check saved research before another attempt; no AI request was sent.')
    stagedId=staged.id;setUnfinishedResearch(previous=>[staged,...previous])
-   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(120000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls})})
+   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(295000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls})})
    const payload=await response.json()
    if(!current())return
    if(payload?.result)setUnconfirmedResearch({runId:staged.id,payload})
@@ -287,7 +295,7 @@ function SavedDraftRecord({id}:{id:string}){
    const saved=await updateResearchHistory()
    if(!current())return
    if(!saved?.some(row=>row.id===staged.id&&hasSavedResearchResult(row)))throw Error('Research response received, but its saved result could not be confirmed. Check saved research; do not repeat the paid request.')
-   setSaveStatus('Research findings independently read back from the saved session. Original evidence and corrections preserved.')
+   setSaveStatus('')
   }catch(error){
    if(!current())return
    try{await updateResearchHistory()}catch{if(current())setResearchError('Saved research history is unconfirmed. Check saved research before another paid request.')}
@@ -358,8 +366,8 @@ function SavedDraftRecord({id}:{id:string}){
    await navigator.clipboard.writeText(draft.text)
    setCopyStatus('Draft copied for review. Nothing was published.')
   }catch{
-   setActiveTab('market')
-   setCopyStatus('Clipboard unavailable. The copyable draft is inside Details; nothing was published.')
+   setActiveTab('sales')
+   setCopyStatus('Clipboard unavailable. The listing draft is on the Selling tab to copy by hand; nothing was published.')
   }
  }
  const saveFromAnswer=()=>{
@@ -367,6 +375,35 @@ function SavedDraftRecord({id}:{id:string}){
   if(paired||(run.result.objects||[]).length===1)void approveSaved()
   else setActiveTab('catalogue')
  }
+ // AUTOMATIC CHAIN: once the photo answer is saved, research (Google first, then
+ // web research) starts by itself, once per object. Kill switch: VITE_CI_AUTO_RESEARCH=off.
+ const autoResearchOff=import.meta.env.VITE_CI_AUTO_RESEARCH==='off'
+ const autoKey=run?run.id+':'+scopeIndex+':'+(paired?'pair':'one'):''
+ const imagesReady=Object.values(images).some(Boolean)
+ const anyScopeResearch=storedResearch.some(row=>researchForScope(row,scopeIndex,paired))
+ useEffect(()=>{
+  if(autoResearchOff||!run||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady||needsPhotoCorrection||!imagesReady)return
+  if(researching||checkingResearch||researchBusy.current||researchBlocked||anyScopeResearch||existingResearchObsolete)return
+  if(!autoKey||autoResearchTried.current.has(autoKey))return
+  autoResearchTried.current.add(autoKey)
+  void runDraftResearch('standard')
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[autoKey,busy,error,isPhotoManifestReady,needsPhotoCorrection,imagesReady,researching,checkingResearch,researchBlocked,anyScopeResearch,existingResearchObsolete])
+ // A run still in progress elsewhere (page reloaded, slow reply): read the saved
+ // result every 8 s, read-only, until it appears. Never starts a paid request.
+ const waitingForSaved=scopePending.length>0&&!matchedResearchRun
+ useEffect(()=>{
+  if(!waitingForSaved||researching)return
+  let tries=0
+  const timer=window.setInterval(()=>{tries++;if(tries>45){window.clearInterval(timer);return}void updateResearchHistory()?.catch(()=>{})},8000)
+  return()=>window.clearInterval(timer)
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[waitingForSaved,researching,run?.id])
+ const objectTitle=paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'
+ const finishedAnswer=visibleResearch&&!existingResearchObsolete?researchAnswer(visibleResearch,objectTitle):null
+ const researchLook=visibleResearch?.google_first_look||null
+ const mainPhoto=images[indicesForReview(scopeIndex).find(n=>!!images[n])??-1]
+ const pendingStartedAt=researchStartedAt??(scopePending[0]?Date.parse(scopePending[0].created_at):null)
  return <div className="ci-page ci-saved-draft">
   <header className="ci-page-header ci-report-heading">
     <div className="ci-report-heading-copy">
@@ -447,17 +484,27 @@ function SavedDraftRecord({id}:{id:string}){
       className={activeTab===value?'ci-item-tab is-active':'ci-item-tab'}
       onClick={()=>setActiveTab(value)}>{label}</button>)}
    </nav>
-   {activeTab==='answer'&&answer&&<MiniAppraisal appraisal={answer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
+   {activeTab==='answer'&&finishedAnswer&&<ResearchAnswer answer={finishedAnswer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
-    onOpenDetails={()=>setActiveTab('market')}/>}
+    onOpenResearch={()=>setActiveTab('market')}/>}
+   {activeTab==='answer'&&!finishedAnswer&&(researching||waitingForSaved)&&<ResearchRunning startedAt={pendingStartedAt}/>}
+   {activeTab==='answer'&&!finishedAnswer&&!researching&&!waitingForSaved&&answer&&<>
+    {saveStatus&&<section className="panel ci-research-stopped" role="status">
+     <p><strong>Research did not finish.</strong> {saveStatus}</p>
+     <button type="button" className="primaryButton" disabled={researchBlocked||checkingResearch||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady} onClick={()=>void runDraftResearch('standard')}>Try research again</button>
+    </section>}
+    <MiniAppraisal appraisal={answer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
+    onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
+    saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
+    onOpenDetails={()=>setActiveTab('market')}/></>}
    {activeTab!=='answer'&&<section className="ci-item-tab-content">
    {!paired&&(run.result?.objects||[]).length>1&&<label className="ci-research-scope-selector">Choose object to research
     <select disabled={savingDisagreement||!!pendingCorrection||saving||!!pendingReview||approving||!!pendingApproval||researching||checkingResearch} value={researchIndex} onChange={e=>{const next=Number(e.target.value);setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>
      {(run.result.objects||[]).map((o:any,i:number)=><option value={i} key={i}>{o.working_title||'Object '+(i+1)}</option>)}
     </select>
    </label>}
-   <nav className="ci-report-navigation" aria-label="Saved research navigation">
+   {activeTab!=='market'&&<nav className="ci-report-navigation" aria-label="Saved research navigation">
     {activeTab!=='market'&&<button type="button" className="primaryButton inlineButton" onClick={()=>setActiveTab('market')}>Back to research result</button>}
     <details className="ci-report-extra-views">
      <summary>More object details</summary>
@@ -466,11 +513,7 @@ function SavedDraftRecord({id}:{id:string}){
        <button key={t} type="button" className={activeTab===t?'primaryButton':'secondaryButton'} aria-current={activeTab===t?'page':undefined} onClick={()=>setActiveTab(t)}>{t==='sales'?'Sale planning':t==='catalogue'?'Catalogue review':t==='identification'?'Identification evidence':t==='photos'?'Original photos':'Object overview'}</button>)}
      </div>
     </details>
-   </nav>
-   {scopeDashboard&&<ResearchProgress compact audit={scopeDashboard.audit} history={scopeDashboard.history}
-    objectLabel={paired?(correctedPairTitle||'Matched pair — whole lot'):run.result.objects?.[scopeIndex]?.working_title||'Object '+(scopeIndex+1)}
-    confidence={scopeDashboard.confidence} loading={busy||checkingResearch} error={researchError}
-    onReload={()=>void checkSavedResearch()} onInvestigate={()=>setActiveTab('market')}/>}
+   </nav>}
 
    {(activeTab==='overview'||activeTab==='catalogue')&&pairProposal&&run.status==='DRAFT'&&<div className="panel ci-pair-choice">
       <strong>Matched pair recognised — two physical pieces</strong>
@@ -506,11 +549,21 @@ function SavedDraftRecord({id}:{id:string}){
    </div>}
    {saveStatus&&<p role="status" tabIndex={-1} ref={approvalStatus} className="note ci-catalogue-status">{saveStatus}</p>}
    {activeTab==='market'&&<div className="marketStack">
+    <section className="panel ci-google-first-look" aria-label="Google matches">
+     <div className="panelHeader"><h2>Google matches</h2><span>Leads to check, not facts</span></div>
+     {researchLook?.status==='CALLED'?<>
+      {researchLook.best_guess.length>0&&<p><strong>Google's best guess:</strong> {researchLook.best_guess.join(', ')}</p>}
+      {researchLook.entities.length>0&&<p className="ci-page-meta">Related names: {researchLook.entities.slice(0,6).map((e:any)=>e.description).join(' · ')}</p>}
+      {researchLook.pages.length>0
+       ?<ul className="ci-google-pages">{researchLook.pages.map((page:any)=><li key={page.url}><a href={page.url} target="_blank" rel="noopener noreferrer">{page.title}</a></li>)}</ul>
+       :<p>Google found no pages with matching pictures.</p>}
+     </>:<p>{researchLook?'Google check not run: '+(researchLook.reason||'no reason recorded'):visibleResearch?'Google check not run for this research.':researching||waitingForSaved?'Google is checking the main photograph…':'Google checks the main photograph first when research starts.'}</p>}
+     <a className="secondaryButton inlineButton" href={googleLensLink(mainPhoto)} target="_blank" rel="noopener noreferrer">Open in Google Lens ↗</a>
+    </section>
     <section className="panel ci-fast-research-result" aria-label="Research result">
       <div className="eyebrow">YOUR OBJECT · RESEARCH</div>
-      <h2>{paired?(correctedPairTitle||'Matched pair'):run.result.objects?.[scopeIndex]?.working_title||'Object identification pending'}</h2>
-      <p role="status" aria-live="polite">{researching?'Research running · examining matches and checking evidence…':checkingResearch?'Checking saved research…':visibleResearch&&!existingResearchObsolete?'Research returned · review the result below':'Ready to research · visual matches are leads, not verified facts'}</p>
-      {!visibleResearch&&<p className="ci-page-meta">Start research below. Results will appear on this page; original photographs and your research history remain saved.</p>}
+      <h2>{objectTitle}</h2>
+      <p role="status" aria-live="polite">{researching||waitingForSaved?'Research running · Google first, then sold prices…':checkingResearch?'Checking saved research…':visibleResearch&&!existingResearchObsolete?'Research returned · leads and sources below':'Research has not run yet'}</p>
       {visibleResearch&&!existingResearchObsolete&&<ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Identification, value and selling recommendation"/>}
       <div className="ci-page-actions" aria-label="Choose next stage">
         {catalogued.length>0
@@ -521,63 +574,25 @@ function SavedDraftRecord({id}:{id:string}){
          : <button className="secondaryButton" disabled={!isPhotoManifestReady||!selectedIndices.length||!!error||approving||saving||researching||!!pendingReview||!!pendingApproval||!!pendingCorrection||(needsPhotoCorrection&&!confirmedPhotoCorrection)} onClick={()=>{if(paired||(run.result.objects||[]).length===1)void approveSaved();else setActiveTab('catalogue')}}>{approving?'Saving item…':paired||(run.result.objects||[]).length===1?'Save item to catalogue':'Choose items to save'}</button>}
       </div>
     </section>
-    {run.status==='DRAFT'&&!paired&&isPhotoManifestReady&&!needsPhotoCorrection&&
-     <ProvisionalDraftHandoff runId={run.id} index={scopeIndex}
-      object={run.result.objects[scopeIndex]} photoIndices={indicesForReview(scopeIndex)}
-      reviewedCondition={edits[scopeIndex]?.condition_summary}/>}
-    {isPhotoManifestReady&&Object.values(images).some(Boolean)&&
-     <VisualReferenceWorkbench
-      analysisRunId={run.id} objectIndex={scopeIndex} paired={paired}
-      photos={images} photoIndices={indicesForReview(scopeIndex)}
-      ownerMaterial={correctedMaterial}
-      latestResearchAt={matchedResearchRun?.created_at||null}
-      workingTitle={paired?(correctedPairTitle||'Matching pair'):run.result.objects?.[scopeIndex]?.working_title||'Collection object'}
-     />}
-
     <WorkspaceActionPanel
-     eyebrow="RESEARCH OPTIONS"
-     title={paired?'Research this pair':'Research this object'}
-     description=""
+     eyebrow="RESEARCH"
+     title={visibleResearch?'Research again':'Start research'}
+     description={visibleResearch?'Runs a new paid search. The saved result stays.':''}
      primary={{
-      label:researching?'Research running…':'Start research',
-      onClick:()=>runDraftResearch('deep_dive'),
+      label:researching?'Research running…':visibleResearch?'Research again · paid':'Start research',
+      onClick:()=>runDraftResearch('standard'),
       disabled:researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}
-     secondary={<a className="ci-action-text-link" href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">
-      Manual image search ↗</a>}
-     note="Dive deeper uses paid AI research. Museum image comparisons above are free; reverse-image search remains manual."
+     secondary={<button className="secondaryButton" disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
+       onClick={()=>runDraftResearch('deep_dive')}>Deep dive · paid</button>}
     >
-     {existingResearchObsolete&&<InfoDisclosure label="Earlier research superseded" warning><p>Owner correction invalidates the prior glass conclusions. Historical findings remain preserved.</p></InfoDisclosure>}
-     {visibleResearch?
-      <details className="ci-archive-section">
-       <summary>Another standard online search · paid</summary>
-       <p className="ci-page-meta">Existing saved findings remain available without a repeat charge.</p>
-       <button className="secondaryButton" disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
-        onClick={()=>runDraftResearch('standard')}>Run standard research</button>
-      </details>:
-      <button className="secondaryButton ci-action-minor-button"
-       disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
-       onClick={()=>runDraftResearch('standard')}>Standard research instead</button>}
-     <button className="secondaryButton" disabled={checkingResearch||researching||busy||!!error||saving||approving||savingDisagreement||!!pendingReview||!!pendingApproval||!!pendingCorrection} onClick={()=>void checkSavedResearch()}>{checkingResearch?'Checking saved research…':'Check saved research'}</button>
-     {researchHistory.length>0&&<span className="ci-subtle-count">{researchHistory.length} saved complete responses · provisional</span>}
-     {scopePending.length>0&&<p className="ci-page-meta">An unresolved attempt exists for this object. Check saved research before another paid request.</p>}
-     {unfinishedResearch.length>0&&<p className="ci-page-meta">An earlier research attempt is unfinished. Use Check saved research above.</p>}
-     {unconfirmedResearch&&<p className="ci-page-meta">A research result needs checking before it can be used.</p>}
+     {existingResearchObsolete&&<InfoDisclosure label="Earlier research superseded" warning><p>Owner correction invalidates the prior conclusions. Historical findings remain preserved.</p></InfoDisclosure>}
+     {scopePending.length>0&&<p className="ci-page-meta">Research is still running for this object. The answer appears here when it is saved.</p>}
+     <button className="ci-mini-text-action" disabled={checkingResearch||researching||busy||!!error} onClick={()=>void checkSavedResearch()}>{checkingResearch?'Checking…':'Check saved research'}</button>
     </WorkspaceActionPanel>
-    {!materialContradictsModel&&<div className="panel">
-     <div className="panelHeader"><h2>Preliminary AI estimate</h2><span>Visual only, not verified sales evidence</span></div>
-     <div className="valueSummary">
-      <div><small>Fast cash indication</small><strong>{provisionalMoney(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.quick_sale??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency)}</strong></div>
-      <div><small>Balanced range · provisional</small><strong>{provisionalMoney(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_low??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency)} – {provisionalMoney(run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.balanced_high??null,run.result.objects?.[paired?0:researchIndex]?.preliminary_value?.currency)}</strong></div>
-     </div>
-     {paired&&<p className="ci-page-meta">These are first-piece visual estimates, NOT a pair valuation. Run online research for the pair as one lot before using a sale figure.</p>}
-    </div>}
-    {materialContradictsModel&&<InfoDisclosure label="Earlier image-only estimate withheld" warning><p>The model assumed {originalMaterial||'another material'}; owner-recorded material is {correctedMaterial}. The original guess remains available in the saved AI evidence.</p></InfoDisclosure>}
-    {visibleResearch&&(existingResearchObsolete
-     ? <details className="ci-archive-section"><summary>View superseded research · not valid for pricing</summary>
-        <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Superseded model research"/>
-       </details>
-     : null)}
+    {visibleResearch&&existingResearchObsolete&&<details className="ci-archive-section"><summary>View superseded research · not valid for pricing</summary>
+       <ResearchDecisionPanel research={visibleResearch} sourceAudit={visibleAudit} paired={paired} title="Superseded model research"/>
+      </details>}
       </div>}
    {activeTab==='photos'&&<div className="panel"><div className="panelHeader"><h2>Original photographs</h2><span>{Object.values(images).filter(Boolean).length} accessible</span></div>
      <div className="photoGrid">{Object.entries(images).map(([index,url])=>url?<div className="photoTile" key={index}><img src={url} alt={'Original photograph '+(Number(index)+1)}/><span>Photo {Number(index)+1}</span></div>:null)}</div>
@@ -589,6 +604,10 @@ function SavedDraftRecord({id}:{id:string}){
      </details>)}
    </div>}
    {activeTab==='sales'&&<div className="marketStack">
+    {run.status==='DRAFT'&&!paired&&isPhotoManifestReady&&!needsPhotoCorrection&&
+     <ProvisionalDraftHandoff runId={run.id} index={scopeIndex}
+      object={run.result.objects[scopeIndex]} photoIndices={indicesForReview(scopeIndex)}
+      reviewedCondition={edits[scopeIndex]?.condition_summary}/>}
     <div className="panel">
      <div className="panelHeader"><h2>Sales planning</h2><span>No listing or publication without approval</span></div>
      <p>{!existingResearchObsolete&&visibleResearch?.routing?.best_venue?'Research suggests '+visibleResearch.routing.best_venue+' as the likely route.':'Current source-backed selling route not established. Rerun material-corrected research first.'}</p>

@@ -1132,3 +1132,12 @@ body{font-size:var(--ci-body-size);line-height:1.5}
 .ci-ebay-review-details dt{font-weight:750;font-size:12px;color:var(--muted)}
 .ci-ebay-review-details dd{margin:5px 0 0;line-height:1.45}
 .ci-ebay-review-details textarea{width:100%;white-space:pre-wrap}
+
+/* Google first look + automatic research answer (29 Oct, HQ TL-0031) */
+.ci-google-first-look p{margin:0 0 10px}
+.ci-google-pages{margin:0 0 14px;padding-left:20px;display:grid;gap:6px}
+.ci-google-pages a{color:var(--text);font-weight:600;text-decoration:underline;text-underline-offset:3px;word-break:break-word}
+.ci-research-stopped{border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 18px}
+.ci-research-stopped p{margin:0 0 12px}
+.ci-research-stopped .primaryButton{width:100%;min-height:52px}
+.ci-research-answer .ci-mini-line small+small{margin-top:2px}

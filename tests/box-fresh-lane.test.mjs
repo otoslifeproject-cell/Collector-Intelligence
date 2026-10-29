@@ -32,7 +32,8 @@ test('fresh photo flow has one Analyse action leading to a saved answer',()=>{
  assert.match(intake,/Analyse photos/)
  assert.match(intake,/nav\('\/draft\/'\+attempt\.request\.id\)/)
  assert.match(draft,/get\('tab'\)\|\|'answer'/)
- assert.match(draft,/activeTab==='answer'&&answer&&<MiniAppraisal/)
+ assert.match(draft,/activeTab==='answer'&&finishedAnswer&&<ResearchAnswer/)
+ assert.match(draft,/<MiniAppraisal appraisal=\{answer\}/)
 })
 test('both new and catalogued items have exactly five owner-facing tabs',()=>{
  for(const path of ['pages/SavedDraft.tsx','pages/ItemDetail.tsx']){

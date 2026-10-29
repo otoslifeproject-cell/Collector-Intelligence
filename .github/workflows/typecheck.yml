@@ -24,7 +24,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Fresh owner journey — disposable browser test, no external provider
         run: |
-          VITE_SUPABASE_URL=http://127.0.0.1:4173/fake VITE_SUPABASE_PUBLISHABLE_KEY=disposable-publishable-test-key npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/collector-fresh-vite.log 2>&1 &
+          # The disposable journey stubs only intake; paid research stays off here (unit tests cover the chain).
+          VITE_CI_AUTO_RESEARCH=off VITE_SUPABASE_URL=http://127.0.0.1:4173/fake VITE_SUPABASE_PUBLISHABLE_KEY=disposable-publishable-test-key npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/collector-fresh-vite.log 2>&1 &
           for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && break || sleep 1; done
           curl -fsS http://127.0.0.1:4173/ >/dev/null
           npx playwright test tests/box-fresh-browser.spec.mjs --reporter=line

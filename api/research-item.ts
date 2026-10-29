@@ -1,6 +1,8 @@
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {researchExecutionReceipt} from '../src/lib/researchExecution.ts';
+import {runGoogleFirstLook,googleLeadsForResearch,googleNotRun,GOOGLE_MONTHLY_LIMIT} from '../src/lib/googleFirstLook.ts';
+import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 
 const researchSchema = {
   type: "object",
@@ -114,6 +116,7 @@ Non-negotiable rules:
 - Capture a source URL/reference for every comparable whenever available.
 - Use multiple comparable records where practical. Do not value from one exceptional outlier.
 - Before any maker-specific or price research, perform a functional-object-type challenge. A green glass vessel with a flared or rolled bulb-supporting collar, narrower neck and rounded water reservoir must prompt the rival "hyacinth forcing vase / bulb vase"; verify with documented period and form references before searching maker comparables. Compare competing functional forms and reject generic "art glass" anchoring where appropriate.
+- A GOOGLE FIRST LOOK block (Google Cloud Vision Web Detection run by the app on the main photograph) may be supplied. Start your research from it: check the pages it found and the names it suggests, then look for SOLD evidence. Its leads are not facts, prices or authentication; report where your sources agree or disagree with them.
 - Owner-supplied Google Lens or similar visual-search results are EXTERNAL SEARCH LEADS, not verified source facts. Research the named object type and each traceable result against original museum, catalogue, collector specialist or auction sources, and explicitly report agreement/disagreement. Do not claim access to unseen Google Lens results. Do not treat the Lens AI Overview as an authoritative source for maker, Victorian date or sale price.
 - Adjust for size, condition, colour, maker certainty, signed/labelled status, rarity, age and market.
 - When the object's colour, owner notes or linked photographs suggest uranium/vaseline glass, explicitly investigate that hypothesis and its non-uranium alternatives. Distinguish documented UV fluorescence from a merely presumed reaction; request paired daylight and UV photographs of the same object if absent. Bright green fluorescence is suggestive, not sole chemical authentication. Never suppress uranium glass as a candidate just because maker and period are unknown, and never inflate valuation from an unverified composition claim.
@@ -199,6 +202,19 @@ function checkResearchEvidence(result:any) {
  return audited;
 }
 
+// Counts this month's research runs that actually called Google. null = unknown,
+// which makes the Google step fail closed (not run) rather than risk the limit.
+async function googleChecksThisMonth(url:string,key:string,token:string):Promise<number|null>{
+ try{
+  const start=new Date();start.setUTCDate(1);start.setUTCHours(0,0,0,0);
+  const qp=new URLSearchParams({select:'id',mode:'eq.research',created_at:'gte.'+start.toISOString(),'result->google_first_look->>status':'eq.CALLED',limit:'1000'});
+  const response=await fetch(url+'/rest/v1/ai_analysis_runs?'+qp.toString(),{headers:{apikey:key,Authorization:'Bearer '+token}});
+  if(!response.ok)return null;
+  const rows=await response.json();
+  return Array.isArray(rows)?rows.length:null;
+ }catch{return null;}
+}
+
 async function verifyUser(token: string, supabaseUrl: string, supabaseKey: string) {
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: supabaseKey }
@@ -217,10 +233,19 @@ async function ownerScopedResearchRun(url:string,key:string,token:string,runId:s
  return rows[0];
 }
 async function claimResearchRun(url:string,key:string,token:string,runId:string){
- const response=await fetch(url+'/rest/v1/rpc/ci_claim_scoped_paid_research_v1',{
+ const call=(fn:string)=>fetch(url+'/rest/v1/rpc/'+fn,{
   method:'POST',headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json'},
   body:JSON.stringify({p_run_id:runId})
  });
+ let response=await call('ci_claim_scoped_paid_research_v1');
+ if(response.status===404){
+  // The scoped claim exists only as a proposal (supabase/proposals). Fall back to the
+  // applied migration 20261017_paid_research_claim_gate_v1: it still moves this one
+  // staged run to PROCESSING atomically, so the same run can never be charged twice.
+  const missing=await response.json().catch(()=>({}));
+  if(missing?.code==='PGRST202')response=await call('ci_claim_paid_research_v1');
+  else throw Error('Research claim unavailable; no AI request made.');
+ }
  if(!response.ok){
   const error=await response.json().catch(()=>({}));
   throw Error(error.message||'Existing research already processing; no duplicate AI request made.');
@@ -244,11 +269,8 @@ export default async function handler(req: any, res: any) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
-  const runtimeOidcToken = String(req.headers["x-vercel-oidc-token"] || "");
-  const gatewayToken = process.env.AI_GATEWAY_API_KEY || runtimeOidcToken || process.env.VERCEL_OIDC_TOKEN || "";
-  const directOpenAIKey = process.env.OPENAI_API_KEY || "";
-  const useGateway = Boolean(gatewayToken);
-  const apiKey = gatewayToken || directOpenAIKey;
+  // Owner-funded OpenAI account only: research calls api.openai.com directly.
+  const apiKey = process.env.OPENAI_API_KEY || "";
   if (!token) return res.status(401).json({ error: "Not signed in" });
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
@@ -508,7 +530,7 @@ export default async function handler(req: any, res: any) {
   }));
   const deepInstructions=depth==='deep_dive'
    ? `DEEP DIVE INVESTIGATION (not a repeat generic description):
-1. FIRST challenge the earlier material and object-type classification. Treat the owner's physical material correction as decisive observational evidence; earlier AI-generated glass claims and glass auction leads are rejected for this hypothesis.
+1. FIRST challenge the earlier material and object-type classification. If the owner has recorded a physical material correction, treat it as decisive observational evidence and reject earlier AI claims and auction leads for the old material.
 2. Independently inspect the supplied original image details—silhouette, decorative technique, rim/base construction, enamel versus paint, tooling, joins and finishes—and compare visible motifs against genuinely relevant PUBLIC REFERENCE IMAGES, illustrated catalogues, museum collections and auction photographs surfaced through live web search. Search using shape + motif + corrected material, not the old AI maker guess. Do not imply a live Google Lens reverse-image search was performed.
 3. Find several specific visually plausible alternatives. In identification_update.rationale say what supports and weakens EACH candidate, how close the reference really looks, and any unresolved manufacture/period possibilities. A resemblance alone does not authenticate the item.
 4. Verify every price lead class (HAMMER / buyer-premium-inclusive REALISED / dealer ASKING / marketplace ASKING). Use precise source URLs and dates; distinguish a pair lot from one physical piece, and exclude glass-only lots from metal-object valuation.
@@ -537,10 +559,7 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const configuredModel = process.env.OPENAI_RESEARCH_MODEL || "gpt-5.6-luna";
-  const model = useGateway
-    ? (configuredModel.includes("/") ? configuredModel : `openai/${configuredModel}`)
-    : configuredModel.replace(/^openai\//, "");
+  const model = (process.env.OPENAI_RESEARCH_MODEL || process.env.OPENAI_INTAKE_MODEL || "gpt-6-luna").replace(/^openai\//, "");
 
   // Finish all fallible preflight reads before claiming a paid run. In approved
   // mode, a revocation/republication stops dispatch and leaves the run STAGED.
@@ -551,10 +570,25 @@ export default async function handler(req: any, res: any) {
     if(claim!=='CLAIMED')return res.status(409).json({error:'Research run was not freshly claimed; reload the saved result before another paid request.'});
   }catch(e:any){return res.status(409).json({error:e?.message||'Research already running; not charged again.'});}
 
+  // GOOGLE FIRST: one Web Detection call on the main photograph, once per claimed
+  // research run. Missing key, limit reached or any Google failure => "not run";
+  // research continues from the photographs. Leads are never facts or prices.
+  let googleLook:GoogleFirstLook;
+  try{
+    googleLook=await runGoogleFirstLook({
+      apiKey:process.env.GOOGLE_CLOUD_VISION_API_KEY,
+      imageUrl:images[0],
+      usedThisMonth:await googleChecksThisMonth(supabaseUrl,supabaseKey,token),
+      limit:GOOGLE_MONTHLY_LIMIT
+    });
+  }catch{googleLook=googleNotRun('Google check failed');}
+  content.splice(1,0,{type:'input_text',text:googleLeadsForResearch(googleLook)});
+
   const body = {
     model,
-    reasoning: { effort: "high" },
-    instructions: instructions+"\\n\\n"+deepInstructions+"\\n\\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
+    // Standard research must finish well inside the 300 s function limit.
+    reasoning: { effort: depth==='deep_dive' ? "high" : "medium" },
+    instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
     tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }],
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
@@ -566,7 +600,7 @@ export default async function handler(req: any, res: any) {
   const dispatchedAt=new Date().toISOString();
   try {
     response = await fetch(
-    useGateway ? "https://ai-gateway.vercel.sh/v1/responses" : "https://api.openai.com/v1/responses",
+    "https://api.openai.com/v1/responses",
     {
     method:"POST",
     headers:{ "Content-Type":"application/json", Authorization:`Bearer ${apiKey}` },
@@ -594,7 +628,7 @@ export default async function handler(req: any, res: any) {
     source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
     const savedResult={
       ...result,source_audit,canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
-      research_depth:depth,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
+      research_depth:depth,google_first_look:googleLook,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
       analysis_stage:'COMPLETE',response_id:payload.id||null,
       research_execution_v1:researchExecutionReceipt(payload,research_run_id,dispatchedAt,new Date().toISOString())
     };
