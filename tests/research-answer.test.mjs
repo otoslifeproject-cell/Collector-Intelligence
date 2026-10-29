@@ -81,3 +81,14 @@ test('description comes through ready to copy',async()=>{
  assert.match(r.description,/Key features:/)
  assert.equal(resultListing({},'X').description,null)
 })
+
+test('marks read from the photos are shown as confirmed, never as checks',async()=>{
+ const {resultListing}=await import('../src/lib/researchAnswer.ts')
+ const r=resultListing({listing:{ebay_title:'Copeland Spode Peacock Tureen',seen_in_photos:['Mark: Copeland Spode (photo 4)'],title_checks:[
+  'Copeland Spode: photographed factory mark supports attribution.',
+  'Peacock: photographed mark reads \u201cSpode\u2019s Peacock.\u201d',
+  'Set: confirm the matching dish/stand is included and fits.']}},'Tureen')
+ assert.deepEqual(r.checks,['Set: confirm the matching dish/stand is included and fits.'])
+ assert.equal(r.seen.length,3)
+ assert.equal(r.seen[0],'Mark: Copeland Spode (photo 4)')
+})

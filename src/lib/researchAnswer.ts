@@ -128,13 +128,19 @@ export function resultListing(research:any,fallbackTitle:string){
  else if(middle(asks)!==null){price=fmt(Math.round((middle(asks) as number)*0.9),'GBP');priceBasis='Just under similar items for sale'}
  const format=l.sale_format==='AUCTION'?'Auction'+(typeof l.auction_start==='number'&&Number.isFinite(l.auction_start)?' · start '+fmt(l.auction_start,currency):'')
   :l.sale_format==='FIXED_PRICE'?'Buy it now':null
- const checks=(Array.isArray(l.title_checks)&&l.title_checks.length?l.title_checks:(Array.isArray(research?.next_evidence)?research.next_evidence.map((x:any)=>x?.title):[]))
-  .map((x:any)=>concise(x,90)).filter(Boolean).slice(0,3)
+ // What the photographs already prove is shown as confirmed, never as a check.
+ // Older results put photographed marks in title_checks, so those move across too.
+ const PHOTO_PROVEN=/photographed|in (the )?photo|photo \d|mark reads|visible (in|on) (the )?photo|legible/i
+ const rawChecks=(Array.isArray(l.title_checks)&&l.title_checks.length?l.title_checks:(Array.isArray(research?.next_evidence)?research.next_evidence.map((x:any)=>x?.title):[]))
+  .map((x:any)=>concise(x,90)).filter(Boolean)
+ const seen=[...(Array.isArray(l.seen_in_photos)?l.seen_in_photos.map((x:any)=>concise(x,90)).filter(Boolean):[]),...rawChecks.filter((c:string)=>PHOTO_PROVEN.test(c))]
+  .filter((c:string,i:number,a:string[])=>a.indexOf(c)===i).slice(0,6)
+ const checks=rawChecks.filter((c:string)=>!PHOTO_PROVEN.test(c)).slice(0,3)
  return {
   ebayTitle:fit(l.ebay_title||fallbackTitle||'Collectable item',80),
   etsyTitle:l.etsy_title?fit(l.etsy_title,140):null,
   etsyReason:typeof l.etsy_reason==='string'?concise(l.etsy_reason,120):null,
-  price,priceBasis,format,checks,
+  price,priceBasis,format,checks,seen,
   description:typeof l.description==='string'&&l.description.trim()?l.description.trim().slice(0,2500):null,
   stillChecking:research?.research_depth==='quick'&&research?.triage?.decision==='LOW_VALUE'
  }

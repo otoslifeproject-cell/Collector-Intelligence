@@ -11,6 +11,7 @@ export type ResultListing={
  priceBasis?:string|null
  format:string|null
  checks:string[]
+ seen?:string[]
  description?:string|null
  stillChecking:boolean
 }
@@ -96,6 +97,9 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
    {listing.format&&<span>{listing.format}</span>}
   </div>
   {listing.description&&<Section title="Description"><CopyBlock text={listing.description}/></Section>}
+  {(listing.seen?.length??0)>0&&<Section title={'✓ Read from your photos · '+listing.seen!.length}>
+   <ul className="ci-seen-list">{listing.seen!.map(s=><li key={s}><Check size={20} aria-hidden="true"/>{s}</li>)}</ul>
+  </Section>}
   {listing.checks.length>0&&<Section title={'Check before posting · '+listing.checks.length}>
    <CheckList checks={listing.checks} onConfirm={onConfirm} busy={disagreeBusy}/>
   </Section>}

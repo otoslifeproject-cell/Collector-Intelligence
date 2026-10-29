@@ -150,3 +150,9 @@ test('Google Lens runs first, in the photo analysis, and research reuses it',()=
  assert.match(intake,/analysis_stage:'COMPLETE',google_first_look:googleLook/)
  assert.match(research,/if\(intakeLook\?\.status==='CALLED'\)googleLook=intakeLook/)
 })
+
+test('research lists what the photos prove separately from what to check',()=>{
+ assert.match(research,/"title_checks","seen_in_photos","description"\]/)
+ assert.match(research,/these are confirmed facts, not checks/)
+ assert.match(research,/never repeat anything in seen_in_photos/)
+})
