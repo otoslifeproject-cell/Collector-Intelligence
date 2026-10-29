@@ -113,7 +113,7 @@ Hard rules:
 - Identification confidence, dating confidence and valuation confidence are independent.
 - Inspect silhouette/proportions, colour/clarity, base, pontil, polished/ground areas, mould seams, bubbles/striae/inclusions, tooling, cut decoration, rim, handle joins/applied decoration, wear, labels, marks/signatures and visible chips/cracks/bruises/repairs.
 - For mixed batches, assign each image index to the object it depicts. Do not transfer evidence between objects.
-- In single-object intake, multiple camera angles of one physical piece must NOT become multiple object records.
+- In single-object intake (ONE OBJECT MODE) return exactly one object record: multiple camera angles, and multiple parts of one item for sale (lid, base, stand, set, pair), must NOT become multiple object records. Describe the parts inside that one record.
 - image_indices MUST contain only the zero-based indices of actual uploaded images (the allowed list is supplied in this run). Never invent a nonexistent photo index or shift an index because descriptive notes count images from 1.
 - A matched PAIR is two physical pieces but can be one catalogue and selling lot. If a genuine matching pair is visible, describe the left and right pieces separately and retain their original photo indices so the owner can group them as one lot.
 - Never use shared images or similar colour alone as evidence that two objects are the same piece or a matched pair; flag ambiguity without inventing duplicates.
@@ -448,7 +448,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const contextText = [
-    `Intake mode: ${mode}. ${mode === "single" ? "Treat these as one object unless the photographs clearly prove otherwise." : "This may contain up to five physical objects; separate them by visual evidence."}`,
+    `Intake mode: ${mode}. ${mode === "single" ? "ONE OBJECT MODE: the owner says every photograph shows ONE item for sale. It may have several parts (for example a tureen with its lid and stand, a teapot and lid, a set, or a pair sold together): return EXACTLY ONE object record describing the whole item and all its parts, with every photograph index in it. Never split one item into several objects in this mode." : "This may contain up to five physical objects; separate them by visual evidence."}`,
     context.purchase_price ? `User-supplied purchase price: ${context.purchase_price} ${context.currency || "GBP"}.` : "",
     context.weight_g ? `User-supplied weight: ${context.weight_g} g.` : "",
     context.dimensions ? `User-supplied dimensions: ${context.dimensions}.` : "",

@@ -136,3 +136,9 @@ test('research reads legible marks in every photo and never asks to verify them'
  assert.match(research,/Never add a title_check asking the owner to verify a mark that is legible in a photograph/)
  assert.match(research,/detail:depth==='quick'\?"low":depth==='deep_dive'\?"original":"high"/)
 })
+
+test('one object mode returns one record for an item with several parts',()=>{
+ const intake=readFileSync(new URL('../api/analyse-intake.ts',import.meta.url),'utf8')
+ assert.match(intake,/ONE OBJECT MODE: the owner says every photograph shows ONE item for sale/)
+ assert.match(intake,/return EXACTLY ONE object record/)
+})
