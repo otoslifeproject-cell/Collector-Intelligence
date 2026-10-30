@@ -131,11 +131,14 @@ export function resultListing(research:any,fallbackTitle:string){
  // What the photographs already prove is shown as confirmed, never as a check.
  // Older results put photographed marks in title_checks, so those move across too.
  const PHOTO_PROVEN=/photographed|in (the )?photo|photo \d|mark reads|visible (in|on) (the )?photo|legible/i
+ // A line with '→' is a check with a consequence (for example a chip that
+ // lowers the price), even when it names a photo: it stays a check.
+ const proven=(c:string)=>!/→|->/.test(c)&&PHOTO_PROVEN.test(c)
  const rawChecks=(Array.isArray(l.title_checks)&&l.title_checks.length?l.title_checks:(Array.isArray(research?.next_evidence)?research.next_evidence.map((x:any)=>x?.title):[]))
   .map((x:any)=>concise(x,90)).filter(Boolean)
- const seen=[...(Array.isArray(l.seen_in_photos)?l.seen_in_photos.map((x:any)=>concise(x,90)).filter(Boolean):[]),...rawChecks.filter((c:string)=>PHOTO_PROVEN.test(c))]
+ const seen=[...(Array.isArray(l.seen_in_photos)?l.seen_in_photos.map((x:any)=>concise(x,90)).filter(Boolean):[]),...rawChecks.filter(proven)]
   .filter((c:string,i:number,a:string[])=>a.indexOf(c)===i).slice(0,6)
- const checks=rawChecks.filter((c:string)=>!PHOTO_PROVEN.test(c)).slice(0,3)
+ const checks=rawChecks.filter((c:string)=>!proven(c)).slice(0,3)
  return {
   ebayTitle:fit(l.ebay_title||fallbackTitle||'Collectable item',80),
   etsyTitle:l.etsy_title?fit(l.etsy_title,140):null,

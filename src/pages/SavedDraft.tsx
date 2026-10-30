@@ -337,7 +337,7 @@ function SavedDraftRecord({id}:{id:string}){
   if(!current())return
   if(!result){setSaveStatus('No catalogue result is confirmed yet. Your original approval is held unchanged. Check the result or retry the same approval; keep this page open.');return}
   setCatalogued(result.records);setRun(result.source);setPendingApproval(null)
-  setSaveStatus(result.records.length+' catalogue records saved and read back with their original photo links. No AI rerun.')
+  setSaveStatus(result.records.length===1?'Saved to your collection.':result.records.length+' items saved to your collection.')
   // Stay on the result screen after saving: step 4 done, next item is one tap away.
  }
  const recoverApproval=async(submit:boolean)=>{

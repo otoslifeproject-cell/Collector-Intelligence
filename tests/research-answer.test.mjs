@@ -101,3 +101,10 @@ test('checks come first and lock the description; description is never a hidden 
  assert.match(screen,/Skip checks: use this result/)
  assert.ok(screen.indexOf("'Check first · '")<screen.indexOf('<CopyBlock'))
 })
+
+test('a check that changes the price stays a check even when it names a photo',async()=>{
+ const {resultListing}=await import('../src/lib/researchAnswer.ts')
+ const r=resultListing({listing:{ebay_title:'Holmegaard Selandia',seen_in_photos:['Mark: HOLMEGAARD 1959 (photo 10)'],title_checks:['Rim irregularity at photo 3 → if chipped, disclose and reduce the asking price']}},'Bowl')
+ assert.deepEqual(r.seen,['Mark: HOLMEGAARD 1959 (photo 10)'])
+ assert.equal(r.checks.length,1)
+})
