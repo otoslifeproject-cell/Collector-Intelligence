@@ -1232,3 +1232,13 @@ details.ci-review-section>summary,details.ci-archive-section>summary,details.ci-
 .ci-section-locked{opacity:.7}
 .ci-section-locked-bar{min-height:68px;padding:16px 24px;display:flex;align-items:center;font-size:20px;font-weight:800;color:var(--muted)}
 .ci-result-description{display:block}
+
+/* Drag to reorder photos: photo 1 is the main listing photo. */
+.ci-photo-order ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:12px}
+.ci-photo-order li{position:relative;width:96px;height:96px;border-radius:16px;overflow:hidden;border:2px solid var(--line);cursor:grab;background:var(--ci-photo,#111);transition:transform .12s,border-color .12s}
+.ci-photo-order li img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.ci-photo-order li span{position:absolute;left:6px;bottom:6px;padding:2px 9px;border-radius:999px;font-size:13px;font-weight:800;background:rgba(0,0,0,.65);color:#fff}
+.ci-photo-order li.is-main{width:128px;height:128px;border-color:#a47a36;box-shadow:0 0 0 3px rgba(164,122,54,.35)}
+.ci-photo-order li.is-main span{background:#a47a36}
+.ci-photo-order li.is-over{border-color:#5fbf7f;transform:scale(1.05)}
+.ci-photo-order li.is-dragging{opacity:.4}

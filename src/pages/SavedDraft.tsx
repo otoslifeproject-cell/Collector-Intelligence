@@ -13,6 +13,7 @@ import ResearchAnswer,{ResearchRunning} from '../components/ResearchAnswer'
 import ResultScreen,{StepStrip} from '../components/ResultScreen'
 import type {DisagreeKind} from '../components/ResultScreen'
 import {researchAnswer,resultListing} from '../lib/researchAnswer'
+import {applyPhotoOrder,readPhotoOrder,savePhotoOrder} from '../lib/photoOrder'
 import {googleLensLink} from '../lib/googleFirstLook'
 import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import MiniAppraisal from '../components/MiniAppraisal'
@@ -438,6 +439,26 @@ function SavedDraftRecord({id}:{id:string}){
   void runDraftResearch('standard')
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[fullKey,quickWorthMore,busy,error,isPhotoManifestReady,imagesReady,researching,checkingResearch,researchBlocked,scopePending.length,existingResearchObsolete])
+ // Photo order (Dean, 30 Oct): drag so the right photo is photo 1, the main
+ // listing photo. Saved per draft and item in ci_photo_order_v1.
+ const photoScope=paired?'pair':String(scopeIndex)
+ const [savedOrder,setSavedOrder]=useState<number[]|null>(null)
+ const [photoStatus,setPhotoStatus]=useState('')
+ useEffect(()=>{
+  if(!run?.id)return
+  let live=true;setSavedOrder(null);setPhotoStatus('')
+  void readPhotoOrder(supabase,run.id,photoScope).then(r=>{if(!live)return;setSavedOrder(r.order);if(!r.ready)setPhotoStatus('Photo order will not be kept yet: the database change for photo order has not been applied.')}).catch(()=>{if(live)setPhotoStatus('Saved photo order could not be read.')})
+  return()=>{live=false}
+ },[run?.id,photoScope])
+ const scopePhotoIndices=run?applyPhotoOrder(indicesForReview(scopeIndex).filter(i=>!!images[i]),savedOrder):[]
+ const reorderPhotos=async(order:number[])=>{
+  if(!run)return
+  const before=savedOrder;setSavedOrder(order);setPhotoStatus('Saving photo order…')
+  try{
+   const fail=await savePhotoOrder(supabase,run.id,run.owner_id,photoScope,order)
+   if(fail){setPhotoStatus(fail);if(!/not been applied/.test(fail))setSavedOrder(before)}else setPhotoStatus('Photo order saved.')
+  }catch{setSavedOrder(before);setPhotoStatus('Photo order not saved: the connection failed. Try again.')}
+ }
  // ONE RUN: while the automatic chain is running OR about to start its next
  // step, the tracker stays on screen, so the owner never sees a half-answer
  // flash up between the quick check and full research.
@@ -576,6 +597,7 @@ function SavedDraftRecord({id}:{id:string}){
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
     onDisagree={(kind,text)=>void disagreeAndResearch(kind,text)} disagreeBusy={savingDisagreement||researching}
     onConfirm={ticked=>void confirmAndResearch(ticked)}
+    photos={scopePhotoIndices.map(i=>({index:i,url:images[i]}))} onReorder={order=>void reorderPhotos(order)} photoStatus={photoStatus}
     onDetails={()=>setActiveTab('market')} status={saveStatus}
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
