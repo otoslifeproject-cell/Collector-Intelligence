@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {movePhoto} from '../lib/photoOrder'
+import DragPhotos from './DragPhotos'
 import {Copy,Check,Save,ThumbsDown,Search} from 'lucide-react'
 
 // The owner's end article: marketplace titles and a price. Nothing else unless
@@ -88,23 +88,6 @@ function CheckList({checks,onConfirm,busy,onSkip}:{checks:string[];onConfirm?:(t
  </div>
 }
 
-// Drag a photo to a new place; photo 1 is the main listing photo.
-function PhotoOrder({photos,onReorder,status}:{photos:{index:number;url:string}[];onReorder:(order:number[])=>void;status?:string}){
- const [drag,setDrag]=useState<number|null>(null)
- const [over,setOver]=useState<number|null>(null)
- const order=photos.map(p=>p.index)
- const drop=(to:number)=>{if(drag!==null&&drag!==to)onReorder(movePhoto(order,drag,to));setDrag(null);setOver(null)}
- return <div className="ci-photo-order">
-  <ol>{photos.map((p,n)=><li key={p.index} draggable onDragStart={e=>{setDrag(n);e.dataTransfer.effectAllowed='move'}}
-    onDragOver={e=>{e.preventDefault();setOver(n)}} onDragLeave={()=>setOver(v=>v===n?null:v)} onDrop={e=>{e.preventDefault();drop(n)}} onDragEnd={()=>{setDrag(null);setOver(null)}}
-    className={(n===0?'is-main ':'')+(over===n&&drag!==n?'is-over ':'')+(drag===n?'is-dragging':'')}>
-    <img src={p.url} alt={'Photo '+(n+1)} draggable={false}/>
-    <span>{n===0?'Main':n+1}</span>
-   </li>)}</ol>
-  {status&&<p className="ci-result-note" role="status">{status}</p>}
- </div>
-}
-
 export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →',onConfirm,photos=[],onReorder,photoStatus}:Props){
  const [open,setOpen]=useState(false)
  // Checks come first: the description is only final once they are done or skipped.
@@ -122,7 +105,7 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
    {listing.format&&<span>{listing.format}</span>}
   </div>
   {photos.length>0&&onReorder&&<Section title={'Photos · drag to reorder · photo 1 is the main photo'} defaultOpen>
-   <PhotoOrder photos={photos} onReorder={onReorder} status={photoStatus}/>
+   <DragPhotos photos={photos.map(p=>({key:p.index,url:p.url}))} onReorder={keys=>onReorder(keys.map(Number))} status={photoStatus}/>
   </Section>}
   {(listing.seen?.length??0)>0&&<Section title={'✓ Read from your photos · '+listing.seen!.length}>
    <ul className="ci-seen-list">{listing.seen!.map(s=><li key={s}><Check size={20} aria-hidden="true"/>{s}</li>)}</ul>

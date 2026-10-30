@@ -5,7 +5,7 @@ export function applyPhotoOrder(indices:number[],saved:number[]|null|undefined):
  const first=(saved||[]).filter((i,n,a)=>have.has(i)&&a.indexOf(i)===n)
  return [...first,...indices.filter(i=>!first.includes(i))]
 }
-export function movePhoto(order:number[],from:number,to:number):number[]{
+export function movePhoto<T>(order:T[],from:number,to:number):T[]{
  if(from===to||from<0||to<0||from>=order.length||to>=order.length)return order
  const next=[...order];const [moved]=next.splice(from,1);next.splice(to,0,moved);return next
 }

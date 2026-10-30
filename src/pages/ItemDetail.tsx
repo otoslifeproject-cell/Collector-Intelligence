@@ -1,4 +1,6 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react'
+import DragPhotos from '../components/DragPhotos'
+import {applyPhotoOrder,readPhotoOrder,savePhotoOrder} from '../lib/photoOrder'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { Camera, Check, ExternalLink, LoaderCircle, Save, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -323,7 +325,32 @@ function ItemDetailRecord({id}:{id:string}) {
     setCopyStatus('Clipboard unavailable. Open the listing draft inside Details to copy manually.')
    }
   }
-  const heroPhoto=photos.find(photo=>photo.is_hero)||photos[0]
+  // Photo order (Dean, 30 Oct): the same order as the result screen, kept in
+  // ci_photo_order_v1 against the analysis this item came from. Photo 1 is main.
+  const sourceRun=(item as any)?.source_analysis_run_id as string|undefined
+  const sourceScope=Number.isInteger((item as any)?.source_object_index)?String((item as any).source_object_index):null
+  const [savedOrder,setSavedOrder]=useState<number[]|null>(null)
+  const [orderStatus,setOrderStatus]=useState('')
+  useEffect(()=>{
+   if(!sourceRun||!sourceScope)return
+   let live=true
+   void (async()=>{
+    let r=await readPhotoOrder(supabase,sourceRun,sourceScope)
+    if(!r.order&&r.ready)r=await readPhotoOrder(supabase,sourceRun,'pair')
+    if(live)setSavedOrder(r.order)
+   })().catch(()=>{if(live)setOrderStatus('Saved photo order could not be read.')})
+   return()=>{live=false}
+  },[sourceRun,sourceScope])
+  const orderedPositions=applyPhotoOrder(photos.map(p=>p.position),savedOrder)
+  const orderedPhotos=orderedPositions.map(pos=>photos.find(p=>p.position===pos)!).filter(Boolean)
+  const reorderItemPhotos=async(ids:(string|number)[])=>{
+   const order=ids.map(id=>photos.find(p=>p.id===id)?.position).filter((n):n is number=>Number.isInteger(n))
+   if(!sourceRun||!sourceScope||!item){setOrderStatus('Photo order can only be kept for items added through Add item.');return}
+   const before=savedOrder;setSavedOrder(order);setOrderStatus('Saving photo order…')
+   try{const fail=await savePhotoOrder(supabase,sourceRun,item.owner_id,sourceScope,order);if(fail){setSavedOrder(before);setOrderStatus(fail)}else setOrderStatus('Photo order saved.')}
+   catch{setSavedOrder(before);setOrderStatus('Photo order not saved: the connection failed. Try again.')}
+  }
+  const heroPhoto=(savedOrder?orderedPhotos[0]:null)||photos.find(photo=>photo.is_hero)||photos[0]
   const heroUrl=heroPhoto?photoUrls[heroPhoto.id]:''
   // One clear action. This is navigation only: it never promotes evidence,
   // starts paid AI, publishes a listing, or marks an object sold.
@@ -492,15 +519,9 @@ function ItemDetailRecord({id}:{id:string}) {
         {photographsLoading&&<p>Loading private photographs…</p>}
         {photographError&&<p className="note" role="alert">{photographError}</p>}
         {photographError&&!uploading&&<button className="secondaryButton inlineButton" onClick={()=>void loadPhotographs()}>Reload photographs</button>}
-        <div className="photoGrid">
-          {photographsLoaded&&photos.length===0&&!photographError&&<div className="empty">No photographs linked to this item yet.</div>}
-          {photos.map(photo=><div className="photoTile" key={photo.id}>{photoUrls[photo.id]?<img src={photoUrls[photo.id]} alt={photo.caption||photo.file_name||item.item_code} onError={()=>{
-            if(!current())return
-            setPhotoUrls(previous=>({...previous,[photo.id]:''}));setPhotographError('A secure preview could not be displayed. Reload photographs to try again; the original is retained.')
-          }}/>:<div className="photoPending">{photographsLoading?'Loading secure preview…':'Preview unavailable'}</div>}<div><strong>{photo.photo_role||'Object photo'}</strong><span>{photo.file_name}</span></div></div>)}
-        </div>
+        {photographsLoaded&&photos.length===0&&!photographError&&<div className="empty">No photographs linked to this item yet.</div>}
+        {orderedPhotos.length>0&&<DragPhotos large photos={orderedPhotos.filter(p=>photoUrls[p.id]).map(p=>({key:p.id,url:photoUrls[p.id]}))} onReorder={ids=>void reorderItemPhotos(ids)} status={orderStatus}/>}
         {photographMessage&&<p className="note" role="status" tabIndex={-1} ref={photoStatus}>{photographMessage}</p>}
-        <div className="note">Image previews use short-lived signed URLs from the private Supabase bucket.</div>
       </section>}
 
       {tab==='identification' && <div className="marketStack">
