@@ -134,7 +134,7 @@ test('research fills standard elements, tests antique vs reproduction from const
  assert.match(research,/STANDARD ELEMENTS: always fill specifics/)
  assert.match(research,/ANTIQUE OR REPRODUCTION: decide "Era" and "Antique or reproduction" from HOW IT IS MADE, never from style alone/)
  assert.match(research,/never take an era, an antique status or a price from Lens/)
- assert.match(research,/knowledge_type:'in\.\(OWNER_CONFIRMED_FINDING,LEARNED_TELL\)'/)
+ assert.match(research,/knowledge_type:'in\.\(OWNER_CONFIRMED_FINDING,LEARNED_TELL,OWNER_TASTE\)'/)
 })
 
 test('learning always: deep research writes back on finish, corrections kept; taste profile guides, never proves',async()=>{

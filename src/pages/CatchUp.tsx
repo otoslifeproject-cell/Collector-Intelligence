@@ -4,7 +4,8 @@ import {Search,RefreshCw} from 'lucide-react'
 import {supabase} from '../lib/supabase'
 import {collectAll,loadCatchUp,startResearch,workingRunIds} from '../lib/bulkResearch'
 import type {Answer,CatchUpItem} from '../lib/bulkResearch'
-import {QuestionsScreen} from '../components/ResultScreen'
+import {QuestionsScreen,Section} from '../components/ResultScreen'
+import {tasteFromInput} from '../lib/taste'
 
 // Catch up (Dean, 31 Oct): every uploaded item brought to the questions point in
 // bulk, then all questions answered on this one page.
@@ -69,6 +70,14 @@ export default function CatchUp(){
   }
  }
 
+ // "My sort of stuff": saved straight into the Knowledge Brain as OWNER_TASTE.
+ const [taste,setTaste]=useState(''),[tasteNote,setTasteNote]=useState('')
+ const saveTaste=async()=>{
+  const t=tasteFromInput(taste);if(!t)return
+  const {error}=await supabase.from('knowledge_records').insert({knowledge_type:'OWNER_TASTE',entity_type:'taste',entity_key:'owner-taste',claim:t.claim,
+   certainty_class:'POSSIBLE_ATTRIBUTION',evidence_provenance:'OWNER_TASTE',source_url:t.url,freshness_requirement:'SLOW_CHANGING',verification_status:'UNVERIFIED',stance:'NEUTRAL',tags:['owner-taste'],notes:'Saved by the owner as his sort of thing.'})
+  setTasteNote(error?'Not saved: '+error.message:'Saved to your Knowledge Brain: '+t.claim);if(!error)setTaste('')
+ }
  const by=(s:CatchUpItem['state'])=>items.filter(i=>i.state===s)
  const needs=by('NEEDS_CHECK'),questions=by('QUESTIONS'),ready=by('READY_FOR_DEEP'),done=by('DONE')
  return <div className="ci-catchup">
@@ -91,6 +100,12 @@ export default function CatchUp(){
    {ready.length>0&&<button type="button" className="ci-big-button" onClick={()=>void runMany('Deep research',ready,'deep_dive')}>
     Deep research for {ready.length} item{ready.length===1?'':'s'} with no questions · paid</button>}
   </div>}
+  <Section title="My sort of stuff · teach CI your taste">
+   <label className="ci-question-note">Paste a search link (eBay, Etsy…) or a few words
+    <input type="text" value={taste} onChange={e=>setTaste(e.target.value)}/></label>
+   <button type="button" className="ci-big-button ci-big-button-small" disabled={!taste.trim()} onClick={()=>void saveTaste()}>Save to my taste</button>
+   {tasteNote&&<p className="ci-result-note" role="status">{tasteNote}</p>}
+  </Section>
   {working>0&&<p className="ci-result-note">{working} working. This page checks for finished research every 30 seconds; you can also leave and come back.</p>}
   {questions.map(item=><section key={item.key} className="ci-catchup-item">
    <div className="ci-catchup-title">

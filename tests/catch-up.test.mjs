@@ -23,3 +23,11 @@ test('answered questions leave the list at once and come back only if sending fa
  assert.ok(page.indexOf("state:'WORKING'}:x))")<page.indexOf("await startResearch(supabase,item,'deep_dive'"))
  assert.match(page,/your answers were not sent; answer again/)
 })
+test('my sort of stuff: a pasted search becomes an owner taste note in the brain',async()=>{
+ const {tasteFromInput}=await import('../src/lib/taste.ts')
+ const t=tasteFromInput('https://www.etsy.com/search/vintage?q=Stiva+Italian+Hand-Blown+Green+Art+Glass+Trumpet+%2F+Calla+Lily+Vase&page=3')
+ assert.equal(t.claim,'Owner taste (etsy.com search): Stiva Italian Hand Blown Green Art Glass Trumpet / Calla Lily Vase')
+ assert.equal(tasteFromInput('  '),null)
+ const research=readFileSync(new URL('../api/research-item.ts',import.meta.url),'utf8')
+ assert.match(research,/OWNER_CONFIRMED_FINDING,LEARNED_TELL,OWNER_TASTE/)
+})
