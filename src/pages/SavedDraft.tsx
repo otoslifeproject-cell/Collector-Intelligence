@@ -14,7 +14,6 @@ import ResultScreen,{StepStrip,QuestionsScreen} from '../components/ResultScreen
 import type {DisagreeKind} from '../components/ResultScreen'
 import {researchAnswer,resultListing} from '../lib/researchAnswer'
 import {applyPhotoOrder,readPhotoOrder,savePhotoOrder} from '../lib/photoOrder'
-import {writeBackKnowledge} from '../lib/knowledgeWriteBack'
 import {googleLensLink} from '../lib/googleFirstLook'
 import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import MiniAppraisal from '../components/MiniAppraisal'
@@ -356,14 +355,7 @@ function SavedDraftRecord({id}:{id:string}){
   setCatalogued(result.records);setRun(result.source);setPendingApproval(null)
   const saved=result.records.length===1?'Saved to your collection.':result.records.length+' items saved to your collection.'
   setSaveStatus(saved)
-  // Knowledge Brain write-back: what this research established, as unverified leads.
-  if(visibleResearch&&!existingResearchObsolete&&result.records.length){
-   const rec=result.records.find((r:any)=>r.object_index===scopeIndex)||result.records[0]
-   try{
-    const wb=await writeBackKnowledge(supabase,result.source.owner_id,visibleResearch,rec.item_id,rec.title||objectTitle)
-    if(current())setSaveStatus(saved+(wb.error?' '+wb.error:wb.written?' '+wb.written+' findings added to your Knowledge Brain.':''))
-   }catch{if(current())setSaveStatus(saved+' Knowledge Brain not updated: the connection failed.')}
-  }
+  // Knowledge Brain write-back now happens when deep research finishes (server).
   // Stay on the result screen after saving: step 4 done, next item is one tap away.
  }
  const recoverApproval=async(submit:boolean)=>{

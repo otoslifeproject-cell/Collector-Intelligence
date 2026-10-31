@@ -136,3 +136,18 @@ test('research fills standard elements, tests antique vs reproduction from const
  assert.match(research,/never take an era, an antique status or a price from Lens/)
  assert.match(research,/knowledge_type:'in\.\(OWNER_CONFIRMED_FINDING,LEARNED_TELL\)'/)
 })
+
+test('learning always: deep research writes back on finish, corrections kept; taste profile guides, never proves',async()=>{
+ const {collectionProfile,knowledgeRows}=await import('../src/lib/knowledgeWriteBack.ts')
+ const p=collectionProfile([[{name:'Material',value:'Glass',status:'CONFIRMED'},{name:'Maker or brand',value:'Holmegaard',status:'LIKELY'}],[{name:'Material',value:'Glass',status:'LIKELY'},{name:'Maker or brand',value:'X',status:'UNKNOWN'}]])
+ assert.deepEqual(p.Material,[{value:'Glass',count:2}])
+ assert.deepEqual(p['Maker or brand'],[{value:'Holmegaard',count:1}])
+ const rows=knowledgeRows({applied_owner_corrections:[{owner_statement:'It is Val Saint Lambert, signed on the base'},{owner_statement:'OWNER GOOGLE LENS RESULT (lead): x'}]},null,'Bowl')
+ assert.equal(rows.length,1)
+ assert.match(rows[0].claim,/owner correction · It is Val Saint Lambert/)
+ const research=readFileSync(new URL('../api/research-item.ts',import.meta.url),'utf8')
+ assert.match(research,/LEARNING, ALWAYS/)
+ assert.match(research,/writeBackViaRest\(o\.url/)
+ assert.match(research,/OWNER'S COLLECTION PROFILE/)
+ assert.match(research,/It is never evidence for this item, and some items are one-off randoms/)
+})

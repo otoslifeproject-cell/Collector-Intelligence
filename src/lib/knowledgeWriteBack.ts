@@ -27,6 +27,13 @@ export function knowledgeRows(research:any,itemId:string|null,title:string):Writ
    claim:clip(title,80)+': '+clip(a.question,200)+' → '+(a.answer==='YES'?'Yes':a.answer==='NO'?'No':'Not sure')+(a.owner_saw?' · owner saw: '+clip(a.owner_saw,200):''),
    certainty_class:'STRONG_ATTRIBUTION',evidence_provenance:'OWNER_ANSWER',tags:['owner-answer'],notes:'The owner answered this while holding the object.'})
  }
+ // The owner's own corrections (Disagree) are decisions that improve CI: keep them.
+ for(const c of Array.isArray(research?.applied_owner_corrections)?research.applied_owner_corrections:[]){
+  const said=clip(c?.owner_statement,400)
+  if(!said||/^OWNER GOOGLE LENS RESULT/i.test(said))continue
+  rows.push({...base,knowledge_type:'OWNER_CONFIRMED_FINDING',entity_key:key(type),claim:clip(title,80)+': owner correction · '+said,
+   certainty_class:'STRONG_ATTRIBUTION',evidence_provenance:'OWNER_CORRECTION',tags:['owner-correction'],notes:'The owner corrected the research on this item.'})
+ }
  for(const tell of Array.isArray(research?.learned_tells)?research.learned_tells:[]){
   const claim=clip(tell,280);if(!claim)continue
   rows.push({...base,knowledge_type:'LEARNED_TELL',entity_type:'clue',entity_key:key(type),claim,certainty_class:'POSSIBLE_ATTRIBUTION',
@@ -50,4 +57,41 @@ export async function writeBackKnowledge(client:any,ownerId:string,research:any,
  if(!fresh.length)return {written:0,error:null}
  const {error}=await client.from('knowledge_records').insert(fresh)
  return error?{written:0,error:'Knowledge Brain not updated: '+String(error.message||'save failed')}:{written:fresh.length,error:null}
+}
+
+// Server write-back (runs when deep research finishes): REST with the owner's
+// token; owner_id defaults to the signed-in owner. Rows already in the brain
+// (same type and wording) are skipped, so reruns do not duplicate.
+export async function writeBackViaRest(url:string,key:string,token:string,research:any,itemId:string|null,title:string):Promise<{written:number;error:string|null}>{
+ try{
+  const rows=knowledgeRows(research,itemId,title)
+  if(!rows.length)return {written:0,error:null}
+  const h={apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json'}
+  const qp=new URLSearchParams({select:'knowledge_type,claim',knowledge_type:'in.(OWNER_CONFIRMED_FINDING,LEARNED_TELL)',order:'created_at.desc',limit:'2000'})
+  const seen=await fetch(url+'/rest/v1/knowledge_records?'+qp.toString(),{headers:h})
+  if(!seen.ok)return {written:0,error:'Knowledge Brain could not be read ('+seen.status+')'}
+  const have=new Set((await seen.json()).map((r:any)=>r.knowledge_type+'|'+r.claim))
+  const fresh=rows.filter(r=>!have.has(r.knowledge_type+'|'+r.claim))
+  if(!fresh.length)return {written:0,error:null}
+  const ins=await fetch(url+'/rest/v1/knowledge_records',{method:'POST',headers:{...h,Prefer:'return=minimal'},body:JSON.stringify(fresh)})
+  return ins.ok?{written:fresh.length,error:null}:{written:0,error:'Knowledge Brain not updated ('+ins.status+')'}
+ }catch{return {written:0,error:'Knowledge Brain not updated: connection failed'}}
+}
+
+// The owner's taste (Dean, 31 Oct): what his collection is mostly made of, from
+// the standard elements of his researched items. A guide to where to look first;
+// never evidence for any one item.
+export function collectionProfile(specLists:any[][]):Record<string,{value:string;count:number}[]>{
+ const names=['Type','Material','Maker or brand','Pattern or model','Era','Country of origin','Antique or reproduction']
+ const out:Record<string,{value:string;count:number}[]>={}
+ for(const n of names){
+  const counts=new Map<string,number>()
+  for(const list of specLists)for(const s of Array.isArray(list)?list:[]){
+   if(s?.name!==n||!s?.value||!['CONFIRMED','LIKELY'].includes(s.status))continue
+   const v=clip(s.value,60);counts.set(v,(counts.get(v)||0)+1)
+  }
+  const top=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([value,count])=>({value,count}))
+  if(top.length)out[n]=top
+ }
+ return out
 }

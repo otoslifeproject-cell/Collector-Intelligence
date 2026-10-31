@@ -14,6 +14,7 @@ export type ResultListing={
  checks:string[]
  seen?:string[]
  priceChange?:string|null
+ brain?:string|null
  specifics?:{name:string;value:string|null;status:string;evidence:string}[]
  sold?:{price:string;venue:string;date:string|null;url:string|null}[]
  description?:string|null
@@ -174,6 +175,7 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
     <button type="button" className="ci-mini-text-action" onClick={onDetails}>See all details</button>
    </div>
   </div>}
+  {listing.brain&&<p className="ci-result-note">Knowledge Brain: {listing.brain}</p>}
   {status&&<p className="ci-result-note" role="status">{status}</p>}
  </section>
 }

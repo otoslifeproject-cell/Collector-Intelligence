@@ -1,6 +1,7 @@
 import {loadCanonicalForCaller,revalidateCanonicalBeforePaidCall,canonicalSourceAudit} from '../src/lib/canonicalRuntime.ts';
 import type {CanonicalRuntimeContext} from '../src/lib/canonicalRuntime.ts';
 import {researchExecutionReceipt} from '../src/lib/researchExecution.ts';
+import {writeBackViaRest,collectionProfile} from '../src/lib/knowledgeWriteBack.ts';
 import {runGoogleFirstLook,googleLeadsForResearch,googleNotRun,googleChecksThisMonth,GOOGLE_MONTHLY_LIMIT} from '../src/lib/googleFirstLook.ts';
 import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 
@@ -350,6 +351,12 @@ async function finishResearch(res:any,o:{payload:any;url:string;key:string;token
     analysis_stage:'COMPLETE',response_id:o.payload.id||null,
     research_execution_v1:researchExecutionReceipt(o.payload,o.runId,o.ctx.dispatched_at,new Date().toISOString())
   };
+  // LEARNING, ALWAYS (Dean, 31 Oct): every finished deep research writes what it
+  // established to the owner's Knowledge Brain, saved or not. Recorded either way.
+  if(o.ctx.research_depth!=='quick'){
+    const wb=await writeBackViaRest(o.url,o.key,o.token,savedResult,null,String(o.ctx.item_title||savedResult?.listing?.ebay_title||'Item'));
+    (savedResult as any).knowledge_writeback={written:wb.written,error:wb.error,at:new Date().toISOString()};
+  }
   try{
     await persistResearchResult(o.url,o.key,o.token,o.runId,o.payload.model||o.model,savedResult);
   }catch(e:any){
@@ -422,6 +429,14 @@ export default async function handler(req: any, res: any) {
     const rows=r.ok?await r.json():[];
     if(Array.isArray(rows))ownerKnowledge=rows.map((x:any)=>({type:x.knowledge_type,key:x.entity_key,claim:String(x.claim||'').slice(0,300)}));
   }catch{ownerKnowledge=[];}
+  // The owner's taste: the make-up of his researched collection (where to look first).
+  let tasteProfile:any={};
+  try{
+    const qp=new URLSearchParams({select:'specifics:result->specifics',mode:'eq.research','result->>analysis_stage':'eq.COMPLETE',order:'created_at.desc',limit:'400'});
+    const r=await fetch(`${supabaseUrl}/rest/v1/ai_analysis_runs?${qp}`,{headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}});
+    const rows=r.ok?await r.json():[];
+    if(Array.isArray(rows))tasteProfile=collectionProfile(rows.map((x:any)=>x.specifics));
+  }catch{tasteProfile={};}
   try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
@@ -761,7 +776,7 @@ questions: 0 to 3 questions for the owner, who is holding the object, about the 
   const body:any = {
     model,
     reasoning: { effort: depth==='deep_dive' ? "high" : depth==='quick' ? "low" : "medium" },
-    instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-CONFIRMED KNOWLEDGE FROM EARLIER ITEMS (the owner's own Knowledge Brain: LEARNED_TELL = reusable dating/identification clue; OWNER_CONFIRMED_FINDING = a fact the owner confirmed on another item. Strong leads for this item where relevant; not authentication):\n"+JSON.stringify(ownerKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
+    instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER'S COLLECTION PROFILE (what the owner's researched items mostly are, with counts; he collects in a consistent taste, so check these makers, materials, eras and countries FIRST as candidates. It is never evidence for this item, and some items are one-off randoms: follow this item's own evidence):\n"+JSON.stringify(tasteProfile)+"\n\nOWNER-CONFIRMED KNOWLEDGE FROM EARLIER ITEMS (the owner's own Knowledge Brain: LEARNED_TELL = reusable dating/identification clue; OWNER_CONFIRMED_FINDING = a fact the owner confirmed on another item. Strong leads for this item where relevant; not authentication):\n"+JSON.stringify(ownerKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
     ...(depth==='quick'?{}:{tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }]}),
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
@@ -775,7 +790,7 @@ questions: 0 to 3 questions for the owner, who is holding the object, about the 
     applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
     canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
     trusted_database_comparables:trustedComparableRows.length,trusted_comparable_ids:trustedComparableRows.map((c:any)=>c.id),
-    owner_answers:answers,owner_note:ownerNote||null,previous_price:prevPrice,dispatched_at:dispatchedAt,model};
+    owner_answers:answers,owner_note:ownerNote||null,previous_price:prevPrice,dispatched_at:dispatchedAt,model,item_title:String(itemForResearch?.working_title||itemForResearch?.title||'').slice(0,120)};
   // Deep research runs in OpenAI BACKGROUND mode: the job keeps running at the
   // provider even if this function reaches its time limit; the app collects it.
   const post=async(b:any)=>{

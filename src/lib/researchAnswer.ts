@@ -158,6 +158,7 @@ export function resultListing(research:any,fallbackTitle:string){
    const why=typeof l.price_change_reason==='string'&&l.price_change_reason.trim()?concise(l.price_change_reason,140):'no reason given'
    return 'Was '+fmt(prev,'GBP')+' → now '+fmt(now,currency)+' · '+why})(),
   sold:soldExamples(comps),
+  brain:research?.knowledge_writeback?(research.knowledge_writeback.error?String(research.knowledge_writeback.error):research.knowledge_writeback.written?research.knowledge_writeback.written+' findings added to your Knowledge Brain':null):null,
   specifics:(Array.isArray(research?.specifics)?research.specifics:[]).filter((s:any)=>s&&typeof s.name==='string')
    .map((s:any)=>({name:concise(s.name,40),value:s.value?concise(s.value,120):null,status:['CONFIRMED','LIKELY','UNKNOWN'].includes(s.status)?s.status:'UNKNOWN',evidence:concise(s.evidence,90)})).slice(0,16),
   description:typeof l.description==='string'&&l.description.trim()?l.description.trim().slice(0,2500):null,
