@@ -379,9 +379,9 @@ export default async function handler(req: any, res: any) {
     const rid=env.result?.openai_response_id,ctx=env.result?.pending_context;
     if(typeof rid!=='string'||!ctx)return res.status(409).json({code:'NOT_COLLECTABLE',error:'This research run has no provider job to collect.'});
     let j:any;try{j=await readProviderResponse(apiKey,rid);}catch(e:any){return res.status(503).json({error:e?.message||'Provider status unavailable.'});}
-    if(['queued','in_progress'].includes(j.status))return res.status(202).json({code:'RESEARCH_STILL_RUNNING',research_run_id:runId,provider_status:j.status});
+    if(['queued','in_progress'].includes(j.status))return res.status(202).json({code:'RESEARCH_STILL_RUNNING',research_run_id:runId,provider_status:j.status,dispatched_at:ctx.dispatched_at||null});
     if(j.status!=='completed'){
-      await markResearchFailed(supabaseUrl,supabaseKey,token,runId,env.result,'Provider ended the research: '+j.status+(j.error?.message?' — '+j.error.message:''));
+      await markResearchFailed(supabaseUrl,supabaseKey,token,runId,env.result,'Provider ended the research: '+j.status+(j.incomplete_details?.reason?' ('+j.incomplete_details.reason+')':'')+(j.error?.message?' — '+j.error.message:''));
       return res.status(502).json({code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id:runId,error:'The research provider ended this run ('+j.status+'). It is marked as failed; you can start research again.'});
     }
     return finishResearch(res,{payload:j,url:supabaseUrl,key:supabaseKey,token,runId,model:ctx.model||env.model,ctx});
@@ -731,7 +731,9 @@ export default async function handler(req: any, res: any) {
     ...(depth==='quick'?{}:{tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }]}),
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
-    max_output_tokens: depth==='quick' ? 8000 : 20000
+    // Reasoning tokens count toward this cap: a deep run that hits it ends
+    // 'incomplete' with no answer, so deep gets plenty of room (only used tokens are paid).
+    max_output_tokens: depth==='quick' ? 12000 : 64000
   };
   const startedMs=Date.now();
   const dispatchedAt=new Date().toISOString();

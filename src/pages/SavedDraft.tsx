@@ -444,6 +444,8 @@ function SavedDraftRecord({id}:{id:string}){
  },[waitingForSaved,researching,run?.id])
  // Deep research in background mode: ask the server to collect the finished
  // result every 20 s (free, read-only at the provider) until it is saved.
+ // What the last free check said, shown under the tracker so a long run is never a mystery.
+ const [collectNote,setCollectNote]=useState<{at:number;text:string;failed?:boolean}|null>(null)
  const collectIds=scopePending.filter(row=>row?.result?.analysis_stage==='PROCESSING'&&typeof row?.result?.openai_response_id==='string').map(row=>row.id).join(',')
  useEffect(()=>{
   if(!collectIds)return
@@ -454,8 +456,13 @@ function SavedDraftRecord({id}:{id:string}){
    for(const rid of collectIds.split(',')){
     try{
      const r=await fetch('/api/research-item',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({collect:true,research_run_id:rid})})
-     if(r.status!==202&&!stop)await updateResearchHistory()
-    }catch{/* try again on the next tick */}
+     const j=await r.json().catch(()=>({}))
+     if(stop)return
+     if(r.status===202)setCollectNote({at:Date.now(),text:'OpenAI says: '+(j.provider_status==='queued'?'waiting to start':'still working')})
+     else if(r.ok)setCollectNote(null)
+     else setCollectNote({at:Date.now(),text:j.error||('Check failed ('+r.status+')'),failed:true})
+     if(r.status!==202)await updateResearchHistory()
+    }catch{if(!stop)setCollectNote({at:Date.now(),text:'Could not reach the app to check. Trying again in 20 seconds.'})}
    }
   }
   void tick()
@@ -505,8 +512,11 @@ function SavedDraftRecord({id}:{id:string}){
  const chainNextQuick=!anyScopeResearch&&!!autoKey&&!autoResearchTried.current.has(autoKey)
  const chainNextFull=quickWorthMore&&!!fullKey&&!autoResearchTried.current.has(fullKey)
  const chainWillStart=!autoResearchOff&&!!run&&run.status==='DRAFT'&&!error&&!researchBlocked&&!existingResearchObsolete&&!needsPhotoCorrection&&(chainNextQuick||chainNextFull)
+ // A deep run that stopped at the provider: say so plainly, with the reason.
+ const lastFailed=unfinishedResearch.find(row=>researchForScope(row,scopeIndex,paired)&&row?.result?.analysis_stage==='FAILED'&&(!matchedResearchRun||Date.parse(row.created_at)>Date.parse(matchedResearchRun.created_at)))
+ const showChainRaw=researching||waitingForSaved||chainWillStart
  const questionsPending=quickQuestions.length>0&&!researching&&!waitingForSaved&&!autoResearchOff
- const showChain=(researching||waitingForSaved||chainWillStart)&&!questionsPending
+ const showChain=showChainRaw&&!questionsPending
  const chainQuick=researching?researchingDepth==='quick':waitingForSaved?scopePending[0]?.user_context?.research_depth==='quick':chainNextQuick
  // One Disagree button: the owner's correction is saved as an owner note (a lead),
  // then full research runs again from it.
@@ -539,6 +549,13 @@ function SavedDraftRecord({id}:{id:string}){
  const researchLook=visibleResearch?.google_first_look||null
  const mainPhoto=images[indicesForReview(scopeIndex).find(n=>!!images[n])??-1]
  const pendingStartedAt=researchStartedAt??(scopePending[0]?Date.parse(scopePending[0].created_at):null)
+ const [tickNow,setTickNow]=useState(()=>Date.now())
+ useEffect(()=>{if(!showChainRaw)return;const t=window.setInterval(()=>setTickNow(Date.now()),5000);return()=>window.clearInterval(t)},[showChainRaw])
+ const minutes=pendingStartedAt?Math.max(0,Math.floor((tickNow-pendingStartedAt)/60000)):null
+ const runningNote=chainQuick?undefined:[
+  minutes!==null?'Started '+(minutes<1?'under a minute':minutes===1?'1 minute':minutes+' minutes')+' ago.':'',
+  collectNote?collectNote.text+' (checked '+Math.max(0,Math.round((tickNow-collectNote.at)/1000))+' s ago).':'Deep research usually takes 3 to 10 minutes. You can leave this page; the answer is collected by itself.'
+ ].filter(Boolean).join(' ')
  return <div className="ci-page ci-saved-draft">
   {run&&<div className="ci-sticky-top">
    {activeTab==='answer'
@@ -642,7 +659,8 @@ function SavedDraftRecord({id}:{id:string}){
     onDetails={()=>setActiveTab('market')} status={saveStatus}
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
-   {activeTab==='answer'&&showChain&&<ResearchRunning quick={chainQuick}/>}
+   {activeTab==='answer'&&showChain&&<ResearchRunning quick={chainQuick} message={runningNote}/>}
+   {activeTab==='answer'&&lastFailed&&!showChain&&<p className="ci-result-note ci-run-failed" role="alert"><strong>The last deep research stopped.</strong> {String(lastFailed.result?.failure_reason||'No reason was recorded.')} You can run it again.</p>}
    {activeTab==='answer'&&questionsPending&&<QuestionsScreen questions={quickQuestions}
      photoFor={(n:number|null)=>{const i=n&&n>0?scopePhotoIndices[n-1]:undefined;return i!==undefined&&images[i]?{url:images[i],number:n as number}:null}}
      busy={researching||researchBlocked} onSubmit={answers=>void runDraftResearch('deep_dive',{answers})} onSkip={()=>void runDraftResearch('deep_dive')}/>}
