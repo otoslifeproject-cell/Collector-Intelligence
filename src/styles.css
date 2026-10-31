@@ -1286,3 +1286,26 @@ body.ci-dragging,body.ci-dragging *{cursor:grabbing!important;user-select:none!i
 .ci-question-note input,.ci-question-note textarea{font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg,#111);color:var(--text)}
 .ci-question-general{padding:0 4px}
 @media(max-width:630px){.ci-specifics>div{grid-template-columns:1fr;gap:2px}}
+
+/* eBay batch: finish, sign off, download one file. */
+.ci-ebay{display:grid;gap:16px}
+.ci-ebay-tabs{display:flex;flex-wrap:wrap;gap:10px}
+.ci-ebay-download{display:grid;gap:12px}
+.ci-ebay-all{display:flex;gap:10px;align-items:center;font-size:17px;font-weight:700}
+.ci-ebay-all input,.ci-ebay-thumb input{width:24px;height:24px}
+.ci-ebay-steps{margin:0;padding-left:22px;display:grid;gap:6px;font-size:16px}
+.ci-ebay-list{display:grid;gap:14px}
+.ci-ebay-row{display:grid;grid-template-columns:150px 1fr;gap:18px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--panel)}
+.ci-ebay-thumb{position:relative}
+.ci-ebay-thumb img{width:150px;height:150px;object-fit:cover;border-radius:14px;display:block}
+.ci-ebay-thumb>span{display:grid;place-items:center;width:150px;height:150px;border-radius:14px;background:rgba(255,255,255,.05);color:var(--muted)}
+.ci-ebay-thumb input{position:absolute;left:8px;top:8px}
+.ci-ebay-fields{display:grid;gap:10px}
+.ci-ebay-fields label{display:grid;gap:4px;font-weight:700;font-size:15px}
+.ci-ebay-fields small{font-weight:500;color:var(--muted)}
+.ci-ebay-fields input,.ci-ebay-fields select,.ci-ebay-fields textarea{font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg,#111);color:var(--text)}
+.ci-ebay-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ci-ebay-head{display:flex;gap:12px;align-items:center;font-weight:800}
+.ci-ebay-warn{color:#d6a65a;font-weight:700;margin:0}
+.ci-ebay-desc summary{cursor:pointer;font-weight:700}
+@media(max-width:630px){.ci-ebay-row{grid-template-columns:1fr}.ci-ebay-two{grid-template-columns:1fr}}

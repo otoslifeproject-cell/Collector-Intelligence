@@ -152,7 +152,7 @@ test('Google Lens runs first, in the photo analysis, and research reuses it',()=
 })
 
 test('research lists what the photos prove separately from what to check',()=>{
- assert.match(research,/"title_checks","seen_in_photos","description","price_change_reason"\]/)
+ assert.match(research,/"title_checks","seen_in_photos","description","price_change_reason","ebay_category"\]/)
  assert.match(research,/these are confirmed facts, not checks/)
  assert.match(research,/never repeat anything in seen_in_photos/)
 })
