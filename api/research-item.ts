@@ -760,10 +760,13 @@ export default async function handler(req: any, res: any) {
       error:'The research provider response could not be confirmed. The saved run remains claimed; do not repeat paid research to recover it.'
     });
   }
-  if (!response.ok) return res.status(response.status).json({
-    code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id,
-    error:(payload?.error?.message || 'Research failed')+'. The saved run remains claimed; do not repeat paid research to recover it.'
-  });
+  if (!response.ok){
+    // The provider refused the request: record why, so the owner sees it and can retry.
+    const why='OpenAI refused the request ('+response.status+'): '+String(payload?.error?.message||'no message');
+    const cur=await ownerScopedResearchRun(supabaseUrl,supabaseKey,token,research_run_id).catch(()=>null);
+    await markResearchFailed(supabaseUrl,supabaseKey,token,research_run_id,cur?.result,why);
+    return res.status(response.status).json({code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id,error:why+'. You can run it again.'});
+  }
   if(['queued','in_progress'].includes(payload?.status)&&typeof payload?.id==='string'){
     // Save the provider job id so any later visit can collect the result.
     try{

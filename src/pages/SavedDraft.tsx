@@ -659,6 +659,7 @@ function SavedDraftRecord({id}:{id:string}){
     onDetails={()=>setActiveTab('market')} status={saveStatus}
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
+   {activeTab==='answer'&&saveStatus&&(showChain||questionsPending)&&<p className="ci-result-note ci-run-failed" role="alert">{saveStatus}</p>}
    {activeTab==='answer'&&showChain&&<ResearchRunning quick={chainQuick} message={runningNote}/>}
    {activeTab==='answer'&&lastFailed&&!showChain&&<p className="ci-result-note ci-run-failed" role="alert"><strong>The last deep research stopped.</strong> {String(lastFailed.result?.failure_reason||'No reason was recorded.')} You can run it again.</p>}
    {activeTab==='answer'&&questionsPending&&<QuestionsScreen questions={quickQuestions}

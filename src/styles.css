@@ -1271,3 +1271,4 @@ body.ci-dragging,body.ci-dragging *{cursor:grabbing!important;user-select:none!i
 .ci-sold-list a,.ci-sold-list span{font-size:15px;font-weight:600}
 @media(max-width:630px){.ci-question{grid-template-columns:1fr}.ci-question-photo img{height:200px}}
 .ci-run-failed{padding:14px 18px;border-radius:16px;border:1px solid rgba(214,120,90,.5);background:rgba(214,120,90,.12);color:var(--text);font-size:16px}
+.ci-question.no-photo{grid-template-columns:1fr}

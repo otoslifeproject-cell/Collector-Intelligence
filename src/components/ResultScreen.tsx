@@ -89,7 +89,7 @@ export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{quest
  return <section className="ci-questions" aria-label="Questions before research">
   <h2>{questions.length===1?'One question':questions.length+' quick questions'} before the deep research</h2>
   <p className="ci-result-note">Look at the item, then answer. Your answers go into the research and the price.</p>
-  {questions.map((q,i)=>{const photo=photoFor(q.photo);return <article key={i} className="ci-question">
+  {questions.map((q,i)=>{const photo=photoFor(q.photo);return <article key={i} className={'ci-question'+(photo?'':' no-photo')}>
    {photo&&<a className="ci-question-photo" href={photo.url} target="_blank" rel="noreferrer noopener" title="Open the photo full size">
     <img src={photo.url} alt={'Photo '+photo.number}/><span>Photo {photo.number} · tap to enlarge</span></a>}
    <div className="ci-question-body">
