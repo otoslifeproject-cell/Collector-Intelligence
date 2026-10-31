@@ -94,12 +94,23 @@ test('marks read from the photos are shown as confirmed, never as checks',async(
  assert.equal(r.seen[0],'Mark: Copeland Spode (photo 4)')
 })
 
-test('checks come first and lock the description; description is never a hidden <pre>',()=>{
+test('description is never a hidden <pre>; no after-the-fact checklist',()=>{
  const screen=readFileSync(new URL('../src/components/ResultScreen.tsx',import.meta.url),'utf8')
  assert.doesNotMatch(screen,/<pre className="ci-result-description"/)
- assert.match(screen,/Description · ready after your checks/)
- assert.match(screen,/Skip checks: use this result/)
- assert.ok(screen.indexOf("'Check first · '")<screen.indexOf('<CopyBlock'))
+ assert.doesNotMatch(screen,/Check first · /)
+})
+
+test('price shows was and now with the reason; sold examples newest first with date and link',async()=>{
+ const {resultListing}=await import('../src/lib/researchAnswer.ts')
+ const r=resultListing({previous_price:{price:60},listing:{ebay_title:'X',price:45,currency:'GBP',price_change_reason:'Owner confirmed a rim chip.'},
+  comparables:[{price_type:'MARKETPLACE_SOLD',price:50,currency:'GBP',venue:'eBay UK',sale_date:'2026-08-01',source_url:'https://www.ebay.co.uk/itm/1'},
+   {price_type:'HAMMER_REALIZED',price:70,currency:'GBP',venue:'Fieldings',sale_date:'2026-10-01',source_url:'https://x.example/lot'},
+   {price_type:'MARKETPLACE_ASKING',price:99,currency:'GBP',venue:'eBay UK'}]},'X')
+ assert.equal(r.priceChange,'Was £60 → now £45 · Owner confirmed a rim chip.')
+ assert.equal(r.sold.length,2)
+ assert.equal(r.sold[0].venue,'Fieldings')
+ assert.match(r.sold[0].date,/2026/)
+ assert.equal(resultListing({previous_price:{price:45},listing:{price:45}},'X').priceChange,null)
 })
 
 test('a check that changes the price stays a check even when it names a photo',async()=>{

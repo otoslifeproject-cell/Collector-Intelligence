@@ -1,7 +1,7 @@
 // ONE RUN (Dean, 29 Oct): the whole chain from upload to result is one tracker
 // with one list of steps in the order they really happen. The photo analysis
 // page and the item page both show it; neither restarts the list.
-export const ONE_RUN_STEPS=['Photos saved','Google Lens','Reading your photos','Quick value check','Sold prices','Your result'] as const
+export const ONE_RUN_STEPS=['Photos saved','Google Lens','Reading your photos','Questions for you','Deep research','Your result'] as const
 export const ONE_RUN_TITLE='Working on your item'
 
 type ItemProps={step:number;stopped?:boolean;skipped?:number[];message?:string;onRetry?:()=>void;retryLabel?:string;disabled?:boolean}

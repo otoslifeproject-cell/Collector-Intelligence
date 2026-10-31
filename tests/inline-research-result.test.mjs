@@ -12,7 +12,7 @@ test('Google matches come first, then the research result; museum keyword search
 })
 test('research starts by itself once per object; paid repeats stay manual',()=>{
  assert.match(screen,/autoResearchTried\.current\.add\(autoKey\)/)
- assert.match(screen,/void runDraftResearch\('standard'\)/)
+ assert.match(screen,/void runDraftResearch\('deep_dive'\)/)
  assert.match(screen,/VITE_CI_AUTO_RESEARCH==='off'/)
  assert.match(screen,/Research again · paid/)
  assert.match(screen,/runDraftResearch\('deep_dive'\)/)
@@ -58,17 +58,18 @@ test('paste-from-Lens saves an owner lead and starts research from it',()=>{
 
 test('bulk triage: a quick check runs by itself; full research is a button',()=>{
  assert.match(screen,/void runDraftResearch\('quick'\)/)
- assert.match(screen,/quickWorthMore=latestIsQuick&&matchedResearchRun\?\.result\?\.triage\?\.decision!=='LOW_VALUE'/)
+ assert.match(screen,/quickWorthMore=latestIsQuick&&quickQuestions\.length===0/)
  assert.match(screen,/autoResearchTried\.current\.add\(fullKey\)/)
  assert.match(screen,/onDisagree=\{\(kind,text\)=>void disagreeAndResearch\(kind,text\)\}/)
 })
 
-test('checks can be ticked and confirmed, then the result updates',()=>{
+test('questions come before deep research: photo, Yes / No / Not sure, what each answer means',()=>{
  const result=readFileSync(new URL('../src/components/ResultScreen.tsx',import.meta.url),'utf8')
- assert.match(result,/type="checkbox"/)
- assert.match(result,/Confirmed: update the result · paid/)
- assert.match(screen,/OWNER CONFIRMS, from the item and its photographs/)
- assert.match(screen,/onConfirm=\{ticked=>void confirmAndResearch\(ticked\)\}/)
+ assert.match(result,/export function QuestionsScreen/)
+ assert.match(result,/\['YES','Yes'\],\['NO','No'\],\['NOT_SURE','Not sure'\]/)
+ assert.match(result,/Research with my answers/)
+ assert.doesNotMatch(result,/type="checkbox"/)
+ assert.match(screen,/onSubmit=\{answers=>void runDraftResearch\('deep_dive',\{answers\}\)\}/)
 })
 test('Add photos keeps everything in view: steps at top, tracker replaces the form, one big Analyse',()=>{
  const intake=readFileSync(new URL('../src/pages/AIIntake.tsx',import.meta.url),'utf8')

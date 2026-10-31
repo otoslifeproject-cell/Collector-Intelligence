@@ -48,6 +48,8 @@ export default function ResearchAnswer({answer,onCopy,copyStatus,onSave,saveDisa
 
 // Research continues the same one-run tracker: steps 1-3 are already done by
 // the photo analysis. Quick check = step 4, full research = step 5.
-export function ResearchRunning({quick=false,lowValue=false}:{startedAt?:number|null;message?:string;quick?:boolean;deep?:boolean;lowValue?:boolean}){
- return <ItemProgress step={quick?3:4} skipped={lowValue?[4]:[]} message="Usually 1 to 4 minutes in all. You can leave this page; the answer is saved."/>
+// Research continues the same one-run tracker: steps 1-3 are already done by
+// the photo analysis. Quick check (writing the questions) = step 4, deep research = step 5.
+export function ResearchRunning({quick=false}:{startedAt?:number|null;message?:string;quick?:boolean;deep?:boolean;lowValue?:boolean}){
+ return <ItemProgress step={quick?3:4} message={quick?'Checking what to ask you. Usually under a minute.':'Deep research usually takes 3 to 6 minutes. You can leave this page; the answer is saved and collected by itself.'}/>
 }

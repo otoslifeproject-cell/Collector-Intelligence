@@ -5,8 +5,10 @@
 export type GoogleLookPage={url:string;title:string}
 // Google Lens visual matches, fetched through SerpApi's google_lens engine: the
 // same matches the owner sees in Lens. Prices shown are page prices (usually asking).
-export type LensMatch={title:string;url:string;source:string;price:string|null;seen_in?:number}
-export type LensLook={status:'CALLED'|'NOT_RUN';reason:string|null;matches:LensMatch[]}
+export type LensMatch={title:string;url:string;source:string;price:string|null;seen_in?:number;exact?:boolean}
+// overview: Google's own AI summary for the main photo (the text the owner sees
+// above the Lens matches in the browser), fetched with SerpApi's AI Overview API.
+export type LensLook={status:'CALLED'|'NOT_RUN';reason:string|null;matches:LensMatch[];overview?:string|null}
 export type GoogleFirstLook={
  status:'CALLED'|'NOT_RUN'
  reason:string|null
@@ -38,22 +40,53 @@ const lensNotRun=(reason:string):LensLook=>({status:'NOT_RUN',reason,matches:[]}
 
 export function normaliseLens(raw:any):LensLook{
  const seen=new Set<string>(),matches:LensMatch[]=[]
- const rows=[...(Array.isArray(raw?.visual_matches)?raw.visual_matches:[]),...(Array.isArray(raw?.exact_matches)?raw.exact_matches:[])]
+ const exactRows=(Array.isArray(raw?.exact_matches)?raw.exact_matches:[]).map((m:any)=>({...m,__exact:true}))
+ const rows=[...exactRows,...(Array.isArray(raw?.visual_matches)?raw.visual_matches:[])]
  for(const m of rows){
   const url=webUrl(m?.link)
   if(!url||seen.has(url))continue
   seen.add(url)
   const p=m?.price
   const price=p?clean(p.value||(Number.isFinite(p.extracted_value)?String(p.extracted_value)+(p.currency?' '+p.currency:''):''),40)||null:null
-  matches.push({title:clean(m?.title,160)||url,url,source:clean(m?.source,60),price})
-  if(matches.length>=12)break
+  const exact=m?.__exact===true||m?.exact_match===true||m?.exact_matches===true
+  matches.push({title:clean(m?.title,160)||url,url,source:clean(m?.source,60),price,...(exact?{exact:true}:{})})
+  if(matches.length>=15)break
  }
  return {status:'CALLED',reason:null,matches}
 }
 
 async function runLensOnPhotos(serpKey:string,urls:string[],fetchImpl:FetchLike):Promise<LensLook>{
- const looks=await Promise.all(urls.filter(Boolean).map(url=>runLens(serpKey,url,fetchImpl)))
+ // Photo 1 (the owner's main photo) also gets Google's AI summary.
+ const looks=await Promise.all(urls.filter(Boolean).map((url,i)=>runLens(serpKey,url,fetchImpl,i===0)))
  return mergeLens(looks)
+}
+// Google's AI summary comes back as nested text blocks; keep every snippet in order.
+export function overviewText(raw:any,limit=1800):string|null{
+ const out:string[]=[]
+ const walk=(node:any,depth:number)=>{
+  if(!node||depth>6||out.join(' ').length>limit)return
+  if(Array.isArray(node)){node.forEach(n=>walk(n,depth+1));return}
+  if(typeof node!=='object')return
+  if(typeof node.title==='string'&&node.type==='heading')out.push(clean(node.title,200))
+  if(typeof node.snippet==='string')out.push((node.type==='list'||depth>2?'- ':'')+clean(node.snippet,400))
+  for(const k of ['text_blocks','list','items'])if(node[k])walk(node[k],depth+1)
+ }
+ walk(raw?.ai_overview?.text_blocks||raw?.text_blocks||[],0)
+ const text=out.filter(Boolean).join('\n').slice(0,limit).trim()
+ return text||null
+}
+async function lensOverview(serpKey:string,payload:any,fetchImpl:FetchLike):Promise<string|null>{
+ try{
+  const inline=overviewText(payload)
+  if(inline)return inline
+  const ai=payload?.ai_overview
+  const link=typeof ai?.serpapi_link==='string'&&ai.serpapi_link.startsWith('https://serpapi.com/')?ai.serpapi_link
+   :typeof ai?.page_token==='string'?'https://serpapi.com/search.json?engine=google_ai_overview&page_token='+encodeURIComponent(ai.page_token):''
+  if(!link)return null
+  const response=await fetchImpl(link+(link.includes('?')?'&':'?')+'api_key='+encodeURIComponent(serpKey))
+  const data=await response.json().catch(()=>null)
+  return response.ok&&!data?.error?overviewText(data):null
+ }catch{return null}
 }
 export function mergeLens(looks:LensLook[]):LensLook{
  const called=looks.filter(l=>l.status==='CALLED')
@@ -61,20 +94,22 @@ export function mergeLens(looks:LensLook[]):LensLook{
  const byUrl=new Map<string,{m:LensMatch;rank:number;seen:number}>()
  called.forEach(look=>look.matches.forEach((m,i)=>{
   const hit=byUrl.get(m.url)
-  if(hit){hit.seen++;hit.rank=Math.min(hit.rank,i)}
+  if(hit){hit.seen++;hit.rank=Math.min(hit.rank,i);if(m.exact)hit.m={...hit.m,exact:true}}
   else byUrl.set(m.url,{m,rank:i,seen:1})
  }))
- const matches=[...byUrl.values()].sort((a,b)=>b.seen-a.seen||a.rank-b.rank).slice(0,15)
+ const matches=[...byUrl.values()].sort((a,b)=>Number(!!b.m.exact)-Number(!!a.m.exact)||b.seen-a.seen||a.rank-b.rank).slice(0,15)
   .map(x=>({...x.m,seen_in:x.seen}))
- return {status:'CALLED',reason:null,matches}
+ return {status:'CALLED',reason:null,matches,overview:called.find(l=>l.overview)?.overview||null}
 }
-async function runLens(serpKey:string,imageUrl:string,fetchImpl:FetchLike):Promise<LensLook>{
+async function runLens(serpKey:string,imageUrl:string,fetchImpl:FetchLike,withOverview=false):Promise<LensLook>{
  try{
   const qp=new URLSearchParams({engine:'google_lens',url:imageUrl,hl:'en',country:'gb',api_key:serpKey})
   const response=await fetchImpl('https://serpapi.com/search.json?'+qp.toString())
   const payload=await response.json().catch(()=>null)
   if(!response.ok||payload?.error)return lensNotRun('Google Lens service returned an error'+(response.status?' ('+response.status+')':''))
-  return normaliseLens(payload)
+  const look=normaliseLens(payload)
+  if(withOverview)look.overview=await lensOverview(serpKey,payload,fetchImpl)
+  return look
  }catch{return lensNotRun('Google Lens service could not be reached')}
 }
 
@@ -104,9 +139,10 @@ export function normaliseWebDetection(raw:any,checkedAt=new Date().toISOString()
 export function googleLeadsForResearch(look:GoogleFirstLook|null|undefined):string{
  if(!look)return 'GOOGLE FIRST LOOK: not available for this research run.'
  if(look.status!=='CALLED')return 'GOOGLE FIRST LOOK: not run ('+(look.reason||'no reason recorded')+'). Research from the photographs.'
- const lens=look.lens?.status==='CALLED'&&look.lens.matches.length?[
-  'GOOGLE LENS VISUAL MATCHES for the main photograph (the same matches the owner sees in Google Lens). UNVERIFIED LEADS: a similar-looking item is not proof of maker; the prices shown are page prices, usually ASKING, never sold unless the page itself proves a sale:',
-  ...look.lens.matches.map((m,i)=>(i+1)+'. '+m.title+(m.source?' — '+m.source:'')+(m.price?' — page price '+m.price:'')+((m.seen_in||1)>1?' — found from '+m.seen_in+' photographs':'')+' — '+m.url),
+ const lens=look.lens?.status==='CALLED'&&(look.lens.matches.length||look.lens.overview)?[
+  ...(look.lens.overview?['GOOGLE LENS AI SUMMARY for the owner\'s photo 1 (the summary the owner sees in Google). STRONG LEAD: start from it; confirm or reject every maker, designer, pattern and date it names:',look.lens.overview]:[]),
+  'GOOGLE LENS VISUAL MATCHES (the same matches the owner sees in Google Lens). UNVERIFIED LEADS: a similar-looking item is not proof of maker. A match marked [EXACT] or found from 2 or more photographs is a STRONG LEAD; others are weaker leads. Prices shown are page prices, usually ASKING, never sold unless the page itself proves a sale:',
+  ...look.lens.matches.map((m,i)=>(i+1)+'. '+(m.exact?'[EXACT] ':(m.seen_in||1)>1?'[STRONG] ':'')+m.title+(m.source?' — '+m.source:'')+(m.price?' — page price '+m.price:'')+((m.seen_in||1)>1?' — found from '+m.seen_in+' photographs':'')+' — '+m.url),
   'Where several Lens matches name the same maker or pattern, research that maker and pattern first: confirm or reject it from catalogues, collector references and SOLD results, and say so in identification_update.'
  ]:[]
  return [...lens,

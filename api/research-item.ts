@@ -7,7 +7,7 @@ import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 const researchSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage","listing"],
+  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage","listing","questions"],
   properties: {
     identification_update: {
       type: "object",
@@ -91,7 +91,7 @@ const researchSchema = {
     listing: {
       type: "object",
       additionalProperties: false,
-      required: ["ebay_title","etsy_title","etsy_reason","price","currency","sale_format","auction_start","title_checks","seen_in_photos","description"],
+      required: ["ebay_title","etsy_title","etsy_reason","price","currency","sale_format","auction_start","title_checks","seen_in_photos","description","price_change_reason"],
       properties: {
         ebay_title: { type: "string" },
         etsy_title: { type: ["string","null"] },
@@ -102,7 +102,28 @@ const researchSchema = {
         auction_start: { type: ["number","null"] },
         title_checks: { type: "array", items: { type: "string" } },
         seen_in_photos: { type: "array", items: { type: "string" } },
+        price_change_reason: { type: "string" },
         description: { type: "string" }
+      }
+    },
+    // Questions for the owner BEFORE deep research (Dean, 31 Oct): at most 3,
+    // each about one photo, answered Yes / No / Not sure, with what each answer
+    // means for the price. Only the quick check asks; deep research returns [].
+    questions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["question","photo","why","if_yes","if_no","price_if_yes","price_if_no"],
+        properties: {
+          question: { type: "string" },
+          photo: { type: ["integer","null"] },
+          why: { type: "string" },
+          if_yes: { type: "string" },
+          if_no: { type: "string" },
+          price_if_yes: { type: ["number","null"] },
+          price_if_no: { type: ["number","null"] }
+        }
       }
     },
     // Bulk triage: is full paid web research worth it for this item?
@@ -280,6 +301,61 @@ async function persistResearchResult(url:string,key:string,token:string,runId:st
  return rows[0];
 }
 
+// Finish a research run from the provider's completed response. Used by the
+// first request and by later "collect" requests (OpenAI background mode), so a
+// deep run longer than the 300 s function limit is never lost.
+async function finishResearch(res:any,o:{payload:any;url:string;key:string;token:string;runId:string;model:string;ctx:any}){
+  const text = extractText(o.payload);
+  let result:any;
+  try{result=JSON.parse(text);}catch{
+    return res.status(502).json({code:'PAID_RESEARCH_OUTPUT_INVALID',research_run_id:o.runId,
+      error:'Could not parse structured research output. The saved run remains claimed; do not repeat paid research to recover it.',raw:text.slice(0,2000)});
+  }
+  if(result?.listing){
+    const fit=(s:any,n:number)=>{const v=String(s||'').replace(/\s+/g,' ').trim();if(v.length<=n)return v;const cut=v.slice(0,n);const at=cut.lastIndexOf(' ');return (at>n*0.6?cut.slice(0,at):cut).trim();};
+    result.listing.ebay_title=fit(result.listing.ebay_title,80);
+    if(result.listing.etsy_title)result.listing.etsy_title=fit(result.listing.etsy_title,140);
+  }
+  if(o.ctx.research_depth!=='quick')result.questions=[];
+  const source_audit=checkResearchEvidence(result);
+  source_audit.trusted_database_comparables=o.ctx.trusted_database_comparables||0;
+  source_audit.trusted_comparable_ids=o.ctx.trusted_comparable_ids||[];
+  const savedResult={
+    ...result,source_audit,canonical_policy_hashes:o.ctx.canonical_policy_hashes,canonical_source_audit:o.ctx.canonical_source_audit,
+    research_depth:o.ctx.research_depth,google_first_look:o.ctx.google_first_look,applied_visual_reference_ids:o.ctx.applied_visual_reference_ids||[],
+    applied_owner_corrections:o.ctx.applied_owner_corrections||[],owner_answers:o.ctx.owner_answers||[],previous_price:o.ctx.previous_price||null,
+    analysis_stage:'COMPLETE',response_id:o.payload.id||null,
+    research_execution_v1:researchExecutionReceipt(o.payload,o.runId,o.ctx.dispatched_at,new Date().toISOString())
+  };
+  try{
+    await persistResearchResult(o.url,o.key,o.token,o.runId,o.payload.model||o.model,savedResult);
+  }catch(e:any){
+    return res.status(503).json({code:'PAID_RESEARCH_SAVE_NOT_CONFIRMED',research_run_id:o.runId,
+      error:e?.message||'The paid research result was not confirmed in storage. Do not launch another paid run to recover it.',result:savedResult,source_audit});
+  }
+  return res.status(200).json({saved_run_id:o.runId,model:o.payload.model||o.model,response_id:o.payload.id||null,result:savedResult,source_audit,
+    canonical_policy_hashes:o.ctx.canonical_policy_hashes,canonical_source_audit:o.ctx.canonical_source_audit});
+}
+const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
+async function readProviderResponse(apiKey:string,id:string){
+  const r=await fetch('https://api.openai.com/v1/responses/'+encodeURIComponent(id),{headers:{Authorization:'Bearer '+apiKey}});
+  const j=await r.json().catch(()=>null);
+  if(!r.ok||!j)throw Error('Provider status unavailable ('+r.status+')');
+  return j;
+}
+// Wait for a background response while this function still has time.
+async function waitForProvider(apiKey:string,id:string,untilMs:number){
+  while(Date.now()<untilMs){
+    await sleep(5000);
+    let j:any;try{j=await readProviderResponse(apiKey,id);}catch{continue;}
+    if(j.status&&!['queued','in_progress'].includes(j.status))return j;
+  }
+  return null;
+}
+async function markResearchFailed(url:string,key:string,token:string,runId:string,current:any,reason:string){
+  try{await persistResearchResult(url,key,token,runId,'FAILED',{...(current||{}),analysis_stage:'FAILED',failure_reason:String(reason).slice(0,300)});}catch{}
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const auth = String(req.headers.authorization || "");
@@ -292,6 +368,24 @@ export default async function handler(req: any, res: any) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "Supabase server environment is missing" });
   if (!(await verifyUser(token, supabaseUrl, supabaseKey))) return res.status(401).json({ error: "Invalid session" });
   if (!apiKey) return res.status(503).json({ error: "AI authentication is not available in Vercel" });
+  // COLLECT: read a deep run that is still working at the provider. Free: it
+  // only reads the provider's status and saves the finished result.
+  if(req.body?.collect===true){
+    const runId=String(req.body?.research_run_id||'');
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runId))return res.status(400).json({error:'Invalid research run.'});
+    let env:any;
+    try{env=await ownerScopedResearchRun(supabaseUrl,supabaseKey,token,runId);}catch(e:any){return res.status(503).json({error:e?.message||'Research run unavailable.'});}
+    if(env.result?.analysis_stage==='COMPLETE')return res.status(200).json({saved_run_id:runId,result:env.result,reused_saved_result:true});
+    const rid=env.result?.openai_response_id,ctx=env.result?.pending_context;
+    if(typeof rid!=='string'||!ctx)return res.status(409).json({code:'NOT_COLLECTABLE',error:'This research run has no provider job to collect.'});
+    let j:any;try{j=await readProviderResponse(apiKey,rid);}catch(e:any){return res.status(503).json({error:e?.message||'Provider status unavailable.'});}
+    if(['queued','in_progress'].includes(j.status))return res.status(202).json({code:'RESEARCH_STILL_RUNNING',research_run_id:runId,provider_status:j.status});
+    if(j.status!=='completed'){
+      await markResearchFailed(supabaseUrl,supabaseKey,token,runId,env.result,'Provider ended the research: '+j.status+(j.error?.message?' — '+j.error.message:''));
+      return res.status(502).json({code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id:runId,error:'The research provider ended this run ('+j.status+'). It is marked as failed; you can start research again.'});
+    }
+    return finishResearch(res,{payload:j,url:supabaseUrl,key:supabaseKey,token,runId,model:ctx.model||env.model,ctx});
+  }
   let canonical:CanonicalRuntimeContext;
   try {canonical=await loadPricingCanon(supabaseUrl,supabaseKey,token);}
   catch(e){return res.status(503).json({error:"Collector Intelligence source policy unavailable; research stopped to prevent drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"});}
@@ -299,7 +393,14 @@ export default async function handler(req: any, res: any) {
   try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
-  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [], research_run_id, depth = 'standard' } = req.body || {};
+  const { item, images = [], draft_run_id, draft_index = 0, pair_source_indices = [], research_run_id, depth = 'standard', owner_answers = [], previous_price = null, rerun_lens = false } = req.body || {};
+  // Owner answers to the quick check's questions (Yes / No / Not sure), and the
+  // previous suggested price so a rerun explains any change.
+  const answers=(Array.isArray(owner_answers)?owner_answers:[]).slice(0,5)
+    .filter((a:any)=>a&&typeof a.question==='string'&&['YES','NO','NOT_SURE'].includes(a.answer))
+    .map((a:any)=>({question:String(a.question).slice(0,300),answer:a.answer}));
+  const prevPrice=previous_price&&Number.isFinite(previous_price.price)&&previous_price.price>=0
+    ?{price:Number(previous_price.price),currency:'GBP',basis:String(previous_price.basis||'').slice(0,160)}:null;
   if(depth!=='standard' && depth!=='deep_dive' && depth!=='quick')return res.status(400).json({error:'Unsupported research depth; no paid request.'});
   const draftMode=typeof draft_run_id==='string';
   const isUuid=(value:any)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
@@ -563,15 +664,18 @@ export default async function handler(req: any, res: any) {
 3. comparables: list up to 6 Lens matches that show a page price, as MARKETPLACE_ASKING or DEALER_ASKING with verification_status UNVERIFIED. Never mark a quick-check price as sold.
 4. valuation: leave ranges null unless the asking prices clearly cluster; notes must say QUICK CHECK — ASKING PRICES ONLY, NO SOLD EVIDENCE.
 5. triage.decision: FULL_RESEARCH_WORTH_IT when the matches name a specific maker, designer, model or pattern consistent with the photographs, or page prices for close matches are about £40 or more; LOW_VALUE when the matches are generic, mass-produced or priced under about £15; otherwise UNCLEAR. triage.reason: one plain sentence for the owner.
-6. routing.sale_readiness: RESEARCH_FIRST unless LOW_VALUE, then SELL_NOW with a fast-sale route.`
+6. routing.sale_readiness: RESEARCH_FIRST unless LOW_VALUE, then SELL_NOW with a fast-sale route.
+7. questions: 0 to 3 questions for the owner, who is holding the object, that the photographs CANNOT answer and whose answer would change the identification or the price (for example a chip you can half-see, a mark hidden in shadow, whether a part is original, the size when size separates two models). Never ask about anything legible in a photograph, never general care checks. Each: question (plain, under 90 characters, answerable Yes or No); photo (the 1-based number of the photograph it is about, or null); why (one short sentence); if_yes and if_no (what each answer means, under 70 characters, e.g. "chipped: disclose, price about £40"); price_if_yes and price_if_no (GBP or null). An empty list is right when the photographs answer everything.
+8. listing.title_checks: return an empty list (questions replace checks).`
    : '';
   const content: any[] = [{
     type: "input_text",
-    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'}${depth==='quick'?' as a QUICK CHECK without web search':' with live web search'}. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\nSearch existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'}${depth==='quick'?' as a QUICK CHECK without web search':' with live web search'}. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\n${answers.length?'OWNER ANSWERS (from the owner holding the object; treat YES/NO as facts, NOT_SURE as unknown): '+JSON.stringify(answers)+'. Use them for identification, condition, title, description and price.\n':''}${prevPrice&&depth!=='quick'?'PREVIOUS SUGGESTED PRICE: £'+prevPrice.price+(prevPrice.basis?' ('+prevPrice.basis+')':'')+'. Start from it. Change listing.price only for a stated reason (new evidence or an owner answer) and put that reason in listing.price_change_reason (one short sentence); keep the same price and leave price_change_reason empty when nothing material changed. An owner answer that removes a doubt (for example NO chip, signature present) must never lower the price.\n':'listing.price_change_reason: empty.\n'}${depth!=='quick'?'questions: return an empty list. listing.title_checks: return an empty list.\n':''}Search existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
   }];
   // Standard research reads up to 12 photos at high detail so backstamps and
   // signatures in later photos are seen; a deep dive reads them at full detail.
-  for (const image of images.slice(0, depth==='quick'?3:12)) content.push({ type:"input_image", image_url:image, detail:depth==='quick'?"low":depth==='deep_dive'?"original":"high" });
+  // Quick check reads every photo (it writes the owner's questions); deep reads full detail.
+  for (const image of images.slice(0, 12)) content.push({ type:"input_image", image_url:image, detail:depth==='deep_dive'?"original":"high" });
   if(depth==='deep_dive'){
     const referenceImages=visualReviews.filter((x:any)=>
       x.reference_provider==='The Metropolitan Museum of Art'&&
@@ -604,7 +708,10 @@ export default async function handler(req: any, res: any) {
   // research continues from the photographs. Leads are never facts or prices.
   let googleLook:GoogleFirstLook;
   // Google Lens already ran first, during the photo analysis: reuse it.
-  if(intakeLook?.status==='CALLED')googleLook=intakeLook;
+  // Deep research runs Lens again on the owner's photo order (photo 1 first)
+  // when the order changed or the earlier look has no Google AI summary.
+  const lensAgain=depth!=='quick'&&(rerun_lens===true||intakeLook?.lens?.overview===undefined);
+  if(intakeLook?.status==='CALLED'&&!lensAgain)googleLook=intakeLook;
   else try{
     googleLook=await runGoogleFirstLook({
       apiKey:process.env.GOOGLE_CLOUD_VISION_API_KEY,
@@ -617,33 +724,35 @@ export default async function handler(req: any, res: any) {
   }catch{googleLook=googleNotRun('Google check failed');}
   content.splice(1,0,{type:'input_text',text:googleLeadsForResearch(googleLook)});
 
-  const body = {
+  const body:any = {
     model,
-    // Standard research must finish well inside the 300 s function limit.
     reasoning: { effort: depth==='deep_dive' ? "high" : depth==='quick' ? "low" : "medium" },
     instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
     ...(depth==='quick'?{}:{tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }]}),
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
-    max_output_tokens: depth==='quick' ? 6000 : 16000
+    max_output_tokens: depth==='quick' ? 8000 : 20000
   };
-
+  const startedMs=Date.now();
+  const dispatchedAt=new Date().toISOString();
+  const pendingCtx={research_depth:depth,google_first_look:googleLook,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),
+    applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
+    canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
+    trusted_database_comparables:trustedComparableRows.length,trusted_comparable_ids:trustedComparableRows.map((c:any)=>c.id),
+    owner_answers:answers,previous_price:prevPrice,dispatched_at:dispatchedAt,model};
+  // Deep research runs in OpenAI BACKGROUND mode: the job keeps running at the
+  // provider even if this function reaches its time limit; the app collects it.
+  const post=async(b:any)=>{
+    const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify(b)});
+    return {r,j:await r.json()};
+  };
   let response:Response;
   let payload:any;
-  const dispatchedAt=new Date().toISOString();
   try {
-    response = await fetch(
-    "https://api.openai.com/v1/responses",
-    {
-    method:"POST",
-    headers:{ "Content-Type":"application/json", Authorization:`Bearer ${apiKey}` },
-      body:JSON.stringify(body)
-    }
-    );
-    payload = await response.json();
+    ({r:response,j:payload}=await post(depth==='quick'?body:{...body,background:true,store:true}));
+    // An account or model without background mode refuses before any work: send once normally.
+    if(!response.ok&&response.status===400&&/background/i.test(String(payload?.error?.message||'')))({r:response,j:payload}=await post(body));
   } catch {
-    // Once claimed, a lost response does not prove the provider did no work.
-    // Keep PROCESSING; never reset STAGED or retry a potentially paid request.
     return res.status(503).json({
       code:'PAID_RESEARCH_OUTCOME_UNCONFIRMED',research_run_id,
       error:'The research provider response could not be confirmed. The saved run remains claimed; do not repeat paid research to recover it.'
@@ -653,41 +762,20 @@ export default async function handler(req: any, res: any) {
     code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id,
     error:(payload?.error?.message || 'Research failed')+'. The saved run remains claimed; do not repeat paid research to recover it.'
   });
-  const text = extractText(payload);
-  try {
-    const result=JSON.parse(text);
-    if(result?.listing){
-      const fit=(s:any,n:number)=>{const v=String(s||'').replace(/\s+/g,' ').trim();if(v.length<=n)return v;const cut=v.slice(0,n);const at=cut.lastIndexOf(' ');return (at>n*0.6?cut.slice(0,at):cut).trim();};
-      result.listing.ebay_title=fit(result.listing.ebay_title,80);
-      if(result.listing.etsy_title)result.listing.etsy_title=fit(result.listing.etsy_title,140);
-    }
-    const source_audit=checkResearchEvidence(result);
-    source_audit.trusted_database_comparables=trustedComparableRows.length;
-    source_audit.trusted_comparable_ids=trustedComparableRows.map((c:any)=>c.id);
-    const savedResult={
-      ...result,source_audit,canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
-      research_depth:depth,google_first_look:googleLook,applied_visual_reference_ids:visualReviews.map((x:any)=>x.id),applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
-      analysis_stage:'COMPLETE',response_id:payload.id||null,
-      research_execution_v1:researchExecutionReceipt(payload,research_run_id,dispatchedAt,new Date().toISOString())
-    };
+  if(['queued','in_progress'].includes(payload?.status)&&typeof payload?.id==='string'){
+    // Save the provider job id so any later visit can collect the result.
     try{
-      await persistResearchResult(supabaseUrl,supabaseKey,token,research_run_id,payload.model||body.model,savedResult);
-    }catch(e:any){
-      return res.status(503).json({
-        code:'PAID_RESEARCH_SAVE_NOT_CONFIRMED',
-        research_run_id,
-        error:e?.message||'The paid research result was not confirmed in storage. Do not launch another paid run to recover it.',
-        result:savedResult,source_audit
-      });
+      const claimed=await ownerScopedResearchRun(supabaseUrl,supabaseKey,token,research_run_id);
+      await persistResearchResult(supabaseUrl,supabaseKey,token,research_run_id,'PENDING',{...(claimed.result||{}),analysis_stage:'PROCESSING',openai_response_id:payload.id,pending_context:pendingCtx});
+    }catch{/* The wait below still collects it in this request. */}
+    const done=await waitForProvider(apiKey,payload.id,startedMs+200000);
+    if(!done)return res.status(202).json({code:'RESEARCH_STILL_RUNNING',research_run_id,provider_response_id:payload.id});
+    if(done.status!=='completed'){
+      const cur=await ownerScopedResearchRun(supabaseUrl,supabaseKey,token,research_run_id).catch(()=>null);
+      await markResearchFailed(supabaseUrl,supabaseKey,token,research_run_id,cur?.result,'Provider ended the research: '+done.status);
+      return res.status(502).json({code:'PAID_RESEARCH_PROVIDER_ERROR',research_run_id,error:'The research provider ended this run ('+done.status+'). It is marked as failed; you can start research again.'});
     }
-    return res.status(200).json({
-      saved_run_id:research_run_id,model:payload.model||body.model,
-      response_id:payload.id||null,result:savedResult,source_audit,
-      canonical_policy_hashes:canonical.hashes,
-      canonical_source_audit:canonicalSourceAudit(canonical)
-    });
-  } catch {
-    return res.status(502).json({code:'PAID_RESEARCH_OUTPUT_INVALID',research_run_id,
-      error:'Could not parse structured research output. The saved run remains claimed; do not repeat paid research to recover it.',raw:text.slice(0,2000)});
+    payload=done;
   }
+  return finishResearch(res,{payload,url:supabaseUrl,key:supabaseKey,token,runId:research_run_id,model:body.model,ctx:pendingCtx});
 }

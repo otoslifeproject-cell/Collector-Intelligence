@@ -28,15 +28,15 @@ test('both paths show a large real-stage progress tracker rather than old contra
   assert.match(s,/setInterval/)
   assert.doesNotMatch(s,/Session retained|Requested · awaiting saved result/)
  }
- for(const label of ['Photos saved','Google Lens','Reading your photos','Quick value check','Sold prices','Your result'])
+ for(const label of ['Photos saved','Google Lens','Reading your photos','Questions for you','Deep research','Your result'])
   assert.ok(tracker.includes(label),label)
  assert.match(tracker,/Try again/)
 })
 
 test('one run: a single 6-step tracker from upload to result, Google Lens first, never restarted',()=>{
  const tracker=read('src/components/IntakeProgress.tsx'),answer=read('src/components/ResearchAnswer.tsx'),draft=read('src/pages/SavedDraft.tsx')
- assert.match(tracker,/ONE_RUN_STEPS=\['Photos saved','Google Lens','Reading your photos','Quick value check','Sold prices','Your result'\]/)
+ assert.match(tracker,/ONE_RUN_STEPS=\['Photos saved','Google Lens','Reading your photos','Questions for you','Deep research','Your result'\]/)
  assert.match(answer,/<ItemProgress step=\{quick\?3:4\}/)
  assert.doesNotMatch(answer.slice(answer.indexOf('export function ResearchRunning')),/'Researching your item'|'Quick check'|'Deep dive'/)
- assert.match(draft,/const showChain=researching\|\|waitingForSaved\|\|chainWillStart/)
+ assert.match(draft,/const showChain=\(researching\|\|waitingForSaved\|\|chainWillStart\)&&!questionsPending/)
 })

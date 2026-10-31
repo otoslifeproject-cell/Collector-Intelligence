@@ -125,7 +125,7 @@ test('quick depth: no web search tool, low reasoning, 3 small photos, triage req
  assert.match(research,/depth!=='quick'\)return res\.status\(400\)/)
  assert.match(research,/\.\.\.\(depth==='quick'\?\{\}:\{tools:/)
  assert.match(research,/depth==='quick' \? "low"/)
- assert.match(research,/"next_evidence","triage","listing"\]/)
+ assert.match(research,/"next_evidence","triage","listing","questions"\]/)
  assert.match(research,/listing\.ebay_title: up to 80 characters/)
  assert.match(research,/Etsy vintage rule/)
  assert.match(research,/Never mark a quick-check price as sold/)
@@ -134,7 +134,7 @@ test('quick depth: no web search tool, low reasoning, 3 small photos, triage req
 test('research reads legible marks in every photo and never asks to verify them',()=>{
  assert.match(research,/MARKS IN THE PHOTOGRAPHS: read every legible backstamp/)
  assert.match(research,/Never add a title_check asking the owner to verify a mark that is legible in a photograph/)
- assert.match(research,/detail:depth==='quick'\?"low":depth==='deep_dive'\?"original":"high"/)
+ assert.match(research,/detail:depth==='deep_dive'\?"original":"high"/)
 })
 
 test('one object mode returns one record for an item with several parts',()=>{
@@ -148,11 +148,11 @@ test('Google Lens runs first, in the photo analysis, and research reuses it',()=
  assert.match(intake,/GOOGLE FIRST \(Dean, 29 Oct\)/)
  assert.match(intake,/lensImageUrls:images\.slice\(0,3\)\.map/)
  assert.match(intake,/analysis_stage:'COMPLETE',google_first_look:googleLook/)
- assert.match(research,/if\(intakeLook\?\.status==='CALLED'\)googleLook=intakeLook/)
+ assert.match(research,/if\(intakeLook\?\.status==='CALLED'&&!lensAgain\)googleLook=intakeLook/)
 })
 
 test('research lists what the photos prove separately from what to check',()=>{
- assert.match(research,/"title_checks","seen_in_photos","description"\]/)
+ assert.match(research,/"title_checks","seen_in_photos","description","price_change_reason"\]/)
  assert.match(research,/these are confirmed facts, not checks/)
  assert.match(research,/never repeat anything in seen_in_photos/)
 })
@@ -160,4 +160,34 @@ test('research lists what the photos prove separately from what to check',()=>{
 test('a check must change the price, title or description',()=>{
  assert.match(research,/whose answer would change the price, the title or the description/)
  assert.match(research,/never add general care checks/)
+})
+
+test('Lens fetches Google AI summary for photo 1 and puts exact matches first',async()=>{
+ const calls=[]
+ const fetchImpl=async(url)=>{
+  calls.push(String(url))
+  if(String(url).includes('engine=google_ai_overview'))return {ok:true,json:async()=>({text_blocks:[{type:'paragraph',snippet:'This is a Holmegaard Selandia bowl designed by Per Lütken.'},{type:'list',list:[{snippet:'Smoke glass, 1959'}]}]})}
+  if(String(url).startsWith('https://serpapi.com/'))return {ok:true,json:async()=>({
+   ai_overview:{page_token:'tok1'},
+   exact_matches:[{title:'Selandia exact',link:'https://exact/1'}],
+   visual_matches:[{title:'Generic bowl',link:'https://v/1'}]})}
+  return okPhoto()
+ }
+ const look=await runGoogleFirstLook({apiKey:'',serpKey:'s',imageUrl:'https://x/1.jpg',lensImageUrls:['https://x/1.jpg','https://x/2.jpg'],usedThisMonth:0,fetchImpl})
+ assert.equal(look.lens.matches[0].title,'Selandia exact')
+ assert.equal(look.lens.matches[0].exact,true)
+ assert.match(look.lens.overview,/Holmegaard Selandia/)
+ assert.equal(calls.filter(u=>u.includes('google_ai_overview')).length,1)
+ const text=googleLeadsForResearch(look)
+ assert.match(text,/GOOGLE LENS AI SUMMARY/)
+ assert.match(text,/\[EXACT\] Selandia exact/)
+})
+
+test('deep research runs in background mode and can be collected; answers and previous price reach the prompt',()=>{
+ assert.match(research,/background:true,store:true/)
+ assert.match(research,/req\.body\?\.collect===true/)
+ assert.match(research,/RESEARCH_STILL_RUNNING/)
+ assert.match(research,/OWNER ANSWERS \(from the owner holding the object/)
+ assert.match(research,/An owner answer that removes a doubt \(for example NO chip, signature present\) must never lower the price/)
+ assert.match(research,/questions: 0 to 3 questions for the owner/)
 })

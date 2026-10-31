@@ -32,7 +32,7 @@ test('fresh photo flow has one Analyse action leading to a saved answer',()=>{
  assert.match(intake,/Analyse photos/)
  assert.match(intake,/nav\('\/draft\/'\+attempt\.request\.id\)/)
  assert.match(draft,/get\('tab'\)\|\|'answer'/)
- assert.match(draft,/activeTab==='answer'&&finishedAnswer&&!showChain&&<ResultScreen/)
+ assert.match(draft,/activeTab==='answer'&&finishedAnswer&&!showChain&&!questionsPending&&<ResultScreen/)
  assert.match(draft,/className="ci-sticky-top"/)
  assert.match(draft,/←\s*Back to result/)
  assert.match(draft,/activeTab==='answer'&&showChain&&<ResearchRunning/)

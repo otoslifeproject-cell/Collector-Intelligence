@@ -13,6 +13,8 @@ export type ResultListing={
  format:string|null
  checks:string[]
  seen?:string[]
+ priceChange?:string|null
+ sold?:{price:string;venue:string;date:string|null;url:string|null}[]
  description?:string|null
  stillChecking:boolean
 }
@@ -75,24 +77,41 @@ function CopyLine({label,text}:{label:string;text:string}){
  </div>
 }
 
-function CheckList({checks,onConfirm,busy,onSkip}:{checks:string[];onConfirm?:(t:string[])=>void;busy:boolean;onSkip:()=>void}){
- const [ticked,setTicked]=useState<string[]>([])
- const toggle=(c:string)=>setTicked(v=>v.includes(c)?v.filter(x=>x!==c):[...v,c])
- return <div className="ci-check-list">
-  {checks.map(c=><label key={c} className={'ci-check'+(ticked.includes(c)?' is-ticked':'')}>
-   <input type="checkbox" checked={ticked.includes(c)} onChange={()=>toggle(c)}/>{c}
-  </label>)}
-  {onConfirm&&ticked.length>0&&<button type="button" className="ci-big-button ci-big-button-primary" disabled={busy} onClick={()=>onConfirm(ticked)}>
-   <Check size={22} aria-hidden="true"/>{busy?'Saving…':'Confirmed: update the result · paid'}</button>}
-  <button type="button" className="ci-big-button" onClick={onSkip}>Skip checks: use this result</button>
- </div>
+
+// Questions BEFORE deep research (Dean, 31 Oct): each question shows the photo
+// it is about and what Yes and No mean, so a "yes" can never be misread.
+export type OwnerQuestion={question:string;photo:number|null;why:string;if_yes:string;if_no:string;price_if_yes:number|null;price_if_no:number|null}
+type Answer='YES'|'NO'|'NOT_SURE'
+export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{questions:OwnerQuestion[];photoFor:(n:number|null)=>{url:string;number:number}|null;busy:boolean;onSubmit:(a:{question:string;answer:Answer}[])=>void;onSkip:()=>void}){
+ const [answers,setAnswers]=useState<Record<number,Answer>>({})
+ const all=questions.every((_q,i)=>answers[i])
+ const gbp=(n:number|null)=>typeof n==='number'&&Number.isFinite(n)?' · about £'+Math.round(n):''
+ return <section className="ci-questions" aria-label="Questions before research">
+  <h2>{questions.length===1?'One question':questions.length+' quick questions'} before the deep research</h2>
+  <p className="ci-result-note">Look at the item, then answer. Your answers go into the research and the price.</p>
+  {questions.map((q,i)=>{const photo=photoFor(q.photo);return <article key={i} className="ci-question">
+   {photo&&<a className="ci-question-photo" href={photo.url} target="_blank" rel="noreferrer noopener" title="Open the photo full size">
+    <img src={photo.url} alt={'Photo '+photo.number}/><span>Photo {photo.number} · tap to enlarge</span></a>}
+   <div className="ci-question-body">
+    <h3>{q.question}</h3>
+    {q.why&&<p className="ci-result-note">{q.why}</p>}
+    <div className="ci-question-answers" role="group" aria-label={q.question}>
+     {([['YES','Yes'],['NO','No'],['NOT_SURE','Not sure']] as const).map(([k,l])=>
+      <button type="button" key={k} className={'ci-big-button'+(answers[i]===k?' is-chosen':'')} aria-pressed={answers[i]===k} onClick={()=>setAnswers(v=>({...v,[i]:k}))}>{l}</button>)}
+    </div>
+    <p className="ci-question-effects"><span><strong>Yes</strong> → {q.if_yes}{gbp(q.price_if_yes)}</span><span><strong>No</strong> → {q.if_no}{gbp(q.price_if_no)}</span></p>
+   </div>
+  </article>})}
+  <div className="ci-result-actions">
+   <button type="button" className="ci-big-button ci-big-button-primary" disabled={!all||busy} onClick={()=>onSubmit(questions.map((q,i)=>({question:q.question,answer:answers[i]})))}>
+    <Search size={24} aria-hidden="true"/>Research with my answers</button>
+   <button type="button" className="ci-big-button" disabled={busy} onClick={onSkip}>Skip questions</button>
+  </div>
+ </section>
 }
 
 export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →',onConfirm,photos=[],onReorder,photoStatus}:Props){
  const [open,setOpen]=useState(false)
- // Checks come first: the description is only final once they are done or skipped.
- const [skipped,setSkipped]=useState(false)
- const checksOpen=listing.checks.length>0&&!skipped
  const [kind,setKind]=useState<DisagreeKind|null>(null)
  const [note,setNote]=useState('')
  return <section className="ci-result" aria-label="Your result">
@@ -102,7 +121,13 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
    <small>Suggested price</small>
    <p>{listing.price||'Not found yet'}</p>
    {listing.priceBasis&&<small className="ci-result-basis">{listing.priceBasis}</small>}
+   {listing.priceChange&&<small className="ci-result-change">{listing.priceChange}</small>}
    {listing.format&&<span>{listing.format}</span>}
+   {(listing.sold?.length??0)>0
+    ?<ul className="ci-sold-list" aria-label="Sold examples">{listing.sold!.map((s,i)=><li key={i}>
+      {s.url?<a href={s.url} target="_blank" rel="noreferrer noopener">{s.price} · {s.venue}{s.date?' · '+s.date:''} ↗</a>:<span>{s.price} · {s.venue}{s.date?' · '+s.date:''}</span>}
+     </li>)}</ul>
+    :listing.price&&<small className="ci-result-basis">No sold examples found: price from items for sale</small>}
   </div>
   {photos.length>0&&onReorder&&<Section title={'Photos · drag to reorder · photo 1 is the main photo'} defaultOpen>
    <DragPhotos photos={photos.map(p=>({key:p.index,url:p.url}))} onReorder={keys=>onReorder(keys.map(Number))} status={photoStatus}/>
@@ -110,13 +135,7 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
   {(listing.seen?.length??0)>0&&<Section title={'✓ Read from your photos · '+listing.seen!.length}>
    <ul className="ci-seen-list">{listing.seen!.map(s=><li key={s}><Check size={20} aria-hidden="true"/>{s}</li>)}</ul>
   </Section>}
-  {checksOpen&&<Section title={'Check first · '+listing.checks.length} defaultOpen>
-   <p className="ci-result-note">Each check can change the price or the wording. Tick what is true, or skip.</p>
-   <CheckList checks={listing.checks} onConfirm={onConfirm} busy={disagreeBusy} onSkip={()=>setSkipped(true)}/>
-  </Section>}
-  {listing.description&&(checksOpen
-   ?<div className="ci-section ci-section-locked"><div className="ci-section-locked-bar">Description · ready after your checks</div></div>
-   :<Section title="Description"><CopyBlock text={listing.description}/></Section>)}
+  {listing.description&&<Section title="Description"><CopyBlock text={listing.description}/></Section>}
   {listing.stillChecking&&<p className="ci-result-note">Quick check only: low value, so no full research was run.</p>}
   {!open&&<div className="ci-result-actions">
    {onSave&&<button type="button" className="ci-big-button ci-big-button-primary" disabled={saveDisabled||saved} onClick={onSave}>

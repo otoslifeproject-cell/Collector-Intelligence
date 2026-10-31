@@ -109,6 +109,15 @@ export function researchStep(elapsedMs:number):number{
  return 3
 }
 
+// Up to 3 sold examples, newest first, with the date when the source gives one.
+function soldExamples(comps:any[]){
+ const date=(s:unknown)=>{const t=Date.parse(String(s||''));return Number.isFinite(t)?t:0}
+ return comps.filter(c=>c&&SOLD.has(c.price_type)&&typeof c.price==='number'&&Number.isFinite(c.price)&&typeof c.currency==='string'&&currencyOk(c.currency))
+  .sort((a,b)=>date(b.sale_date)-date(a.sale_date)).slice(0,3)
+  .map(c=>({price:fmt(c.price,c.currency),venue:concise(c.venue,40)||'Sold',
+   date:date(c.sale_date)?new Date(date(c.sale_date)).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):null,
+   url:typeof c.source_url==='string'&&/^https:\/\/[^\s]+$/i.test(c.source_url)?c.source_url:null}))
+}
 // The owner's end article (result screen): titles in marketplace format and a price.
 export function resultListing(research:any,fallbackTitle:string){
  const l=research?.listing||{}
@@ -144,6 +153,11 @@ export function resultListing(research:any,fallbackTitle:string){
   etsyTitle:l.etsy_title?fit(l.etsy_title,140):null,
   etsyReason:typeof l.etsy_reason==='string'?concise(l.etsy_reason,120):null,
   price,priceBasis,format,checks,seen,
+  priceChange:(()=>{const prev=research?.previous_price?.price,now=l.price
+   if(typeof prev!=='number'||typeof now!=='number'||!Number.isFinite(prev)||!Number.isFinite(now)||Math.round(prev)===Math.round(now))return null
+   const why=typeof l.price_change_reason==='string'&&l.price_change_reason.trim()?concise(l.price_change_reason,140):'no reason given'
+   return 'Was '+fmt(prev,'GBP')+' → now '+fmt(now,currency)+' · '+why})(),
+  sold:soldExamples(comps),
   description:typeof l.description==='string'&&l.description.trim()?l.description.trim().slice(0,2500):null,
   stillChecking:research?.research_depth==='quick'&&research?.triage?.decision==='LOW_VALUE'
  }

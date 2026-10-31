@@ -10,7 +10,7 @@ import ResearchProgress from '../components/ResearchProgress'
 import {draftResearchDashboard} from '../lib/draftResearchAudit'
 import SaleEconomics from '../components/SaleEconomics'
 import ResearchAnswer,{ResearchRunning} from '../components/ResearchAnswer'
-import ResultScreen,{StepStrip} from '../components/ResultScreen'
+import ResultScreen,{StepStrip,QuestionsScreen} from '../components/ResultScreen'
 import type {DisagreeKind} from '../components/ResultScreen'
 import {researchAnswer,resultListing} from '../lib/researchAnswer'
 import {applyPhotoOrder,readPhotoOrder,savePhotoOrder} from '../lib/photoOrder'
@@ -35,7 +35,15 @@ type SavedRun=CatalogueSource
 // A STAGED research row that was never claimed is older than the server's 300 s
 // limit: no AI request was made for it, so it no longer blocks a new attempt.
 const ABANDONED_STAGED_MS=6*60*1000
-const livePending=(row:any)=>!(row?.result?.analysis_stage==='STAGED'&&Date.now()-Date.parse(row?.created_at)>ABANDONED_STAGED_MS)
+// FAILED runs never block. A PROCESSING run with no provider job id after 10
+// minutes was lost in the old one-request mode; with a job id it is collected.
+const livePending=(row:any)=>{
+ const stage=row?.result?.analysis_stage,age=Date.now()-Date.parse(row?.created_at)
+ if(stage==='FAILED')return false
+ if(stage==='STAGED')return age<=ABANDONED_STAGED_MS
+ if(stage==='PROCESSING'&&typeof row?.result?.openai_response_id!=='string')return age<=10*60*1000
+ return age<=2*60*60*1000
+}
 export default function SavedDraft(){
  const {id}=useParams()
  if(!id)return <div role="alert">This saved report could not be identified.</div>
@@ -285,9 +293,9 @@ function SavedDraftRecord({id}:{id:string}){
    saved=!!(await finishCorrection(request,true))
   }catch(e){if(current())setSaveStatus(e instanceof CorrectionError||e instanceof CatalogueError?e.message:'Your Lens note could not be saved. Nothing was researched.')}
   finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
-  if(saved&&current()){setLensNote('');await runDraftResearch('standard')}
+  if(saved&&current()){setLensNote('');await runDraftResearch('deep_dive')}
  }
- const runDraftResearch=async(depth:'standard'|'deep_dive'|'quick'='standard')=>{
+ const runDraftResearch=async(depth:'standard'|'deep_dive'|'quick'='deep_dive',extra:{answers?:{question:string;answer:'YES'|'NO'|'NOT_SURE'}[]}={})=>{
   if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
   researchBusy.current=true;setResearching(true);setResearchStartedAt(Date.now());setResearchingDepth(depth);setSaveStatus('')
   // Always show the moving tracker where the owner can see it.
@@ -303,7 +311,12 @@ function SavedDraftRecord({id}:{id:string}){
    const i=scopeIndex,pair=paired?[0,1]:[]
    const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
    // Standard research reads 6 photographs (time limit); a deep dive reads up to 12.
-   const urls=memberKeys.map((n:number)=>images[n]).filter(Boolean).slice(0,depth==='quick'?3:12)
+   // Photos go in the owner's order: photo 1 (Main) first, so Lens and research start from it.
+   const ordered=applyPhotoOrder(memberKeys,savedOrder)
+   const urls=ordered.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
+   const lp=visibleResearch?.listing?.price
+   const previous_price=depth!=='quick'&&typeof lp==='number'&&Number.isFinite(lp)?{price:lp,basis:'last suggested price'}:null
+   const rerun_lens=depth!=='quick'&&!!savedOrder&&savedOrder[0]!==memberKeys[0]
    const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
     user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:pair,research_depth:depth},
     result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
@@ -311,9 +324,12 @@ function SavedDraftRecord({id}:{id:string}){
    if(!current())return
    if(stageError||!staged?.id)throw Error('The research session could not be confirmed. Check saved research before another attempt; no AI request was sent.')
    stagedId=staged.id;setUnfinishedResearch(previous=>[staged,...previous])
-   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(295000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls})})
+   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(295000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls,owner_answers:extra.answers||[],previous_price,rerun_lens})})
    const payload=await response.json()
    if(!current())return
+   // Deep research still running at the provider: the tracker stays and the
+   // app collects the result by itself (free), even after leaving the page.
+   if(response.status===202){await updateResearchHistory();return}
    if(payload?.result)setUnconfirmedResearch({runId:staged.id,payload})
    if(!response.ok)throw Error((payload.error||'Research outcome unavailable.')+' Check saved research; do not repeat the paid request.')
    if(payload.saved_run_id!==staged.id)throw Error('Research identity mismatch. Check saved research before another attempt.')
@@ -426,17 +442,41 @@ function SavedDraftRecord({id}:{id:string}){
   return()=>window.clearInterval(timer)
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[waitingForSaved,researching,run?.id])
+ // Deep research in background mode: ask the server to collect the finished
+ // result every 20 s (free, read-only at the provider) until it is saved.
+ const collectIds=scopePending.filter(row=>row?.result?.analysis_stage==='PROCESSING'&&typeof row?.result?.openai_response_id==='string').map(row=>row.id).join(',')
+ useEffect(()=>{
+  if(!collectIds)return
+  let stop=false
+  const tick=async()=>{
+   const {data:{session}}=await supabase.auth.getSession()
+   if(stop||!session)return
+   for(const rid of collectIds.split(',')){
+    try{
+     const r=await fetch('/api/research-item',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({collect:true,research_run_id:rid})})
+     if(r.status!==202&&!stop)await updateResearchHistory()
+    }catch{/* try again on the next tick */}
+   }
+  }
+  void tick()
+  const timer=window.setInterval(()=>void tick(),20000)
+  return()=>{stop=true;window.clearInterval(timer)}
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[collectIds])
  // Chain step 2: a quick check that is not low value continues straight into full
  // research by itself, so the owner gets the best result without extra clicks.
  const latestIsQuick=matchedResearchRun?.result?.research_depth==='quick'
- const quickWorthMore=latestIsQuick&&matchedResearchRun?.result?.triage?.decision!=='LOW_VALUE'
+ const quickQuestions:any[]=latestIsQuick&&Array.isArray(matchedResearchRun?.result?.questions)?matchedResearchRun.result.questions.filter((q:any)=>q&&typeof q.question==='string'&&q.question.trim()).slice(0,3):[]
+ // Deepest always (Dean, 31 Oct): after the quick check, deep research starts by
+ // itself when there are no questions; with questions it waits for the answers.
+ const quickWorthMore=latestIsQuick&&quickQuestions.length===0
  const fullKey=matchedResearchRun?'full:'+matchedResearchRun.id:''
  useEffect(()=>{
   if(autoResearchOff||!run||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady||!imagesReady)return
   if(!quickWorthMore||researching||checkingResearch||researchBusy.current||researchBlocked||scopePending.length>0||existingResearchObsolete)return
   if(!fullKey||autoResearchTried.current.has(fullKey))return
   autoResearchTried.current.add(fullKey)
-  void runDraftResearch('standard')
+  void runDraftResearch('deep_dive')
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[fullKey,quickWorthMore,busy,error,isPhotoManifestReady,imagesReady,researching,checkingResearch,researchBlocked,scopePending.length,existingResearchObsolete])
  // Photo order (Dean, 30 Oct): drag so the right photo is photo 1, the main
@@ -465,7 +505,8 @@ function SavedDraftRecord({id}:{id:string}){
  const chainNextQuick=!anyScopeResearch&&!!autoKey&&!autoResearchTried.current.has(autoKey)
  const chainNextFull=quickWorthMore&&!!fullKey&&!autoResearchTried.current.has(fullKey)
  const chainWillStart=!autoResearchOff&&!!run&&run.status==='DRAFT'&&!error&&!researchBlocked&&!existingResearchObsolete&&!needsPhotoCorrection&&(chainNextQuick||chainNextFull)
- const showChain=researching||waitingForSaved||chainWillStart
+ const questionsPending=quickQuestions.length>0&&!researching&&!waitingForSaved&&!autoResearchOff
+ const showChain=(researching||waitingForSaved||chainWillStart)&&!questionsPending
  const chainQuick=researching?researchingDepth==='quick':waitingForSaved?scopePending[0]?.user_context?.research_depth==='quick':chainNextQuick
  // One Disagree button: the owner's correction is saved as an owner note (a lead),
  // then full research runs again from it.
@@ -491,7 +532,7 @@ function SavedDraftRecord({id}:{id:string}){
    saved=!!(await finishCorrection(request,true))
   }catch(e){if(current())setSaveStatus(e instanceof CorrectionError||e instanceof CatalogueError?e.message:'Your note could not be saved. Nothing was researched.')}
   finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
-  if(saved&&current()){setSaveStatus('');await runDraftResearch('standard')}
+  if(saved&&current()){setSaveStatus('');await runDraftResearch('deep_dive')}
  }
  const objectTitle=paired?(correctedPairTitle||'Matched pair'):run?.result?.objects?.[scopeIndex]?.working_title||'Your object'
  const finishedAnswer=visibleResearch&&!existingResearchObsolete?researchAnswer(visibleResearch,objectTitle):null
@@ -591,7 +632,7 @@ function SavedDraftRecord({id}:{id:string}){
     {researchIndex<(run.result.objects||[]).length-1&&<button type="button" className="ci-big-button ci-big-button-small ci-big-button-primary"
      onClick={()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}}>Next item →</button>}
    </nav>}
-   {activeTab==='answer'&&finishedAnswer&&!showChain&&<ResultScreen listing={resultListing(visibleResearch,objectTitle)}
+   {activeTab==='answer'&&finishedAnswer&&!showChain&&!questionsPending&&<ResultScreen listing={resultListing(visibleResearch,objectTitle)}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
     saved={run.status==='APPROVED'||catalogued.length>0}
     saveDisabled={approving||saving||researching||busy||!!error||!!pendingApproval||!!pendingReview||!!pendingCorrection}
@@ -602,10 +643,13 @@ function SavedDraftRecord({id}:{id:string}){
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
    {activeTab==='answer'&&showChain&&<ResearchRunning quick={chainQuick}/>}
-   {activeTab==='answer'&&!finishedAnswer&&!showChain&&answer&&<>
+   {activeTab==='answer'&&questionsPending&&<QuestionsScreen questions={quickQuestions}
+     photoFor={(n:number|null)=>{const i=n&&n>0?scopePhotoIndices[n-1]:undefined;return i!==undefined&&images[i]?{url:images[i],number:n as number}:null}}
+     busy={researching||researchBlocked} onSubmit={answers=>void runDraftResearch('deep_dive',{answers})} onSkip={()=>void runDraftResearch('deep_dive')}/>}
+   {activeTab==='answer'&&!finishedAnswer&&!showChain&&!questionsPending&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">
      <p><strong>Research did not finish.</strong> {saveStatus}</p>
-     <button type="button" className="primaryButton" disabled={researchBlocked||checkingResearch||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady} onClick={()=>void runDraftResearch('standard')}>Try research again</button>
+     <button type="button" className="primaryButton" disabled={researchBlocked||checkingResearch||busy||!!error||run.status!=='DRAFT'||!isPhotoManifestReady} onClick={()=>void runDraftResearch('deep_dive')}>Try research again</button>
     </section>}
     <MiniAppraisal appraisal={answer} onCopy={()=>void copyAnswer()} copyStatus={copyStatus}
     onSave={run.status==='DRAFT'&&isPhotoManifestReady&&!needsPhotoCorrection?saveFromAnswer:undefined}
@@ -689,7 +733,7 @@ function SavedDraftRecord({id}:{id:string}){
      description={visibleResearch?'Runs a new paid search. The saved result stays.':''}
      primary={{
       label:researching?'Research running…':visibleResearch?.research_depth==='quick'?'Full research · paid':visibleResearch?'Research again · paid':'Start research',
-      onClick:()=>runDraftResearch('standard'),
+      onClick:()=>runDraftResearch('deep_dive'),
       disabled:researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT',loading:researching
      }}
      secondary={<button className="secondaryButton" disabled={researching||checkingResearch||researchBlocked||busy||!!error||approving||saving||!!pendingReview||!!pendingApproval||savingDisagreement||!!pendingCorrection||!isPhotoManifestReady||run.status!=='DRAFT'}
