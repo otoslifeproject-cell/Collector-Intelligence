@@ -119,3 +119,20 @@ test('a check that changes the price stays a check even when it names a photo',a
  assert.deepEqual(r.seen,['Mark: HOLMEGAARD 1959 (photo 10)'])
  assert.equal(r.checks.length,1)
 })
+
+test('Knowledge Brain write-back: confirmed elements, owner answers and new tells, all unverified',async()=>{
+ const {knowledgeRows}=await import('../src/lib/knowledgeWriteBack.ts')
+ const rows=knowledgeRows({specifics:[{name:'Type',value:'Parasol',status:'CONFIRMED',evidence:'photo 1'},{name:'Era',value:'1960s-80s',status:'LIKELY',evidence:'runner'},{name:'Marks',value:'P.C. on runner',status:'CONFIRMED',evidence:'photo 6'}],
+  owner_answers:[{question:'Is the runner plastic?',answer:'YES',owner_saw:'stamped P.C.'}],learned_tells:['A plastic runner stamped P.C. means a post-1950 umbrella frame']},'item-1','Brown umbrella')
+ assert.equal(rows.filter(r=>r.knowledge_type==='OWNER_CONFIRMED_FINDING').length,3)
+ assert.equal(rows.filter(r=>r.knowledge_type==='LEARNED_TELL').length,1)
+ assert.ok(rows.every(r=>r.verification_status==='UNVERIFIED'))
+ assert.ok(!rows.some(r=>/1960s-80s/.test(r.claim)))
+})
+test('research fills standard elements, tests antique vs reproduction from construction, reads the owner brain',()=>{
+ const research=readFileSync(new URL('../api/research-item.ts',import.meta.url),'utf8')
+ assert.match(research,/STANDARD ELEMENTS: always fill specifics/)
+ assert.match(research,/ANTIQUE OR REPRODUCTION: decide "Era" and "Antique or reproduction" from HOW IT IS MADE, never from style alone/)
+ assert.match(research,/never take an era, an antique status or a price from Lens/)
+ assert.match(research,/knowledge_type:'in\.\(OWNER_CONFIRMED_FINDING,LEARNED_TELL\)'/)
+})

@@ -14,6 +14,7 @@ export type ResultListing={
  checks:string[]
  seen?:string[]
  priceChange?:string|null
+ specifics?:{name:string;value:string|null;status:string;evidence:string}[]
  sold?:{price:string;venue:string;date:string|null;url:string|null}[]
  description?:string|null
  stillChecking:boolean
@@ -82,8 +83,10 @@ function CopyLine({label,text}:{label:string;text:string}){
 // it is about and what Yes and No mean, so a "yes" can never be misread.
 export type OwnerQuestion={question:string;photo:number|null;why:string;if_yes:string;if_no:string;price_if_yes:number|null;price_if_no:number|null}
 type Answer='YES'|'NO'|'NOT_SURE'
-export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{questions:OwnerQuestion[];photoFor:(n:number|null)=>{url:string;number:number}|null;busy:boolean;onSubmit:(a:{question:string;answer:Answer}[])=>void;onSkip:()=>void}){
+export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{questions:OwnerQuestion[];photoFor:(n:number|null)=>{url:string;number:number}|null;busy:boolean;onSubmit:(a:{question:string;answer:Answer;note?:string}[],note:string)=>void;onSkip:()=>void}){
  const [answers,setAnswers]=useState<Record<number,Answer>>({})
+ const [notes,setNotes]=useState<Record<number,string>>({})
+ const [general,setGeneral]=useState('')
  const all=questions.every((_q,i)=>answers[i])
  const gbp=(n:number|null)=>typeof n==='number'&&Number.isFinite(n)?' · about £'+Math.round(n):''
  return <section className="ci-questions" aria-label="Questions before research">
@@ -99,11 +102,15 @@ export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{quest
      {([['YES','Yes'],['NO','No'],['NOT_SURE','Not sure']] as const).map(([k,l])=>
       <button type="button" key={k} className={'ci-big-button'+(answers[i]===k?' is-chosen':'')} aria-pressed={answers[i]===k} onClick={()=>setAnswers(v=>({...v,[i]:k}))}>{l}</button>)}
     </div>
+    <label className="ci-question-note">What do you see? (optional)
+     <input type="text" maxLength={400} value={notes[i]||''} onChange={e=>{const v=e.target.value;setNotes(n=>({...n,[i]:v}))}}/></label>
     <p className="ci-question-effects"><span><strong>Yes</strong> → {q.if_yes}{gbp(q.price_if_yes)}</span><span><strong>No</strong> → {q.if_no}{gbp(q.price_if_no)}</span></p>
    </div>
   </article>})}
+  <label className="ci-question-note ci-question-general">Anything else you noticed on the item? Marks, stamps, labels, materials (optional)
+   <textarea rows={2} maxLength={800} value={general} onChange={e=>setGeneral(e.target.value)}/></label>
   <div className="ci-result-actions">
-   <button type="button" className="ci-big-button ci-big-button-primary" disabled={!all||busy} onClick={()=>onSubmit(questions.map((q,i)=>({question:q.question,answer:answers[i]})))}>
+   <button type="button" className="ci-big-button ci-big-button-primary" disabled={!all||busy} onClick={()=>onSubmit(questions.map((q,i)=>({question:q.question,answer:answers[i],...(notes[i]?.trim()?{note:notes[i].trim()}:{})})),general.trim())}>
     <Search size={24} aria-hidden="true"/>Research with my answers</button>
    <button type="button" className="ci-big-button" disabled={busy} onClick={onSkip}>Skip questions</button>
   </div>
@@ -134,6 +141,12 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
   </Section>}
   {(listing.seen?.length??0)>0&&<Section title={'✓ Read from your photos · '+listing.seen!.length}>
    <ul className="ci-seen-list">{listing.seen!.map(s=><li key={s}><Check size={20} aria-hidden="true"/>{s}</li>)}</ul>
+  </Section>}
+  {(listing.specifics?.length??0)>0&&<Section title={'Item details · '+listing.specifics!.filter(s=>s.status==='CONFIRMED').length+' confirmed of '+listing.specifics!.length}>
+   <dl className="ci-specifics">{listing.specifics!.map(s=><div key={s.name} data-status={s.status}>
+    <dt>{s.name}</dt><dd><span aria-hidden="true">{s.status==='CONFIRMED'?'✓':s.status==='LIKELY'?'~':'?'}</span>{s.value||'Not known'}{s.evidence&&<small>{s.evidence}</small>}</dd>
+   </div>)}</dl>
+   <p className="ci-result-note">✓ confirmed · ~ likely · ? not known</p>
   </Section>}
   {listing.description&&<Section title="Description"><CopyBlock text={listing.description}/></Section>}
   {listing.stillChecking&&<p className="ci-result-note">Quick check only: low value, so no full research was run.</p>}

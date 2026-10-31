@@ -125,7 +125,7 @@ test('quick depth: no web search tool, low reasoning, 3 small photos, triage req
  assert.match(research,/depth!=='quick'\)return res\.status\(400\)/)
  assert.match(research,/\.\.\.\(depth==='quick'\?\{\}:\{tools:/)
  assert.match(research,/depth==='quick' \? "low"/)
- assert.match(research,/"next_evidence","triage","listing","questions"\]/)
+ assert.match(research,/"next_evidence","triage","listing","questions","specifics","learned_tells"\]/)
  assert.match(research,/listing\.ebay_title: up to 80 characters/)
  assert.match(research,/Etsy vintage rule/)
  assert.match(research,/Never mark a quick-check price as sold/)

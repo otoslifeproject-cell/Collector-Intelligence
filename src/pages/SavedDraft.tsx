@@ -14,6 +14,7 @@ import ResultScreen,{StepStrip,QuestionsScreen} from '../components/ResultScreen
 import type {DisagreeKind} from '../components/ResultScreen'
 import {researchAnswer,resultListing} from '../lib/researchAnswer'
 import {applyPhotoOrder,readPhotoOrder,savePhotoOrder} from '../lib/photoOrder'
+import {writeBackKnowledge} from '../lib/knowledgeWriteBack'
 import {googleLensLink} from '../lib/googleFirstLook'
 import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import MiniAppraisal from '../components/MiniAppraisal'
@@ -295,7 +296,7 @@ function SavedDraftRecord({id}:{id:string}){
   finally{correctionBusy.current=false;if(current())setSavingDisagreement(false)}
   if(saved&&current()){setLensNote('');await runDraftResearch('deep_dive')}
  }
- const runDraftResearch=async(depth:'standard'|'deep_dive'|'quick'='deep_dive',extra:{answers?:{question:string;answer:'YES'|'NO'|'NOT_SURE'}[]}={})=>{
+ const runDraftResearch=async(depth:'standard'|'deep_dive'|'quick'='deep_dive',extra:{answers?:{question:string;answer:'YES'|'NO'|'NOT_SURE';note?:string}[];note?:string}={})=>{
   if(!run||researchBlocked||checkingResearch||researchBusy.current||!isPhotoManifestReady||pendingApproval||pendingReview||reviewBusy.current||approvalBusy.current||pendingCorrection||correctionBusy.current||busy||error)return
   researchBusy.current=true;setResearching(true);setResearchStartedAt(Date.now());setResearchingDepth(depth);setSaveStatus('')
   // Always show the moving tracker where the owner can see it.
@@ -324,7 +325,7 @@ function SavedDraftRecord({id}:{id:string}){
    if(!current())return
    if(stageError||!staged?.id)throw Error('The research session could not be confirmed. Check saved research before another attempt; no AI request was sent.')
    stagedId=staged.id;setUnfinishedResearch(previous=>[staged,...previous])
-   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(295000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls,owner_answers:extra.answers||[],previous_price,rerun_lens})})
+   const response=await fetch('/api/research-item',{method:'POST',signal:AbortSignal.timeout(295000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({draft_run_id:run.id,draft_index:i,pair_source_indices:pair,research_run_id:staged.id,depth,images:urls,owner_answers:extra.answers||[],owner_note:extra.note||'',previous_price,rerun_lens})})
    const payload=await response.json()
    if(!current())return
    // Deep research still running at the provider: the tracker stays and the
@@ -353,7 +354,16 @@ function SavedDraftRecord({id}:{id:string}){
   if(!current())return
   if(!result){setSaveStatus('No catalogue result is confirmed yet. Your original approval is held unchanged. Check the result or retry the same approval; keep this page open.');return}
   setCatalogued(result.records);setRun(result.source);setPendingApproval(null)
-  setSaveStatus(result.records.length===1?'Saved to your collection.':result.records.length+' items saved to your collection.')
+  const saved=result.records.length===1?'Saved to your collection.':result.records.length+' items saved to your collection.'
+  setSaveStatus(saved)
+  // Knowledge Brain write-back: what this research established, as unverified leads.
+  if(visibleResearch&&!existingResearchObsolete&&result.records.length){
+   const rec=result.records.find((r:any)=>r.object_index===scopeIndex)||result.records[0]
+   try{
+    const wb=await writeBackKnowledge(supabase,result.source.owner_id,visibleResearch,rec.item_id,rec.title||objectTitle)
+    if(current())setSaveStatus(saved+(wb.error?' '+wb.error:wb.written?' '+wb.written+' findings added to your Knowledge Brain.':''))
+   }catch{if(current())setSaveStatus(saved+' Knowledge Brain not updated: the connection failed.')}
+  }
   // Stay on the result screen after saving: step 4 done, next item is one tap away.
  }
  const recoverApproval=async(submit:boolean)=>{
@@ -664,7 +674,7 @@ function SavedDraftRecord({id}:{id:string}){
    {activeTab==='answer'&&lastFailed&&!showChain&&<p className="ci-result-note ci-run-failed" role="alert"><strong>The last deep research stopped.</strong> {String(lastFailed.result?.failure_reason||'No reason was recorded.')} You can run it again.</p>}
    {activeTab==='answer'&&questionsPending&&<QuestionsScreen questions={quickQuestions}
      photoFor={(n:number|null)=>{const i=n&&n>0?scopePhotoIndices[n-1]:undefined;return i!==undefined&&images[i]?{url:images[i],number:n as number}:null}}
-     busy={researching||researchBlocked} onSubmit={answers=>void runDraftResearch('deep_dive',{answers})} onSkip={()=>void runDraftResearch('deep_dive')}/>}
+     busy={researching||researchBlocked} onSubmit={(answers,note)=>void runDraftResearch('deep_dive',{answers,note})} onSkip={()=>void runDraftResearch('deep_dive')}/>}
    {activeTab==='answer'&&!finishedAnswer&&!showChain&&!questionsPending&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">
      <p><strong>Research did not finish.</strong> {saveStatus}</p>

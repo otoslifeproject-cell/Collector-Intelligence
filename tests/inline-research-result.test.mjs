@@ -69,7 +69,7 @@ test('questions come before deep research: photo, Yes / No / Not sure, what each
  assert.match(result,/\['YES','Yes'\],\['NO','No'\],\['NOT_SURE','Not sure'\]/)
  assert.match(result,/Research with my answers/)
  assert.doesNotMatch(result,/type="checkbox"/)
- assert.match(screen,/onSubmit=\{answers=>void runDraftResearch\('deep_dive',\{answers\}\)\}/)
+ assert.match(screen,/onSubmit=\{\(answers,note\)=>void runDraftResearch\('deep_dive',\{answers,note\}\)\}/)
 })
 test('Add photos keeps everything in view: steps at top, tracker replaces the form, one big Analyse',()=>{
  const intake=readFileSync(new URL('../src/pages/AIIntake.tsx',import.meta.url),'utf8')

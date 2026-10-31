@@ -1272,3 +1272,17 @@ body.ci-dragging,body.ci-dragging *{cursor:grabbing!important;user-select:none!i
 @media(max-width:630px){.ci-question{grid-template-columns:1fr}.ci-question-photo img{height:200px}}
 .ci-run-failed{padding:14px 18px;border-radius:16px;border:1px solid rgba(214,120,90,.5);background:rgba(214,120,90,.12);color:var(--text);font-size:16px}
 .ci-question.no-photo{grid-template-columns:1fr}
+
+/* Item details: standard elements, prefilled like eBay item specifics. */
+.ci-specifics{display:grid;gap:6px;margin:0}
+.ci-specifics>div{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:12px;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.03)}
+.ci-specifics dt{font-weight:700;color:var(--muted)}
+.ci-specifics dd{margin:0;font-weight:650;display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.ci-specifics dd span{width:18px;text-align:center}
+.ci-specifics small{color:var(--muted);font-weight:500}
+.ci-specifics>div[data-status="CONFIRMED"] dd span{color:#5fbf7f}
+.ci-specifics>div[data-status="UNKNOWN"] dd{color:var(--muted)}
+.ci-question-note{display:grid;gap:6px;font-size:15px;font-weight:650}
+.ci-question-note input,.ci-question-note textarea{font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg,#111);color:var(--text)}
+.ci-question-general{padding:0 4px}
+@media(max-width:630px){.ci-specifics>div{grid-template-columns:1fr;gap:2px}}

@@ -7,7 +7,7 @@ import type {GoogleFirstLook} from '../src/lib/googleFirstLook.ts';
 const researchSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage","listing","questions"],
+  required: ["identification_update","comparables","valuation","routing","research_summary","next_evidence","triage","listing","questions","specifics","learned_tells"],
   properties: {
     identification_update: {
       type: "object",
@@ -126,6 +126,24 @@ const researchSchema = {
         }
       }
     },
+    // STANDARD ELEMENTS (Dean, 31 Oct): the fixed facts research always works out
+    // first and prefills, like eBay item specifics; only the gaps become questions.
+    specifics: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name","value","status","evidence"],
+        properties: {
+          name: { type: "string" },
+          value: { type: ["string","null"] },
+          status: { type: "string", enum: ["CONFIRMED","LIKELY","UNKNOWN"] },
+          evidence: { type: "string" }
+        }
+      }
+    },
+    // Reusable clues for future items (write-back to the Knowledge Brain on save).
+    learned_tells: { type: "array", items: { type: "string" } },
     // Bulk triage: is full paid web research worth it for this item?
     triage: {
       type: "object",
@@ -176,6 +194,9 @@ Non-negotiable rules:
 - If attribution uncertainty could change value materially, route to RESEARCH_FIRST or SPECIALIST_REVIEW.
 - MARKS IN THE PHOTOGRAPHS: read every legible backstamp, signature, label, pattern name or number in every photograph and state it as SEEN (with the photo number) in identification_update and in listing.description "Markings:". Use a legible mark in the title. Never add a title_check asking the owner to verify a mark that is legible in a photograph; title_checks are only for things the photographs do not show.
 - LISTING (the owner's end article). listing.ebay_title: up to 80 characters, most important words first because phones cut the end; for collectables use this order: maker, item type, pattern or model, colour, size, era, material, condition word (Used, Vintage, Boxed); use the words buyers search with, taken from SOLD listings of similar items; no filler (amazing, L@@K, bargain, stunning, rare unless proven), no ALL CAPS words except maker initials such as VSL, no repeated words, no unsearched abbreviations. The owner wants to list now: when identification_update names a likely maker, model or pattern (for example a well-known design that Google Lens matches show again and again), PUT IT IN THE TITLE; leave it out only when it is a weak guess. listing.seen_in_photos: one short line (under 70 characters) for each mark, signature, label, pattern name or number you READ in the photographs, with the photo number (for example "Mark: Copeland Spode, Spode's Peacock (photo 4)"); these are confirmed facts, not checks. listing.title_checks: at most 3 short lines (under 90 characters) ONLY for something the photographs cannot prove AND whose answer would change the price, the title or the description; write each as "<what to check> → <what it changes>" (for example "Signature on base → if signed VSL, price about £180 not £60"); never add general care checks (inspect in good light, look for chips, measure) unless the answer changes the price or the identification; the owner skips anything else, so leave it out. Also: never repeat anything in seen_in_photos; never ask the owner to confirm that a part, piece, lid, stand or set item shown in the photographs is included; an empty list is correct when the photographs prove the title. listing.etsy_title: up to 140 characters, natural buyer phrase, only when the item is likely at least 20 years old (Etsy vintage rule); otherwise null, with the reason in etsy_reason. listing.price: ALWAYS give a suggested listing price in GBP for this one item (never null): use sold evidence first; if there is none, use the asking prices of the same or closely matching items, set a little below the typical ask so it sells; for low-value items give a realistic quick-sale price. This is a listing suggestion, separate from the verified valuation; sale_format AUCTION for rare or hard-to-value items, FIXED_PRICE for common items with a known price; auction_start: a starting bid in GBP or null. currency: "GBP". listing.description: the ready-to-post item description, plain text, short, in this shape: one opening sentence saying what it is (maker, pattern or model, designer and date when likely; "attributed to" or "in the style of" when only a lead); a line "Key features:" followed by 3 short lines starting with "- " describing what the photographs show (form, decoration, base, rim, colour); "Era: ..."; "Markings: ..." (what is visible, or none visible); "Condition: please see photographs; ask any questions before buying." Never invent measurements, marks, damage or provenance.
+- STANDARD ELEMENTS: always fill specifics with exactly these names, in this order: "Type", "Maker or brand", "Designer", "Pattern or model", "Material", "Colour", "Era", "Antique or reproduction", "Country of origin", "Construction", "Marks", "Size", "Condition". status CONFIRMED only when a photograph (give its number), an owner answer or a cited source proves it; LIKELY when evidence points to it; UNKNOWN with value null otherwise. evidence: one short phrase (for example "photo 4: stamped HOLMEGAARD 1959", "owner answer", "Lens matches + catalogue"). Use the words eBay sellers use for these fields.
+- ANTIQUE OR REPRODUCTION: decide "Era" and "Antique or reproduction" from HOW IT IS MADE, never from style alone: materials (plastic, nylon, polyester, acrylic, aluminium, chrome plating), fixings (Phillips or machine screws, staples, modern rivets, hot glue), machine stitching, moulded seams, modern marks (Made in China, ®, postcodes, barcodes, P.C. and similar plastic stamps), wear consistent with age. A period style made with modern materials or fixings is a later reproduction. Google Lens and its AI summary show what an object LOOKS LIKE; never take an era, an antique status or a price from Lens or from seller listings. If construction cannot be seen, status UNKNOWN and ask.
+- LEARNED TELLS: learned_tells lists up to 3 short, reusable general clues this research established that would help date or identify OTHER items (for example "A plastic runner stamped P.C. means a post-1950 umbrella frame"); only clues supported by evidence; empty when none.
 - Return no prose outside the required structured output.`;
 
 function extractText(payload: any) {
@@ -323,7 +344,7 @@ async function finishResearch(res:any,o:{payload:any;url:string;key:string;token
   const savedResult={
     ...result,source_audit,canonical_policy_hashes:o.ctx.canonical_policy_hashes,canonical_source_audit:o.ctx.canonical_source_audit,
     research_depth:o.ctx.research_depth,google_first_look:o.ctx.google_first_look,applied_visual_reference_ids:o.ctx.applied_visual_reference_ids||[],
-    applied_owner_corrections:o.ctx.applied_owner_corrections||[],owner_answers:o.ctx.owner_answers||[],previous_price:o.ctx.previous_price||null,
+    applied_owner_corrections:o.ctx.applied_owner_corrections||[],owner_answers:o.ctx.owner_answers||[],owner_note:o.ctx.owner_note||null,previous_price:o.ctx.previous_price||null,
     analysis_stage:'COMPLETE',response_id:o.payload.id||null,
     research_execution_v1:researchExecutionReceipt(o.payload,o.runId,o.ctx.dispatched_at,new Date().toISOString())
   };
@@ -390,6 +411,15 @@ export default async function handler(req: any, res: any) {
   try {canonical=await loadPricingCanon(supabaseUrl,supabaseKey,token);}
   catch(e){return res.status(503).json({error:"Collector Intelligence source policy unavailable; research stopped to prevent drift.",code:e instanceof Error?e.message:"CANONICAL_ERROR"});}
   let trustedKnowledge:any[];
+  // The owner's own confirmed findings and learned tells from earlier items (Knowledge
+  // Brain write-back). Strong leads, never authentication; unavailable = research goes on.
+  let ownerKnowledge:any[]=[];
+  try{
+    const qp=new URLSearchParams({select:'knowledge_type,entity_key,claim',knowledge_type:'in.(OWNER_CONFIRMED_FINDING,LEARNED_TELL)',order:'created_at.desc',limit:'150'});
+    const r=await fetch(`${supabaseUrl}/rest/v1/knowledge_records?${qp}`,{headers:{apikey:supabaseKey,Authorization:`Bearer ${token}`}});
+    const rows=r.ok?await r.json():[];
+    if(Array.isArray(rows))ownerKnowledge=rows.map((x:any)=>({type:x.knowledge_type,key:x.entity_key,claim:String(x.claim||'').slice(0,300)}));
+  }catch{ownerKnowledge=[];}
   try { trustedKnowledge=await loadTrustedResearchContext(supabaseUrl,supabaseKey,token); }
   catch(e){return res.status(503).json({error:"Reviewed knowledge gate unavailable; research stopped to prevent untrusted reuse.",code:e instanceof Error?e.message:"TRUST_GATE_ERROR"});}
 
@@ -398,7 +428,8 @@ export default async function handler(req: any, res: any) {
   // previous suggested price so a rerun explains any change.
   const answers=(Array.isArray(owner_answers)?owner_answers:[]).slice(0,5)
     .filter((a:any)=>a&&typeof a.question==='string'&&['YES','NO','NOT_SURE'].includes(a.answer))
-    .map((a:any)=>({question:String(a.question).slice(0,300),answer:a.answer}));
+    .map((a:any)=>({question:String(a.question).slice(0,300),answer:a.answer,...(typeof a.note==='string'&&a.note.trim()?{owner_saw:a.note.trim().slice(0,400)}:{})}));
+  const ownerNote=typeof req.body?.owner_note==='string'?req.body.owner_note.trim().slice(0,800):'';
   const prevPrice=previous_price&&Number.isFinite(previous_price.price)&&previous_price.price>=0
     ?{price:Number(previous_price.price),currency:'GBP',basis:String(previous_price.basis||'').slice(0,160)}:null;
   if(depth!=='standard' && depth!=='deep_dive' && depth!=='quick')return res.status(400).json({error:'Unsupported research depth; no paid request.'});
@@ -665,12 +696,13 @@ export default async function handler(req: any, res: any) {
 4. valuation: leave ranges null unless the asking prices clearly cluster; notes must say QUICK CHECK — ASKING PRICES ONLY, NO SOLD EVIDENCE.
 5. triage.decision: FULL_RESEARCH_WORTH_IT when the matches name a specific maker, designer, model or pattern consistent with the photographs, or page prices for close matches are about £40 or more; LOW_VALUE when the matches are generic, mass-produced or priced under about £15; otherwise UNCLEAR. triage.reason: one plain sentence for the owner.
 6. routing.sale_readiness: RESEARCH_FIRST unless LOW_VALUE, then SELL_NOW with a fast-sale route.
-7. questions: 0 to 3 questions for the owner, who is holding the object, that the photographs CANNOT answer and whose answer would change the identification or the price (for example a chip you can half-see, a mark hidden in shadow, whether a part is original, the size when size separates two models). Never ask about anything legible in a photograph, never general care checks. Each: question (plain, under 90 characters, answerable Yes or No); photo (the 1-based number of the photograph it is about, or null); why (one short sentence); if_yes and if_no (what each answer means, under 70 characters, e.g. "chipped: disclose, price about £40"); price_if_yes and price_if_no (GBP or null). An empty list is right when the photographs answer everything.
+7. specifics: fill every standard element from the photographs, the owner notes and the Lens matches; most will be LIKELY or UNKNOWN in a quick check.
+questions: 0 to 3 questions for the owner, who is holding the object, about the standard elements still LIKELY or UNKNOWN that matter most for identity, era, antique-or-reproduction or price (look first at construction: materials, fixings, fabric, runner, base, joins), that the photographs CANNOT answer and whose answer would change the identification or the price (for example a chip you can half-see, a mark hidden in shadow, whether a part is original, the size when size separates two models). Never ask about anything legible in a photograph, never general care checks. Each: question (plain, under 90 characters, answerable Yes or No); photo (the 1-based number of the photograph it is about, or null); why (one short sentence); if_yes and if_no (what each answer means, under 70 characters, e.g. "chipped: disclose, price about £40"); price_if_yes and price_if_no (GBP or null). An empty list is right when the photographs answer everything.
 8. listing.title_checks: return an empty list (questions replace checks).`
    : '';
   const content: any[] = [{
     type: "input_text",
-    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'}${depth==='quick'?' as a QUICK CHECK without web search':' with live web search'}. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\n${answers.length?'OWNER ANSWERS (from the owner holding the object; treat YES/NO as facts, NOT_SURE as unknown): '+JSON.stringify(answers)+'. Use them for identification, condition, title, description and price.\n':''}${prevPrice&&depth!=='quick'?'PREVIOUS SUGGESTED PRICE: £'+prevPrice.price+(prevPrice.basis?' ('+prevPrice.basis+')':'')+'. Start from it. Change listing.price only for a stated reason (new evidence or an owner answer) and put that reason in listing.price_change_reason (one short sentence); keep the same price and leave price_change_reason empty when nothing material changed. An owner answer that removes a doubt (for example NO chip, signature present) must never lower the price.\n':'listing.price_change_reason: empty.\n'}${depth!=='quick'?'questions: return an empty list. listing.title_checks: return an empty list.\n':''}Search existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
+    text: `Research this ${draftMode?'saved provisional AI draft':'permanent catalogue record'}${depth==='quick'?' as a QUICK CHECK without web search':' with live web search'}. Observations are not proven identifications:\n${JSON.stringify(itemForResearch, null, 2)}\nOwner correction chronology (separate from original AI): ${JSON.stringify(ownerCorrections)}. These direct material corrections OVERRIDE incompatible AI and marketplace hypotheses.\nOwner visual reference decisions (museum catalogued specimens are NOT authenticators for this object): ${JSON.stringify(ownerVisualGuidance)}. Reject explicitly rejected visual analogues; compare shape, material, technique and decoration before attribution.\n${answers.length?'OWNER ANSWERS (from the owner holding the object; treat YES/NO and owner_saw as facts, NOT_SURE as unknown): '+JSON.stringify(answers)+'. Use them for the standard elements, identification, condition, title, description and price.\n':''}${ownerNote?'OWNER NOTE (what the owner saw on the object; a fact about the object, not a source): '+JSON.stringify(ownerNote)+'\n':''}${prevPrice&&depth!=='quick'?'PREVIOUS SUGGESTED PRICE: £'+prevPrice.price+(prevPrice.basis?' ('+prevPrice.basis+')':'')+'. Start from it. Change listing.price only for a stated reason (new evidence or an owner answer) and put that reason in listing.price_change_reason (one short sentence); keep the same price and leave price_change_reason empty when nothing material changed. An owner answer that removes a doubt (for example NO chip, signature present) must never lower the price.\n':'listing.price_change_reason: empty.\n'}${depth!=='quick'?'questions: return an empty list. listing.title_checks: return an empty list.\n':''}Search existing knowledge and external evidence before asking for new photos. Show conservative values and achievable routes, flag uncertain sources and do not invent sold results.\n${itemForResearch?.pair_physical_count===2 ? 'IMPORTANT: This is a TWO-PIECE matched pair sold as ONE lot. The valuation quick_sale_value, balanced_low/high, auction_low/high, private_low/high and routing MUST all describe the WHOLE PAIR together, never one individual vase. Prefix valuation.notes with WHOLE PAIR LOT and use pair comparables preferentially; when pair valuation cannot be supported return null instead of extrapolating a single-vase quote.' : 'Price values should refer to the described physical item only.'}`
   }];
   // Standard research reads up to 12 photos at high detail so backstamps and
   // signatures in later photos are seen; a deep dive reads them at full detail.
@@ -727,7 +759,7 @@ export default async function handler(req: any, res: any) {
   const body:any = {
     model,
     reasoning: { effort: depth==='deep_dive' ? "high" : depth==='quick' ? "low" : "medium" },
-    instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
+    instructions: instructions+"\n\n"+deepInstructions+"\n\nMANDATORY CURRENT PROJECT SOURCE & VALUATION POLICY:\n"+canonical.instructions+"\n\nAPPROVED INTERNAL KNOWLEDGE (these are only source-backed context, not authentication of the current item):\n"+JSON.stringify(trustedKnowledge)+"\n\nOWNER-CONFIRMED KNOWLEDGE FROM EARLIER ITEMS (the owner's own Knowledge Brain: LEARNED_TELL = reusable dating/identification clue; OWNER_CONFIRMED_FINDING = a fact the owner confirmed on another item. Strong leads for this item where relevant; not authentication):\n"+JSON.stringify(ownerKnowledge)+"\n\nOWNER-SCOPED APPROVED REALISED COMPARABLES (do not infer maker match or condition match merely because same item ID):\n"+JSON.stringify(trustedComparableRows),
     ...(depth==='quick'?{}:{tools: [{ type: "web_search", search_context_size: depth==='deep_dive'?'high':'medium' }]}),
     input: [{ role: "user", content }],
     text: { format: { type:"json_schema", name:"collector_intelligence_research", strict:true, schema:researchSchema } },
@@ -741,7 +773,7 @@ export default async function handler(req: any, res: any) {
     applied_owner_corrections:ownerCorrections.map((x:any)=>({id:x.id,feedback_type:x.feedback_type,corrected_material:x.corrected_material,owner_statement:x.owner_statement})),
     canonical_policy_hashes:canonical.hashes,canonical_source_audit:canonicalSourceAudit(canonical),
     trusted_database_comparables:trustedComparableRows.length,trusted_comparable_ids:trustedComparableRows.map((c:any)=>c.id),
-    owner_answers:answers,previous_price:prevPrice,dispatched_at:dispatchedAt,model};
+    owner_answers:answers,owner_note:ownerNote||null,previous_price:prevPrice,dispatched_at:dispatchedAt,model};
   // Deep research runs in OpenAI BACKGROUND mode: the job keeps running at the
   // provider even if this function reaches its time limit; the app collects it.
   const post=async(b:any)=>{
