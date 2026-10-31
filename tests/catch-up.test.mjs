@@ -18,3 +18,8 @@ test('bulk deep runs return at once and saved items can be researched',()=>{
  assert.match(research,/req\.body\?\.no_wait===true/)
  assert.match(research,/\['DRAFT','APPROVED'\]\.includes\(rows\[0\]\.status\)/)
 })
+test('answered questions leave the list at once and come back only if sending fails',()=>{
+ const page=readFileSync(new URL('../src/pages/CatchUp.tsx',import.meta.url),'utf8')
+ assert.ok(page.indexOf("state:'WORKING'}:x))")<page.indexOf("await startResearch(supabase,item,'deep_dive'"))
+ assert.match(page,/your answers were not sent; answer again/)
+})

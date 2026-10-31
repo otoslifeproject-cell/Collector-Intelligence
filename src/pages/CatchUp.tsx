@@ -21,7 +21,6 @@ export default function CatchUp(){
  const [progress,setProgress]=useState<{label:string;done:number;total:number}|null>(null)
  const [errors,setErrors]=useState<string[]>([])
  const [urls,setUrls]=useState<Record<string,string>>({})
- const [busyKey,setBusyKey]=useState<string|null>(null)
 
  useEffect(()=>{let live=true;(async()=>{
   setLoading(true)
@@ -58,12 +57,16 @@ export default function CatchUp(){
   setMessage(list.length-errs.length+' of '+list.length+' started.'+(errs.length?' '+errs.length+' did not start (below).':''))
   setReload(v=>v+1)
  }
+ // Answered questions leave the list at once (Dean, 31 Oct); the research is sent
+ // in the background. If it cannot start, the item comes back with the reason.
  const answer=async(item:CatchUpItem,answers:Answer[]|null,note:string)=>{
-  setBusyKey(item.key);setMessage('')
+  setMessage('')
+  setItems(v=>v.map(x=>x.key===item.key?{...x,state:'WORKING'}:x))
   const fail=await startResearch(supabase,item,'deep_dive',answers?{answers,note}:{})
-  setBusyKey(null)
-  if(fail)setMessage(item.title+': '+fail)
-  else setItems(v=>v.map(x=>x.key===item.key?{...x,state:'WORKING'}:x))
+  if(fail){
+   setItems(v=>v.map(x=>x.key===item.key?{...x,state:'QUESTIONS'}:x))
+   setErrors(e=>[...e,item.title+': '+fail+' (your answers were not sent; answer again)'])
+  }
  }
 
  const by=(s:CatchUpItem['state'])=>items.filter(i=>i.state===s)
@@ -96,7 +99,7 @@ export default function CatchUp(){
    </div>
    <QuestionsScreen questions={item.questions}
     photoFor={(n:number|null)=>{const p=n&&n>0?item.photoPaths[n-1]:undefined;return p&&urls[p]?{url:urls[p],number:n as number}:null}}
-    busy={busyKey!==null} onSubmit={(a,note)=>void answer(item,a,note)} onSkip={()=>void answer(item,null,'')}/>
+    busy={false} onSubmit={(a,note)=>void answer(item,a,note)} onSkip={()=>void answer(item,null,'')}/>
   </section>)}
   {!loading&&!questions.length&&!needs.length&&!ready.length&&!working&&<p className="ci-result-note">Everything is up to date.</p>}
  </div>
