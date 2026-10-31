@@ -2,7 +2,7 @@ import {useState} from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Boxes, ChartNoAxesCombined, CircleDollarSign, FlaskConical,
-  LayoutDashboard, LogOut, Sun, Moon, Menu, X, UsersRound, Sparkles, Archive, Upload
+  LayoutDashboard, LogOut, Sun, Moon, Menu, X, UsersRound, Sparkles, Archive, Upload, ListChecks
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type {Appearance} from '../lib/appearance'
@@ -11,6 +11,7 @@ const links = [
   ['/', 'Dashboard', LayoutDashboard],
   ['/intake', 'Add item', Sparkles],
   ['/inventory', 'Collection', Boxes],
+  ['/catch-up', 'Catch up', ListChecks],
   ['/sales', 'Sell', CircleDollarSign],
   ['/ebay', 'eBay batch', Upload],
   ['/archive', 'Archive', Archive],

@@ -453,7 +453,7 @@ export default async function handler(req: any, res: any) {
       });
       if(!response.ok)return res.status(503).json({error:'Cannot check saved draft ownership; no paid research run.'});
       const rows=await response.json();
-      if(!Array.isArray(rows)||rows.length!==1||rows[0].status!=='DRAFT'
+      if(!Array.isArray(rows)||rows.length!==1||!['DRAFT','APPROVED'].includes(rows[0].status)
          ||rows[0].result?.analysis_stage!=='COMPLETE'||!['single','batch'].includes(rows[0].mode))
         return res.status(403).json({error:'Only an accessible, completed saved draft can be researched.'});
       const o=rows[0].result?.objects?.[draft_index];
@@ -807,6 +807,8 @@ questions: 0 to 3 questions for the owner, who is holding the object, about the 
       const claimed=await ownerScopedResearchRun(supabaseUrl,supabaseKey,token,research_run_id);
       await persistResearchResult(supabaseUrl,supabaseKey,token,research_run_id,'PENDING',{...(claimed.result||{}),analysis_stage:'PROCESSING',openai_response_id:payload.id,pending_context:pendingCtx});
     }catch{/* The wait below still collects it in this request. */}
+    // Bulk catch-up starts many runs: hand back at once; the app collects them.
+    if(req.body?.no_wait===true)return res.status(202).json({code:'RESEARCH_STILL_RUNNING',research_run_id,provider_response_id:payload.id});
     const done=await waitForProvider(apiKey,payload.id,startedMs+200000);
     if(!done)return res.status(202).json({code:'RESEARCH_STILL_RUNNING',research_run_id,provider_response_id:payload.id});
     if(done.status!=='completed'){

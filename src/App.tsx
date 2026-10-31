@@ -11,6 +11,7 @@ import ItemDetail from './pages/ItemDetail'
 import Research from './pages/Research'
 import Sales from './pages/Sales'
 import EbayBatch from './pages/EbayBatch'
+import CatchUp from './pages/CatchUp'
 import Contacts from './pages/Contacts'
 import Reports from './pages/Reports'
 import Login from './pages/Login'
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/research" element={<Research/>}/>
           <Route path="/sales" element={<Sales/>}/>
           <Route path="/ebay" element={<EbayBatch/>}/>
+          <Route path="/catch-up" element={<CatchUp/>}/>
           <Route path="/lots" element={<LotOptimiser/>}/>
           <Route path="/contacts" element={<Contacts/>}/>
           <Route path="/reports" element={<Reports/>}/>
