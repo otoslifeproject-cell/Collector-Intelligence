@@ -4,6 +4,7 @@
 // many items at once: a quick check (writes the questions), then deep research
 // with the owner's answers. Every run is staged first, exactly like the item page.
 import {applyPhotoOrder} from './photoOrder.ts'
+import {readExtraPhotos} from './extraPhotos.ts'
 
 export type CatchUpState='WORKING'|'NEEDS_CHECK'|'QUESTIONS'|'READY_FOR_DEEP'|'DONE'
 export type CatchUpItem={
@@ -46,6 +47,7 @@ export async function loadCatchUp(client:any):Promise<CatchUpItem[]>{
   client.from('ci_photo_order_v1').select('run_id,scope,photo_order')
  ])
  for(const r of [runs,research])if(r.error)throw Error(r.error.message)
+ const extra=await readExtraPhotos(client,(runs.data||[]).map((r:any)=>r.id))
  const out:CatchUpItem[]=[]
  for(const run of runs.data||[]){
   if(run.stage!=='COMPLETE'||!Array.isArray(run.objects))continue
@@ -53,9 +55,11 @@ export async function loadCatchUp(client:any):Promise<CatchUpItem[]>{
   run.objects.forEach((o:any,i:number)=>{
    const rows=(research.data||[]).filter((r:any)=>r.user_context?.source_analysis_run_id===run.id&&r.user_context?.source_object_index===i&&!(r.user_context?.pair_source_indices||[]).length)
    const s=catchUpState(rows)
-   const keys:number[]=Array.isArray(o?.image_indices)?o.image_indices:[]
+   const extraHere=extra.rows.filter(e=>e.run_id===run.id&&e.object_index===i)
+   const keys:number[]=[...(Array.isArray(o?.image_indices)?o.image_indices:[]),...extraHere.map(e=>e.photo_key)]
    const order=(orders.data||[]).find((x:any)=>x.run_id===run.id&&x.scope===String(i))?.photo_order||null
-   const paths=applyPhotoOrder(keys,order).map(n=>manifest.find((p:any)=>p.index===n)?.storage_path).filter((p:any)=>typeof p==='string'&&p.startsWith(run.owner_id+'/intake/'))
+   const paths=applyPhotoOrder(keys,order).map(n=>n>=1000?extraHere.find(e=>e.photo_key===n)?.storage_path:manifest.find((p:any)=>p.index===n)?.storage_path)
+    .filter((p:any)=>typeof p==='string'&&(p.startsWith(run.owner_id+'/intake/')||p.startsWith(run.owner_id+'/extra/')))
    out.push({key:run.id+':'+i,runId:run.id,ownerId:run.owner_id,index:i,title:String(o?.working_title||o?.object_type||'Item '+(i+1)),saved:run.status==='APPROVED',
     photoPaths:paths,state:s.state,questions:s.questions,price:s.price,researchedAt:s.at})
   })

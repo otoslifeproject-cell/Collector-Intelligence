@@ -5,6 +5,7 @@ import {supabase} from '../lib/supabase'
 import {collectAll,loadCatchUp,startResearch,workingRunIds} from '../lib/bulkResearch'
 import type {Answer,CatchUpItem} from '../lib/bulkResearch'
 import {QuestionsScreen,Section} from '../components/ResultScreen'
+import {addExtraPhotos} from '../lib/extraPhotos'
 import {tasteFromInput} from '../lib/taste'
 
 // Catch up (Dean, 31 Oct): every uploaded item brought to the questions point in
@@ -114,6 +115,7 @@ export default function CatchUp(){
    </div>
    <QuestionsScreen questions={item.questions}
     photoFor={(n:number|null)=>{const p=n&&n>0?item.photoPaths[n-1]:undefined;return p&&urls[p]?{url:urls[p],number:n as number}:null}}
+    onAddPhotos={async files=>{const r=await addExtraPhotos(supabase,item.ownerId,item.runId,item.index,files);if(r.added)setReload(v=>v+1);return r.error||(r.added+' photo'+(r.added===1?'':'s')+' added. They go into the research and your listing.')}}
     busy={false} onSubmit={(a,note)=>void answer(item,a,note)} onSkip={()=>void answer(item,null,'')}/>
   </section>)}
   {!loading&&!questions.length&&!needs.length&&!ready.length&&!working&&<p className="ci-result-note">Everything is up to date.</p>}

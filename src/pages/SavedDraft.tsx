@@ -14,6 +14,8 @@ import ResultScreen,{StepStrip,QuestionsScreen} from '../components/ResultScreen
 import type {DisagreeKind} from '../components/ResultScreen'
 import {researchAnswer,resultListing} from '../lib/researchAnswer'
 import {applyPhotoOrder,readPhotoOrder,savePhotoOrder} from '../lib/photoOrder'
+import {addExtraPhotos,readExtraPhotos} from '../lib/extraPhotos'
+import type {ExtraPhoto} from '../lib/extraPhotos'
 import {googleLensLink} from '../lib/googleFirstLook'
 import ProvisionalDraftHandoff from '../components/ProvisionalDraftHandoff'
 import MiniAppraisal from '../components/MiniAppraisal'
@@ -309,14 +311,15 @@ function SavedDraftRecord({id}:{id:string}){
    if(!current())return
    if(!session||session.user.id!==run.owner_id)throw Error('Sign in again to use your private research.')
    const i=scopeIndex,pair=paired?[0,1]:[]
-   const memberKeys=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
+   const memberKeysBase=paired?[...new Set([...(run.result?.objects?.[0]?.image_indices||[]),...(run.result?.objects?.[1]?.image_indices||[])])]:run.result?.objects?.[i]?.image_indices||[]
    // Standard research reads 6 photographs (time limit); a deep dive reads up to 12.
+   const memberKeys=[...memberKeysBase,...extraKeysFor(i)]
    // Photos go in the owner's order: photo 1 (Main) first, so Lens and research start from it.
    const ordered=applyPhotoOrder(memberKeys,savedOrder)
    const urls=ordered.map((n:number)=>images[n]).filter(Boolean).slice(0,12)
    const lp=visibleResearch?.listing?.price
    const previous_price=depth!=='quick'&&typeof lp==='number'&&Number.isFinite(lp)?{price:lp,basis:'last suggested price'}:null
-   const rerun_lens=depth!=='quick'&&!!savedOrder&&savedOrder[0]!==memberKeys[0]
+   const rerun_lens=depth!=='quick'&&!!savedOrder&&savedOrder[0]!==memberKeysBase[0]
    const {data:staged,error:stageError}=await supabase.from('ai_analysis_runs').insert({mode:'research',model:'PENDING',status:'DRAFT',input_photo_count:urls.length,
     user_context:{source_analysis_run_id:run.id,source_object_index:i,pair_source_indices:pair,research_depth:depth},
     result:{analysis_stage:'STAGED',source_analysis_run_id:run.id,source_object_index:i}
@@ -492,21 +495,53 @@ function SavedDraftRecord({id}:{id:string}){
  // listing photo. Saved per draft and item in ci_photo_order_v1.
  const photoScope=paired?'pair':String(scopeIndex)
  const [savedOrder,setSavedOrder]=useState<number[]|null>(null)
+ const [savedHidden,setSavedHidden]=useState<number[]>([])
  const [photoStatus,setPhotoStatus]=useState('')
+ // Extra photos (Dean, 31 Oct): final photos added later, keys 1000+.
+ const [extras,setExtras]=useState<ExtraPhoto[]>([])
+ const [extrasReload,setExtrasReload]=useState(0)
  useEffect(()=>{
   if(!run?.id)return
-  let live=true;setSavedOrder(null);setPhotoStatus('')
-  void readPhotoOrder(supabase,run.id,photoScope).then(r=>{if(!live)return;setSavedOrder(r.order);if(!r.ready)setPhotoStatus('Photo order will not be kept yet: the database change for photo order has not been applied.')}).catch(()=>{if(live)setPhotoStatus('Saved photo order could not be read.')})
+  let live=true
+  void (async()=>{
+   const r=await readExtraPhotos(supabase,[run.id])
+   if(!live||!r.rows.length){if(live)setExtras(r.rows);return}
+   const s=await supabase.storage.from('item-images').createSignedUrls(r.rows.map(x=>x.storage_path),1800)
+   if(!live)return
+   const byPath=new Map((s.data||[]).map((x:any)=>[x.path,x.signedUrl]))
+   setImages(prev=>({...prev,...Object.fromEntries(r.rows.map(x=>[x.photo_key,byPath.get(x.storage_path)||'']))}))
+   setExtras(r.rows)
+  })().catch(()=>{})
+  return()=>{live=false}
+ },[run?.id,extrasReload])
+ const extraKeysFor=(i:number)=>extras.filter(e=>paired&&i===0?e.object_index===0||e.object_index===1:e.object_index===i).map(e=>e.photo_key)
+ const addPhotos=async(files:File[]):Promise<string|null>=>{
+  if(!run)return 'Not ready.'
+  const r=await addExtraPhotos(supabase,run.owner_id,run.id,scopeIndex,files)
+  if(r.added)setExtrasReload(v=>v+1)
+  return r.error||(r.added+' photo'+(r.added===1?'':'s')+' added. They go into the next research and your listing.')
+ }
+ useEffect(()=>{
+  if(!run?.id)return
+  let live=true;setSavedOrder(null);setSavedHidden([]);setPhotoStatus('')
+  void readPhotoOrder(supabase,run.id,photoScope).then(r=>{if(!live)return;setSavedOrder(r.order);setSavedHidden(r.hidden);if(!r.ready)setPhotoStatus('Photo order will not be kept yet: the database change for photo order has not been applied.')}).catch(()=>{if(live)setPhotoStatus('Saved photo order could not be read.')})
   return()=>{live=false}
  },[run?.id,photoScope])
- const scopePhotoIndices=run?applyPhotoOrder(indicesForReview(scopeIndex).filter(i=>!!images[i]),savedOrder):[]
+ const scopePhotoIndices=run?applyPhotoOrder([...indicesForReview(scopeIndex),...extraKeysFor(scopeIndex)].filter(i=>!!images[i]),savedOrder):[]
  const reorderPhotos=async(order:number[])=>{
   if(!run)return
   const before=savedOrder;setSavedOrder(order);setPhotoStatus('Saving photo order…')
   try{
-   const fail=await savePhotoOrder(supabase,run.id,run.owner_id,photoScope,order)
+   const fail=await savePhotoOrder(supabase,run.id,run.owner_id,photoScope,order,savedHidden)
    if(fail){setPhotoStatus(fail);if(!/not been applied/.test(fail))setSavedOrder(before)}else setPhotoStatus('Photo order saved.')
   }catch{setSavedOrder(before);setPhotoStatus('Photo order not saved: the connection failed. Try again.')}
+ }
+ const toggleHidden=async(key:number)=>{
+  if(!run)return
+  const next=savedHidden.includes(key)?savedHidden.filter(k=>k!==key):[...savedHidden,key]
+  const before=savedHidden;setSavedHidden(next);setPhotoStatus('Saving…')
+  const fail=await savePhotoOrder(supabase,run.id,run.owner_id,photoScope,scopePhotoIndices,next).catch(()=>'connection failed')
+  if(fail){setSavedHidden(before);setPhotoStatus('Not saved: '+fail)}else setPhotoStatus(next.includes(key)?'Hidden from the listing.':'Back in the listing.')
  }
  // ONE RUN: while the automatic chain is running OR about to start its next
  // step, the tracker stays on screen, so the owner never sees a half-answer
@@ -658,6 +693,7 @@ function SavedDraftRecord({id}:{id:string}){
     onDisagree={(kind,text)=>void disagreeAndResearch(kind,text)} disagreeBusy={savingDisagreement||researching}
     onConfirm={ticked=>void confirmAndResearch(ticked)}
     photos={scopePhotoIndices.map(i=>({index:i,url:images[i]}))} onReorder={order=>void reorderPhotos(order)} photoStatus={photoStatus}
+    hiddenPhotos={savedHidden} onToggleHidden={k=>void toggleHidden(k)} onAddPhotos={addPhotos}
     onDetails={()=>setActiveTab('market')} status={saveStatus}
     onNext={!paired&&researchIndex<(run.result?.objects||[]).length-1?()=>{const next=researchIndex+1;setResearchIndex(next);const params=new URLSearchParams(location.search);params.set('object',String(next));navigate({pathname:location.pathname,search:'?'+params.toString()},{replace:true})}:()=>navigate('/intake')}
     nextLabel={!paired&&researchIndex<(run.result?.objects||[]).length-1?'Next item →':'Add next item →'}/>}
@@ -666,7 +702,7 @@ function SavedDraftRecord({id}:{id:string}){
    {activeTab==='answer'&&lastFailed&&!showChain&&<p className="ci-result-note ci-run-failed" role="alert"><strong>The last deep research stopped.</strong> {String(lastFailed.result?.failure_reason||'No reason was recorded.')} You can run it again.</p>}
    {activeTab==='answer'&&questionsPending&&<QuestionsScreen questions={quickQuestions}
      photoFor={(n:number|null)=>{const i=n&&n>0?scopePhotoIndices[n-1]:undefined;return i!==undefined&&images[i]?{url:images[i],number:n as number}:null}}
-     busy={researching||researchBlocked} onSubmit={(answers,note)=>void runDraftResearch('deep_dive',{answers,note})} onSkip={()=>void runDraftResearch('deep_dive')}/>}
+     busy={researching||researchBlocked} onAddPhotos={addPhotos} onSubmit={(answers,note)=>void runDraftResearch('deep_dive',{answers,note})} onSkip={()=>void runDraftResearch('deep_dive')}/>}
    {activeTab==='answer'&&!finishedAnswer&&!showChain&&!questionsPending&&answer&&<>
     {saveStatus&&<section className="panel ci-research-stopped" role="status">
      <p><strong>Research did not finish.</strong> {saveStatus}</p>

@@ -2,7 +2,7 @@ import {useEffect,useMemo,useState} from 'react'
 import {Link} from 'react-router-dom'
 import {Check,Download,Undo2} from 'lucide-react'
 import {supabase} from '../lib/supabase'
-import {applyPhotoOrder} from '../lib/photoOrder'
+import {listingPhotoPaths,readExtraPhotos,readPhotoOrders} from '../lib/extraPhotos'
 import {ebayBatchCsv,ebayBatchProblems} from '../lib/ebayBatch'
 import type {EbayBatchRow} from '../lib/ebayBatch'
 import {Section} from '../components/ResultScreen'
@@ -33,11 +33,10 @@ export default function EbayBatch(){
    const {data:{session}}=await supabase.auth.getSession()
    if(!session)throw Error('Sign in again.')
    const uid=session.user.id
-   const [items,research,listings,orders]=await Promise.all([
+   const [items,research,listings]=await Promise.all([
     supabase.from('items').select('id,owner_id,item_code,title,object_type,status,source_analysis_run_id,source_object_index').eq('owner_id',uid).order('created_at',{ascending:false}).limit(500),
     supabase.from('ai_analysis_runs').select('id,created_at,user_context,stage:result->>analysis_stage,listing:result->listing,specifics:result->specifics').eq('owner_id',uid).eq('mode','research').order('created_at',{ascending:false}).limit(1500),
-    supabase.from('listings').select('id,item_id,listing_status,platform_title,description,asking_price,item_specifics').eq('owner_id',uid).eq('platform','EBAY'),
-    supabase.from('ci_photo_order_v1').select('run_id,scope,photo_order')
+    supabase.from('listings').select('id,item_id,listing_status,platform_title,description,asking_price,item_specifics').eq('owner_id',uid).eq('platform','EBAY')
    ])
    for(const r of [items,research,listings])if(r.error)throw Error(r.error.message)
    const latest=new Map<string,any>()
@@ -54,12 +53,15 @@ export default function EbayBatch(){
    // Main photo per item, in the owner's photo order.
    const photos=live_.length?await supabase.from('item_photos').select('item_id,storage_path,position').in('item_id',live_.map((i:any)=>i.id)).order('position'):{data:[],error:null}
    if(photos.error)throw Error(photos.error.message)
-   const orderFor=(run:string|null,idx:number|null)=>(orders.data||[]).find((o:any)=>o.run_id===run&&(o.scope===String(idx)||o.scope==='pair'))?.photo_order||null
+   const runIds=[...new Set(live_.map((i:any)=>i.source_analysis_run_id).filter(Boolean))] as string[]
+   const orders=await readPhotoOrders(supabase,runIds)
+   const extra=(await readExtraPhotos(supabase,runIds)).rows
    const mainPath=new Map<string,string>()
    for(const i of live_){
     const ps=(photos.data||[]).filter((p:any)=>p.item_id===i.id)
-    const ord=applyPhotoOrder(ps.map((p:any)=>p.position),orderFor(i.source_analysis_run_id,i.source_object_index))
-    const first=ps.find((p:any)=>p.position===ord[0]);if(first)mainPath.set(i.id,first.storage_path)
+    const ex=extra.filter(e=>e.run_id===i.source_analysis_run_id&&e.object_index===i.source_object_index)
+    const row=orders.find((o:any)=>o.run_id===i.source_analysis_run_id&&(o.scope===String(i.source_object_index)||o.scope==='pair'))
+    const first=listingPhotoPaths(ps,ex,row)[0];if(first)mainPath.set(i.id,first)
    }
    const paths=[...mainPath.values()]
    const signed=paths.length?await supabase.storage.from('item-images').createSignedUrls(paths,3600):{data:[],error:null}
@@ -107,12 +109,14 @@ export default function EbayBatch(){
    // Every photo, in the owner's order, as links eBay can fetch for 7 days.
    const photos=await supabase.from('item_photos').select('item_id,storage_path,position').in('item_id',batch.map(r=>r.itemId)).order('position')
    if(photos.error)throw Error(photos.error.message)
-   const orders=await supabase.from('ci_photo_order_v1').select('run_id,scope,photo_order').in('run_id',batch.map(r=>r.runId).filter(Boolean) as string[])
+   const runIds=[...new Set(batch.map(r=>r.runId).filter(Boolean))] as string[]
+   const orders=await readPhotoOrders(supabase,runIds)
+   const extra=(await readExtraPhotos(supabase,runIds)).rows
    const rowsOut:EbayBatchRow[]=[]
    for(const r of batch){
     const ps=(photos.data||[]).filter((p:any)=>p.item_id===r.itemId)
-    const ord=applyPhotoOrder(ps.map((p:any)=>p.position),(orders.data||[]).find((o:any)=>o.run_id===r.runId&&(o.scope===String(r.index)||o.scope==='pair'))?.photo_order||null)
-    const paths=ord.map(pos=>ps.find((p:any)=>p.position===pos)?.storage_path).filter(Boolean) as string[]
+    const ex=extra.filter(e=>e.run_id===r.runId&&e.object_index===r.index)
+    const paths=listingPhotoPaths(ps,ex,orders.find((o:any)=>o.run_id===r.runId&&(o.scope===String(r.index)||o.scope==='pair')))
     const signed=paths.length?await supabase.storage.from('item-images').createSignedUrls(paths.slice(0,24),WEEK):{data:[],error:null}
     if(signed.error)throw Error(signed.error.message)
     rowsOut.push(asBatchRow(r,(signed.data||[]).map((s:any)=>s.signedUrl).filter(Boolean)))

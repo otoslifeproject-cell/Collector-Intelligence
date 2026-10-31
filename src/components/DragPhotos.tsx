@@ -7,7 +7,7 @@ import {movePhoto} from '../lib/photoOrder'
 // the page scrolls when the hand reaches the top or bottom edge, and the photo
 // lands where it is let go. Photo 1 is the main listing photo.
 export type DragPhoto={key:string|number;url:string;sub?:string}
-type Props={photos:DragPhoto[];onReorder:(keys:(string|number)[])=>void;status?:string;large?:boolean}
+type Props={photos:DragPhoto[];onReorder:(keys:(string|number)[])=>void;status?:string;large?:boolean;hidden?:(string|number)[];onToggleHidden?:(key:string|number)=>void}
 
 function scroller(el:HTMLElement|null):HTMLElement|Window{
  for(let n=el?.parentElement;n;n=n.parentElement){
@@ -17,7 +17,7 @@ function scroller(el:HTMLElement|null):HTMLElement|Window{
  return window
 }
 
-export default function DragPhotos({photos,onReorder,status,large=false}:Props){
+export default function DragPhotos({photos,onReorder,status,large=false,hidden=[],onToggleHidden}:Props){
  const tiles=useRef<(HTMLLIElement|null)[]>([])
  const start=useRef<{x:number;y:number;n:number;dx:number;dy:number;w:number}|null>(null)
  const pointer=useRef({x:0,y:0})
@@ -75,14 +75,15 @@ export default function DragPhotos({photos,onReorder,status,large=false}:Props){
  return <div className={'ci-photo-order'+(large?' is-large':'')} onDragStart={e=>e.preventDefault()}>
   <ol>{photos.map((p,n)=><li key={p.key} ref={el=>{tiles.current[n]=el}}
     onPointerDown={e=>down(e,n)} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-    className={(n===0?'is-main ':'')+(drag&&over===n&&drag.n!==n?'is-over ':'')+(drag?.n===n?'is-dragging':'')}>
+    className={(n===0?'is-main ':'')+(drag&&over===n&&drag.n!==n?'is-over ':'')+(drag?.n===n?'is-dragging ':'')+(hidden.includes(p.key)?'is-hidden':'')}>
     <img src={p.url} alt={'Photo '+(n+1)} draggable={false}/>
-    <span>{n===0?'Main':n+1}</span>
+    <span>{hidden.includes(p.key)?'Hidden':n===0?'Main':n+1}</span>
+    {onToggleHidden&&<button type="button" className="ci-photo-hide" onPointerDown={e=>e.stopPropagation()} onClick={()=>onToggleHidden(p.key)}>{hidden.includes(p.key)?'Show':'Hide'}</button>}
     {p.sub&&<small>{p.sub}</small>}
    </li>)}</ol>
   {drag&&photos[drag.n]&&<div className="ci-photo-ghost" aria-hidden="true" style={{width:ghostW,height:ghostW,left:drag.x-ghostW/2,top:drag.y-ghostW/2}}>
    <img src={photos[drag.n].url} alt="" draggable={false}/></div>}
-  <p className="ci-result-note">Hold a photo and drag it. Photo 1 is the main photo.</p>
+  <p className="ci-result-note">Hold a photo and drag it. Photo 1 is the main photo.{onToggleHidden?' Hide leaves a photo out of the listing (research still sees it).':''}</p>
   {status&&<p className="ci-result-note" role="status">{status}</p>}
  </div>
 }

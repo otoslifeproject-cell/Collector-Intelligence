@@ -36,6 +36,9 @@ type Props={
  photos?:{index:number;url:string}[]
  onReorder?:(order:number[])=>void
  photoStatus?:string
+ hiddenPhotos?:number[]
+ onToggleHidden?:(key:number)=>void
+ onAddPhotos?:(files:File[])=>Promise<string|null>
 }
 const STEPS=['Photos','Analyse','Result','Save','Sell']
 
@@ -80,11 +83,22 @@ function CopyLine({label,text}:{label:string;text:string}){
 }
 
 
+// "Add photos" (Dean, 31 Oct): final photos for the follow-up research and listing.
+export function AddPhotos({onAdd}:{onAdd:(files:File[])=>Promise<string|null>}){
+ const [busy,setBusy]=useState(false),[note,setNote]=useState('')
+ return <div className="ci-add-photos">
+  <label className="ci-big-button ci-big-button-small">{busy?'Adding…':'+ Add photos'}
+   <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple hidden disabled={busy}
+    onChange={async e=>{const files=[...(e.target.files||[])];e.target.value='';if(!files.length)return;setBusy(true);setNote('');setNote(await onAdd(files)||'');setBusy(false)}}/></label>
+  {note&&<span className="ci-result-note" role="status">{note}</span>}
+ </div>
+}
+
 // Questions BEFORE deep research (Dean, 31 Oct): each question shows the photo
 // it is about and what Yes and No mean, so a "yes" can never be misread.
 export type OwnerQuestion={question:string;photo:number|null;why:string;if_yes:string;if_no:string;price_if_yes:number|null;price_if_no:number|null}
 type Answer='YES'|'NO'|'NOT_SURE'
-export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{questions:OwnerQuestion[];photoFor:(n:number|null)=>{url:string;number:number}|null;busy:boolean;onSubmit:(a:{question:string;answer:Answer;note?:string}[],note:string)=>void;onSkip:()=>void}){
+export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip,onAddPhotos}:{onAddPhotos?:(files:File[])=>Promise<string|null>;questions:OwnerQuestion[];photoFor:(n:number|null)=>{url:string;number:number}|null;busy:boolean;onSubmit:(a:{question:string;answer:Answer;note?:string}[],note:string)=>void;onSkip:()=>void}){
  const [answers,setAnswers]=useState<Record<number,Answer>>({})
  const [notes,setNotes]=useState<Record<number,string>>({})
  const [general,setGeneral]=useState('')
@@ -108,6 +122,7 @@ export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{quest
     <p className="ci-question-effects"><span><strong>Yes</strong> → {q.if_yes}{gbp(q.price_if_yes)}</span><span><strong>No</strong> → {q.if_no}{gbp(q.price_if_no)}</span></p>
    </div>
   </article>})}
+  {onAddPhotos&&<AddPhotos onAdd={onAddPhotos}/>}
   <label className="ci-question-note ci-question-general">Anything else you noticed on the item? Marks, stamps, labels, materials (optional)
    <textarea rows={2} maxLength={800} value={general} onChange={e=>setGeneral(e.target.value)}/></label>
   <div className="ci-result-actions">
@@ -118,7 +133,7 @@ export function QuestionsScreen({questions,photoFor,busy,onSubmit,onSkip}:{quest
  </section>
 }
 
-export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →',onConfirm,photos=[],onReorder,photoStatus}:Props){
+export default function ResultScreen({listing,onSave,saveDisabled=false,saved=false,onDisagree,disagreeBusy=false,onDetails,status,onNext,nextLabel='Next item →',onConfirm,photos=[],onReorder,photoStatus,hiddenPhotos=[],onToggleHidden,onAddPhotos}:Props){
  const [open,setOpen]=useState(false)
  const [kind,setKind]=useState<DisagreeKind|null>(null)
  const [note,setNote]=useState('')
@@ -138,7 +153,9 @@ export default function ResultScreen({listing,onSave,saveDisabled=false,saved=fa
     :listing.price&&<small className="ci-result-basis">No sold examples found: price from items for sale</small>}
   </div>
   {photos.length>0&&onReorder&&<Section title={'Photos · drag to reorder · photo 1 is the main photo'} defaultOpen>
-   <DragPhotos photos={photos.map(p=>({key:p.index,url:p.url}))} onReorder={keys=>onReorder(keys.map(Number))} status={photoStatus}/>
+   <DragPhotos photos={photos.map(p=>({key:p.index,url:p.url}))} onReorder={keys=>onReorder(keys.map(Number))} status={photoStatus}
+    hidden={hiddenPhotos} onToggleHidden={onToggleHidden?k=>onToggleHidden(Number(k)):undefined}/>
+   {onAddPhotos&&<AddPhotos onAdd={onAddPhotos}/>}
   </Section>}
   {(listing.seen?.length??0)>0&&<Section title={'✓ Read from your photos · '+listing.seen!.length}>
    <ul className="ci-seen-list">{listing.seen!.map(s=><li key={s}><Check size={20} aria-hidden="true"/>{s}</li>)}</ul>
